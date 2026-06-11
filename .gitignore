@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Excel lock files
+~$*
+
+# Optional: ignore regenerated outputs if you only want source in the repo.
+# Leave commented if you want output/ tracked so others can view without rebuilding.
+# output/
+
+# Sensitive working files
+*.private.json
+scratch/

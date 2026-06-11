@@ -47,7 +47,7 @@ def build():
     html = TEMPLATE.replace("__DATA__", data_json)
     out = OUTPUT_DIR / "workspace_explorer.html"
     out.write_text(html, encoding="utf-8")
-    print(f"  Saved → {out.relative_to(OUTPUT_DIR.parent)}  ({out.stat().st_size/1024:.1f} KB)")
+    print(f"  Saved -> {out.relative_to(OUTPUT_DIR.parent)}  ({out.stat().st_size/1024:.1f} KB)")
 
 if __name__ == "__main__":
     build()

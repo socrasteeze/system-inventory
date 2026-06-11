@@ -91,6 +91,21 @@ def _load_overrides():
             return {}
     return {}
 
+def canonicalize_name(name):
+    """Resolve a display name through the name_aliases section of form_aliases.json.
+
+    Workflow JSON exports sometimes reference forms by an older or abbreviated name
+    (e.g. "395X - Inspections") that doesn't match the canonical display name derived
+    from the form file ("395 - Inspection Work Order").  Adding an entry to
+    data/manual/form_aliases.json under the "name_aliases" key fixes the mismatch
+    without touching either source JSON.
+    """
+    if not name:
+        return name
+    overrides = _load_overrides()
+    aliases = overrides.get("name_aliases", {}) if isinstance(overrides, dict) else {}
+    return aliases.get(name, name)
+
 def _guess_form_name(stem):
     """Map a filename stem to a clean display name. Manual overrides take precedence."""
     overrides = _load_overrides()
@@ -129,6 +144,12 @@ def parse_workflow(json_path, manual_meta=None):
         "fieldUsage": [],
         "externalRefs": d.get("ExternalReferences", []),
     }
+
+    # Normalize form names through name_aliases before building the lookup table so
+    # every downstream ref_by_id.get(...).get("FormName") returns the canonical name.
+    for ref in wf["externalRefs"]:
+        if ref.get("FormName"):
+            ref["FormName"] = canonicalize_name(ref["FormName"])
 
     # Lookup helper for ExternalReferences (turn GUIDs into names)
     ref_by_id = {r.get("RefId"): r for r in wf["externalRefs"]}

@@ -4,5 +4,9 @@
   "so_cal-esa_whole_home_pp_d__315-so_cal_whp_assessment_v105_design":"315 - SoCal WHP Assessment",
   "so_cal-esa_whole_home_pp_d__325-so_cal_installation_v92_design":   "325 - SoCal Installation",
   "so_cal-esa_whole_home_pp_d__395-inspection_work_order_v77_design__1_": "395 - Inspection Work Order",
-  "so_cal-esa_whole_home_pp_d__invoice_v169_design__1_":              "Invoice"
+  "so_cal-esa_whole_home_pp_d__invoice_v169_design__1_":              "Invoice",
+
+  "name_aliases": {
+    "395X - Inspections": "395 - Inspection Work Order"
+  }
 }

@@ -268,7 +268,7 @@ def build(workspace_name=None):
     wb.save(out)
     print(f"  Forms: {len(data['forms'])}  Fields: {sum(len(v) for v in data['fields'].values())}  "
           f"Relationships: {len(data['relationships'])}  Workflows: {len(data['workflows'])}")
-    print(f"  Saved → {out.relative_to(OUTPUT_DIR.parent)}")
+    print(f"  Saved -> {out.relative_to(OUTPUT_DIR.parent)}")
 
 if __name__ == "__main__":
     build()

@@ -108,6 +108,10 @@ def canonicalize_name(name):
 
 def _guess_form_name(stem):
     """Map a filename stem to a clean display name. Manual overrides take precedence."""
+    import re
+    # Strip platform copy-marker suffixes (__1_, __2_, etc.) before any lookup.
+    # The platform appends these when a form is duplicated; the copy is the real form.
+    stem = re.sub(r'(__\d+_?)+$', '', stem)
     overrides = _load_overrides()
     if stem in overrides:
         return overrides[stem]
@@ -118,7 +122,6 @@ def _guess_form_name(stem):
     if "__" in s:
         s = s.split("__", 1)[1]
     # drop trailing _vNNN_design or similar
-    import re
     s = re.sub(r"_v\d+(_design)?(_+\d*)?$", "", s)
     s = re.sub(r"_design.*$", "", s)
     s = s.replace("_", " ").strip()

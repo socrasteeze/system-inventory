@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SoCal WHP Workspace · Interactive Map</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
+<style>
+  :root {
+    --bg:#0f1115; --bg2:#1a1d24; --bg3:#252932; --border:#2e3340;
+    --text:#e8ebf0; --muted:#8a92a3; --accent:#5eead4;
+    --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171;
+    --read:#60a5fa; --write:#f87171; --match:#a78bfa; --cond:#fbbf24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+            background:var(--bg);color:var(--text);overflow:hidden}
+  body{display:grid;grid-template-rows:auto 1fr;grid-template-columns:1fr 380px;
+       grid-template-areas:"toolbar toolbar" "graph panel"}
+  /* toolbar */
+  .toolbar{grid-area:toolbar;background:var(--bg2);border-bottom:1px solid var(--border);
+           padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .toolbar h1{font-size:14px;font-weight:600;letter-spacing:0.3px}
+  .toolbar h1 .sub{color:var(--muted);font-weight:400;margin-left:8px;font-size:12px}
+  .toolbar .spacer{flex:1}
+  .toolbar input,.toolbar select,.toolbar button{
+    background:var(--bg3);color:var(--text);border:1px solid var(--border);
+    padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit;outline:none}
+  .toolbar input{width:200px}
+  .toolbar input:focus{border-color:var(--accent)}
+  .toolbar button{cursor:pointer;transition:all 0.15s}
+  .toolbar button:hover{background:var(--border);border-color:var(--accent)}
+  .toolbar .stats{color:var(--muted);font-size:11px;font-family:monospace}
+  /* graph */
+  #cy{grid-area:graph;background:var(--bg);position:relative}
+  .legend{position:absolute;bottom:12px;left:12px;background:rgba(26,29,36,0.92);
+          border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:11px;
+          display:flex;gap:14px;flex-wrap:wrap;backdrop-filter:blur(6px)}
+  .legend .item{display:flex;align-items:center;gap:6px}
+  .legend .dot{width:10px;height:10px;border-radius:50%}
+  /* side panel */
+  .panel{grid-area:panel;background:var(--bg2);border-left:1px solid var(--border);
+         overflow-y:auto;padding:18px}
+  .panel.empty{display:flex;align-items:center;justify-content:center;color:var(--muted);
+               font-size:13px;text-align:center;padding:40px}
+  .panel h2{font-size:16px;font-weight:600;margin-bottom:4px}
+  .panel .role{display:inline-block;font-size:10px;padding:2px 8px;border-radius:4px;
+               text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;font-weight:600}
+  .role.Hub{background:#3b2d63;color:#d9c9ff}
+  .role.Spoke{background:#1e3a5f;color:#bcdbff}
+  .role.Lookup{background:#523a14;color:#ffe0a3}
+  .role.Workflow{background:#5f2424;color:#ffc4c4}
+  .panel .meta{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+  .panel .meta b{color:var(--text);font-weight:600}
+  .panel .section{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+  .panel .section h3{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
+                     color:var(--muted);margin-bottom:10px}
+  .panel input.field-search{width:100%;background:var(--bg3);color:var(--text);
+      border:1px solid var(--border);padding:6px 10px;border-radius:5px;font-size:12px;
+      outline:none;margin-bottom:8px}
+  .panel input.field-search:focus{border-color:var(--accent)}
+  .field-list{max-height:none}
+  .field{padding:6px 8px;border-radius:4px;font-size:12px;cursor:pointer;
+         border-left:2px solid transparent;transition:all 0.1s;font-family:monospace}
+  .field:hover{background:var(--bg3)}
+  .field.touched{border-left-color:var(--accent);background:rgba(94,234,212,0.06)}
+  .field .fname{color:var(--text)}
+  .field .flbl{color:var(--muted);font-size:10px;margin-left:6px;font-family:inherit}
+  .field .ftype{color:var(--accent);font-size:10px;float:right;font-family:monospace}
+  .field .badges{display:inline-flex;gap:4px;margin-left:6px}
+  .badge{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg3);
+         color:var(--muted);font-family:inherit;letter-spacing:0.3px}
+  .badge.rel{background:#3b2d63;color:#d9c9ff}
+  .badge.ref{background:#1e3a5f;color:#bcdbff}
+  .badge.req{background:#5f2424;color:#ffc4c4}
+  .wf-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+           padding:10px 12px;margin-bottom:8px;font-size:12px;cursor:pointer}
+  .wf-card:hover{border-color:var(--accent)}
+  .wf-card .cs{font-family:monospace;color:var(--accent);font-size:11px}
+  .wf-card .nm{font-weight:600;margin:2px 0}
+  .wf-card .desc{color:var(--muted);font-size:11px;line-height:1.4}
+  .usage{padding:6px 10px;border-radius:4px;font-size:11px;margin-bottom:6px;
+         background:var(--bg3);border-left:3px solid var(--muted);font-family:monospace}
+  .usage.Read{border-left-color:var(--read)}
+  .usage.Write{border-left-color:var(--write)}
+  .usage.Match{border-left-color:var(--match)}
+  .usage.Condition{border-left-color:var(--cond)}
+  .usage .dir{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;
+              margin-right:6px;font-weight:600;text-transform:uppercase}
+  .usage.Read .dir{background:var(--read);color:#0f1115}
+  .usage.Write .dir{background:var(--write);color:#0f1115}
+  .usage.Match .dir{background:var(--match);color:#0f1115}
+  .usage.Condition .dir{background:var(--cond);color:#0f1115}
+  .usage .ctx{color:var(--muted);font-size:10px;margin-top:3px;font-family:inherit}
+  .close-btn{float:right;background:transparent;border:0;color:var(--muted);cursor:pointer;
+             font-size:18px;line-height:1}
+  .close-btn:hover{color:var(--text)}
+  .empty-state{color:var(--muted);font-size:11px;font-style:italic;padding:6px 0}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>SoCal WHP Workspace<span class="sub">interactive map · click any node</span></h1>
+  <input id="search" placeholder="Search forms / fields..." autocomplete="off">
+  <select id="layout">
+    <option value="preset">Layout: Hub &amp; Spoke</option>
+    <option value="cose">Layout: Force</option>
+    <option value="circle">Layout: Circle</option>
+    <option value="grid">Layout: Grid</option>
+    <option value="breadthfirst">Layout: Hierarchy</option>
+  </select>
+  <button id="fit">Fit</button>
+  <button id="reset">Reset</button>
+  <div class="spacer"></div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div id="cy"></div>
+
+<div class="legend">
+  <div class="item"><div class="dot" style="background:var(--hub)"></div>Hub</div>
+  <div class="item"><div class="dot" style="background:var(--spoke)"></div>Spoke</div>
+  <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
+  <div class="item"><div class="dot" style="background:var(--wf)"></div>Workflow</div>
+  <div class="item" style="color:var(--muted)">solid edge = relationship · dashed = workflow trigger/target</div>
+</div>
+
+<div class="panel empty" id="panel">
+  Click a node to inspect.<br>Scroll to zoom · drag to pan.
+</div>
+
+<script>
+const DATA = __DATA__;
+
+const stats = document.getElementById('stats');
+const refPullsByPair = {};
+DATA.refPulls.forEach(r => {
+  // resolve via -> target form using relationships
+  const rel = DATA.relationships.find(x => x.source === r.destForm && x.via === r.via);
+  if (rel) {
+    const k = r.destForm + '→' + rel.target;
+    refPullsByPair[k] = (refPullsByPair[k] || 0) + 1;
+  }
+});
+
+stats.textContent = `${DATA.forms.length} forms · ${DATA.relationships.length} relationships · ${DATA.refPulls.length} ref-pulls · ${Object.values(DATA.fields).reduce((a,b)=>a+b.length,0)} fields · ${DATA.workflows.length} workflow`;
+
+// Build cytoscape elements
+const elements = [];
+const ROLE_COLOR = {Hub:'var(--hub)', Spoke:'var(--spoke)', Lookup:'var(--lookup)', Workflow:'var(--wf)'};
+
+DATA.forms.forEach(f => {
+  elements.push({data:{id:f.name, label:f.name, role:f.role, fieldCount:f.fieldCount,
+                       kind:'form'}});
+});
+
+// Workflow nodes
+DATA.workflows.forEach(w => {
+  elements.push({data:{id:'WF:'+w.callsign, label:w.callsign, role:'Workflow',
+                       kind:'workflow', wfRef:w.callsign}});
+});
+
+// Relationship edges
+const seenEdges = new Set();
+DATA.relationships.forEach(r => {
+  if (!DATA.forms.find(f => f.name === r.target)) return; // skip if target not in our form list
+  const key = r.source + '|' + r.target;
+  const count = refPullsByPair[r.source + '→' + r.target] || 0;
+  if (seenEdges.has(key)) return;
+  seenEdges.add(key);
+  elements.push({data:{
+    source:r.source, target:r.target,
+    label: count > 0 ? `${r.via} · ${count} pulls` : r.via,
+    kind:'relationship'
+  }});
+});
+
+// Workflow edges
+DATA.workflows.forEach(w => {
+  if (w.trigger && w.trigger.form) {
+    elements.push({data:{source:w.trigger.form, target:'WF:'+w.callsign,
+      label:'trigger', kind:'wf-edge'}});
+  }
+  w.actions.forEach(a => {
+    if (a.targetForm) {
+      elements.push({data:{source:'WF:'+w.callsign, target:a.targetForm,
+        label:a.type.replace('BuiltIn.',''), kind:'wf-edge'}});
+    }
+  });
+});
+
+// Preset positions (hub-and-spoke layout)
+const PRESET = {
+  '300 - Account Management':   {x:520, y:380},
+  '310 - Enrollment Intake':    {x:180, y:560},
+  '315 - SoCal WHP Assessment': {x:340, y:660},
+  '325 - SoCal Installation':   {x:560, y:680},
+  'Invoice':                    {x:820, y:600},
+  '395 - Inspection Work Order':{x:880, y:420},
+  '399 - Measures':             {x:760, y:180},
+  'Climate Zones':              {x:240, y:180},
+  'Fee Schedule':               {x:1020, y:280},
+  'WF:INSPECT-01':              {x:1020, y:520},
+};
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: elements,
+  style: [
+    {selector:'node', style:{
+      'background-color': ele => ROLE_COLOR[ele.data('role')] || '#888',
+      'label':'data(label)', 'color':'#e8ebf0', 'font-size':11, 'font-weight':500,
+      'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
+      'text-max-width':110, 'width': ele => ele.data('kind')==='workflow' ? 100 : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4,
+      'height': ele => ele.data('kind')==='workflow' ? 60 : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4,
+      'shape': ele => ele.data('kind')==='workflow' ? 'round-rectangle' : 'round-rectangle',
+      'border-width':2, 'border-color':'#0f1115',
+      'transition-property':'background-color, border-color, opacity',
+      'transition-duration': '180ms',
+    }},
+    {selector:'node:selected', style:{
+      'border-color':'#5eead4', 'border-width':3
+    }},
+    {selector:'node.dim', style:{'opacity':0.18}},
+    {selector:'node.highlight', style:{'border-color':'#5eead4','border-width':3}},
+    {selector:'edge', style:{
+      'width': ele => Math.min(8, 1 + Math.log(1 + (parseInt((ele.data('label')||'').split('·')[1]) || 1))),
+      'line-color':'#3a4050', 'target-arrow-color':'#3a4050',
+      'target-arrow-shape':'triangle', 'curve-style':'bezier',
+      'label':'data(label)', 'font-size':9, 'color':'#8a92a3',
+      'text-rotation':'autorotate', 'text-background-color':'#0f1115',
+      'text-background-opacity':0.8, 'text-background-padding':2,
+      'text-background-shape':'round-rectangle',
+      'transition-property':'line-color, target-arrow-color, opacity',
+      'transition-duration':'180ms',
+    }},
+    {selector:'edge[kind = "wf-edge"]', style:{
+      'line-style':'dashed', 'line-color':'#f87171', 'target-arrow-color':'#f87171'
+    }},
+    {selector:'edge.dim', style:{'opacity':0.1}},
+    {selector:'edge.highlight', style:{'line-color':'#5eead4','target-arrow-color':'#5eead4',
+                                       'width':3, 'opacity':1}},
+  ],
+  layout:{name:'preset', positions: PRESET, fit:true, padding:60},
+  wheelSensitivity: 0.2,
+  minZoom: 0.2, maxZoom: 3,
+});
+
+cy.ready(() => cy.fit(undefined, 60));
+
+// Panel rendering
+const panel = document.getElementById('panel');
+let activeNodeId = null;
+let activeFieldFilter = '';
+
+function clearHighlights(){
+  cy.elements().removeClass('dim highlight');
+}
+
+function renderEmpty(){
+  panel.className = 'panel empty';
+  panel.innerHTML = 'Click a node to inspect.<br>Scroll to zoom · drag to pan.';
+  activeNodeId = null;
+  clearHighlights();
+}
+
+function renderForm(formName){
+  const f = DATA.forms.find(x => x.name === formName);
+  if (!f) return;
+  const fields = DATA.fields[formName] || [];
+  const incomingRels = DATA.relationships.filter(r => r.target === formName);
+  const outgoingRels = DATA.relationships.filter(r => r.source === formName);
+  const wfsTouching = DATA.workflows.filter(w =>
+    w.fieldUsage.some(u => u.form === formName) ||
+    (w.trigger && w.trigger.form === formName) ||
+    w.actions.some(a => a.targetForm === formName));
+  const touchedFieldNames = new Set();
+  wfsTouching.forEach(w => w.fieldUsage.filter(u => u.form === formName)
+                                       .forEach(u => touchedFieldNames.add(u.field)));
+
+  panel.className = 'panel';
+  panel.innerHTML = `
+    <button class="close-btn" onclick="renderEmpty()">×</button>
+    <h2>${escapeHtml(f.name)}</h2>
+    <span class="role ${f.role}">${f.role}</span>
+    <div class="meta">
+      <b>${f.fieldCount}</b> fields ·
+      <b>${incomingRels.length}</b> incoming links ·
+      <b>${outgoingRels.length}</b> outgoing links<br>
+      <b>${wfsTouching.length}</b> workflow(s) touch this form
+    </div>
+
+    ${outgoingRels.length ? `<div class="section"><h3>Outgoing relationships</h3>
+      ${outgoingRels.map(r => `<div class="usage" style="border-left-color:var(--accent)">
+        ${escapeHtml(r.via)} → ${escapeHtml(r.target)}
+        <div class="ctx">match field on target: ${escapeHtml(r.label||'(none)')}</div></div>`).join('')}
+      </div>` : ''}
+
+    ${incomingRels.length ? `<div class="section"><h3>Incoming relationships</h3>
+      ${incomingRels.map(r => `<div class="usage">${escapeHtml(r.source)} → ${escapeHtml(r.via)}</div>`).join('')}
+      </div>` : ''}
+
+    ${wfsTouching.length ? `<div class="section"><h3>Workflows touching this form</h3>
+      ${wfsTouching.map(w => `<div class="wf-card" onclick="cy.$('#WF:${w.callsign}').emit('tap')">
+        <span class="cs">${escapeHtml(w.callsign)}</span>
+        <div class="nm">${escapeHtml(w.name)}</div>
+      </div>`).join('')}
+      </div>` : ''}
+
+    <div class="section">
+      <h3>Fields (${fields.length})</h3>
+      <input class="field-search" id="field-search" placeholder="filter fields..."
+             value="${escapeHtml(activeFieldFilter)}">
+      <div class="field-list" id="field-list"></div>
+    </div>
+  `;
+
+  const searchEl = document.getElementById('field-search');
+  if (searchEl) {
+    searchEl.addEventListener('input', e => { activeFieldFilter = e.target.value; renderFieldList(formName); });
+  }
+  renderFieldList(formName);
+}
+
+function renderFieldList(formName){
+  const list = document.getElementById('field-list');
+  if (!list) return;
+  const fields = DATA.fields[formName] || [];
+  const q = activeFieldFilter.toLowerCase();
+  const wfsTouching = DATA.workflows.filter(w =>
+    w.fieldUsage.some(u => u.form === formName));
+  const touchedFieldNames = new Set();
+  wfsTouching.forEach(w => w.fieldUsage.filter(u => u.form === formName)
+                                       .forEach(u => touchedFieldNames.add(u.field)));
+  const filtered = fields.filter(f =>
+    !q || f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q));
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state">no fields match</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(f => {
+    const touched = touchedFieldNames.has(f.name);
+    return `<div class="field ${touched?'touched':''}" onclick="showFieldDetail('${escapeAttr(formName)}','${escapeAttr(f.name)}')">
+      <span class="fname">${escapeHtml(f.name)}</span>
+      <span class="ftype">${escapeHtml(f.type||'')}</span>
+      <span class="flbl">${escapeHtml(f.label||'')}</span>
+      <span class="badges">
+        ${f.required==='Yes'?'<span class="badge req">REQ</span>':''}
+        ${f.component==='FormRelationshipInput'?'<span class="badge rel">REL</span>':''}
+        ${f.component==='FormRelationshipReferenceDataInput'?'<span class="badge ref">REF</span>':''}
+      </span>
+    </div>`;
+  }).join('');
+}
+
+function showFieldDetail(formName, fieldName){
+  const usages = [];
+  DATA.workflows.forEach(w => {
+    w.fieldUsage.forEach(u => {
+      if (u.form === formName && u.field === fieldName) {
+        usages.push({wf:w, usage:u});
+      }
+    });
+  });
+  const field = (DATA.fields[formName]||[]).find(f => f.name === fieldName);
+  if (!field) return;
+
+  const fieldDetail = document.createElement('div');
+  fieldDetail.className = 'section';
+  fieldDetail.innerHTML = `
+    <h3>Field detail · ${escapeHtml(fieldName)}</h3>
+    <div class="meta">
+      <b>Label:</b> ${escapeHtml(field.label||'(none)')}<br>
+      <b>Type:</b> ${escapeHtml(field.type||'')}<br>
+      <b>Component:</b> ${escapeHtml(field.component||'')}<br>
+      ${field.relatedForm?`<b>Linked to:</b> ${escapeHtml(field.relatedForm)}<br>`:''}
+      ${field.relatedField?`<b>Pulls field:</b> ${escapeHtml(field.relatedField)}<br>`:''}
+      ${field.via?`<b>Via relationship:</b> ${escapeHtml(field.via)}<br>`:''}
+    </div>
+    ${usages.length?
+      `<h3 style="margin-top:14px">Workflow usage (${usages.length})</h3>
+       ${usages.map(({wf,usage}) => `<div class="usage ${usage.direction}">
+         <span class="dir">${usage.direction}</span>${escapeHtml(wf.callsign)}
+         <div class="ctx">${escapeHtml(usage.context)}</div>
+       </div>`).join('')}`
+      :'<div class="empty-state">no workflows touch this field yet</div>'}
+  `;
+  panel.appendChild(fieldDetail);
+  fieldDetail.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderWorkflow(callsign){
+  const w = DATA.workflows.find(x => x.callsign === callsign);
+  if (!w) return;
+  panel.className = 'panel';
+  panel.innerHTML = `
+    <button class="close-btn" onclick="renderEmpty()">×</button>
+    <h2>${escapeHtml(w.name)}</h2>
+    <span class="role Workflow">Workflow · ${escapeHtml(w.callsign)}</span>
+
+    <div class="section"><h3>Trigger</h3>
+      <div class="usage Condition">
+        <span class="dir">${escapeHtml(w.trigger.type.split(' · ')[0])}</span>${escapeHtml(w.trigger.form)}
+        <div class="ctx">${escapeHtml(w.trigger.condition)}</div>
+      </div>
+    </div>
+
+    <div class="section"><h3>Actions</h3>
+      ${w.actions.map(a => `<div class="wf-card">
+        <div class="nm">${escapeHtml(a.name)}</div>
+        <div class="cs">${escapeHtml(a.type)}</div>
+        <div class="desc">target: ${escapeHtml(a.targetForm)}<br>
+        dup policy: ${escapeHtml(a.duplicatePolicy)} · match: ${escapeHtml(a.matchOn||'(none)')}</div>
+      </div>`).join('')}
+    </div>
+
+    <div class="section"><h3>Field usage (${w.fieldUsage.length})</h3>
+      ${w.fieldUsage.map(u => `<div class="usage ${u.direction}">
+        <span class="dir">${u.direction}</span>${escapeHtml(u.form)} · ${escapeHtml(u.field)}
+        <div class="ctx">${escapeHtml(u.context)}</div>
+      </div>`).join('')}
+    </div>
+  `;
+  highlightWorkflow(w);
+}
+
+function highlightWorkflow(w){
+  clearHighlights();
+  cy.elements().addClass('dim');
+  const touched = new Set();
+  touched.add('WF:'+w.callsign);
+  if (w.trigger && w.trigger.form) touched.add(w.trigger.form);
+  w.actions.forEach(a => a.targetForm && touched.add(a.targetForm));
+  touched.forEach(id => {
+    const n = cy.$id(id);
+    n.removeClass('dim').addClass('highlight');
+    n.connectedEdges().forEach(e => {
+      if (touched.has(e.source().id()) && touched.has(e.target().id())) {
+        e.removeClass('dim').addClass('highlight');
+      }
+    });
+  });
+}
+
+cy.on('tap', 'node', evt => {
+  const n = evt.target;
+  activeNodeId = n.id();
+  activeFieldFilter = '';
+  if (n.data('kind') === 'workflow') {
+    renderWorkflow(n.data('wfRef'));
+  } else {
+    clearHighlights();
+    cy.elements().addClass('dim');
+    n.removeClass('dim').addClass('highlight');
+    n.connectedEdges().forEach(e => {
+      e.removeClass('dim').addClass('highlight');
+      e.connectedNodes().removeClass('dim');
+    });
+    renderForm(n.id());
+  }
+});
+
+cy.on('tap', evt => {
+  if (evt.target === cy) { renderEmpty(); }
+});
+
+// Toolbar wiring
+document.getElementById('layout').addEventListener('change', e => {
+  const name = e.target.value;
+  if (name === 'preset') {
+    cy.layout({name:'preset', positions: PRESET, fit:true, padding:60}).run();
+  } else if (name === 'cose') {
+    cy.layout({name:'cose', animate:true, fit:true, padding:60, nodeRepulsion:8000,
+               idealEdgeLength:120, gravity:0.5}).run();
+  } else {
+    cy.layout({name, fit:true, padding:60, animate:true}).run();
+  }
+});
+document.getElementById('fit').addEventListener('click', () => cy.fit(undefined, 60));
+document.getElementById('reset').addEventListener('click', () => {
+  cy.layout({name:'preset', positions: PRESET, fit:true, padding:60}).run();
+  renderEmpty();
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  if (!q) { clearHighlights(); return; }
+  clearHighlights();
+  cy.elements().addClass('dim');
+  // Match forms by name
+  cy.nodes().forEach(n => {
+    const formMatch = n.id().toLowerCase().includes(q);
+    let fieldMatch = false;
+    if (n.data('kind') === 'form') {
+      const fields = DATA.fields[n.id()] || [];
+      fieldMatch = fields.some(f =>
+        f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q));
+    }
+    if (formMatch || fieldMatch) {
+      n.removeClass('dim').addClass('highlight');
+      n.connectedEdges().forEach(e => { e.removeClass('dim'); e.connectedNodes().removeClass('dim'); });
+    }
+  });
+});
+
+// Helpers
+function escapeHtml(s){return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function escapeAttr(s){return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+window.renderEmpty = renderEmpty;
+window.showFieldDetail = showFieldDetail;
+window.cy = cy;
+</script>
+</body>
+</html>

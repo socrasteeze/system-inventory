@@ -52,6 +52,9 @@
   .row .s{color:var(--muted);font-size:11px;margin-top:2px;font-family:monospace}
   .pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin:2px 4px 0 0;
         background:#1e3a5f;color:#bcdbff;font-family:monospace}
+  .open-btn{display:inline-block;margin:10px 0 4px;padding:7px 12px;border-radius:5px;
+            background:var(--accent);color:#0f1115;font-size:12px;font-weight:600;text-decoration:none}
+  .open-btn:hover{filter:brightness(1.1)}
   .empty-state{color:var(--muted);font-size:11px;font-style:italic;padding:6px 0}
   .close-btn{float:right;background:transparent;border:0;color:var(--muted);cursor:pointer;
              font-size:18px;line-height:1}
@@ -208,6 +211,8 @@ function renderForm(node){
     <h2>${escapeHtml(name)}</h2>
     <span class="role">${escapeHtml(node.data('role'))} · ${escapeHtml(slug)}</span>
     <div class="meta"><b>${node.data('fieldCount')}</b> fields · workspace <b>${escapeHtml(slug)}</b></div>
+    <a class="open-btn" target="_blank" rel="noopener"
+       href="../${encodeURIComponent(slug)}/workspace_explorer.html#form=${encodeURIComponent(name)}">Open in per-workspace explorer →</a>
     ${otherSlugs.length ? `<div class="section"><h3>Also appears in</h3>
       ${otherSlugs.map(s => `<span class="pill">${escapeHtml(s)}</span>`).join('')}
       <div class="meta" style="margin-top:8px">Rename impact crosses ${otherSlugs.length+1} workspaces.</div>

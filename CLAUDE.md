@@ -33,6 +33,23 @@ Nothing in the scripts is workspace-specific. Display name and graph layout live
 
 ---
 
+## Design principles
+
+The two explorers are deliberately separate layers. Keep them that way.
+
+- **Global view (`output/global/global-explorer.html`) — strategic / cross-workspace breadth.** Workspaces as clusters, form-name collisions, duplicate flows. It answers "what spans workspaces, what's duplicated, what does a rename touch." It does not show fields, field detail, or per-field workflow usage.
+- **Per-workspace view (`output/<slug>/workspace_explorer.html`) — operational / field-level depth.** Form and field inspection, per-field workflow usage, trigger/action detail. It answers "what is inside this workspace."
+
+The views complement each other; they do not duplicate capability. The bridge between them is one-directional: clicking a form node in the global view shows an **Open in per-workspace explorer** link that deep-links into the operational view (see below). Depth is reached by navigating *to* the per-workspace view, never by importing depth *into* the global view.
+
+When a feature request would add operational detail (fields, field usage, per-record data) to the global view, or strategic cross-workspace rollups into a single workspace view, question it before implementing — it almost always means the work belongs in the other layer, or belongs in a link between them.
+
+### Cross-view deep link
+
+The global view's per-form link points at `../<slug>/workspace_explorer.html#form=<url-encoded form name>`. On load, the per-workspace explorer's `selectFromHash()` reads the `form` hash param, taps the matching node (`cy.$id(name).emit('tap')`), and centers on it — so the operational view opens with that form already selected. Form node IDs in both views are the plain display name, which is what makes the handoff work.
+
+---
+
 ## Folder structure
 
 ```

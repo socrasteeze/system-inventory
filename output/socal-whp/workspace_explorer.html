@@ -265,7 +265,17 @@ const cy = cytoscape({
   minZoom: 0.2, maxZoom: 3,
 });
 
-cy.ready(() => cy.fit(undefined, 60));
+cy.ready(() => { cy.fit(undefined, 60); selectFromHash(); });
+
+// Deep link from the global explorer: #form=<name> opens with that form selected.
+function selectFromHash(){
+  const formName = new URLSearchParams(location.hash.slice(1)).get('form');
+  if (!formName) return;
+  const node = cy.$id(formName);
+  if (node.empty()) return;
+  node.emit('tap');
+  cy.animate({center:{eles: node}}, {duration:400});
+}
 
 // Panel rendering
 const panel = document.getElementById('panel');

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cross-Workspace Map</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
+<style>
+  :root {
+    --bg:#0f1115; --bg2:#1a1d24; --bg3:#252932; --border:#2e3340;
+    --text:#e8ebf0; --muted:#8a92a3; --accent:#5eead4;
+    --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171; --dup:#5eead4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+            background:var(--bg);color:var(--text);overflow:hidden}
+  body{display:grid;grid-template-rows:auto 1fr;grid-template-columns:1fr 360px;
+       grid-template-areas:"toolbar toolbar" "graph panel"}
+  .toolbar{grid-area:toolbar;background:var(--bg2);border-bottom:1px solid var(--border);
+           padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .toolbar h1{font-size:14px;font-weight:600;letter-spacing:0.3px}
+  .toolbar h1 .sub{color:var(--muted);font-weight:400;margin-left:8px;font-size:12px}
+  .toolbar .spacer{flex:1}
+  .toolbar input,.toolbar button{background:var(--bg3);color:var(--text);border:1px solid var(--border);
+    padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit;outline:none}
+  .toolbar input{width:220px}
+  .toolbar input:focus{border-color:var(--accent)}
+  .toolbar button{cursor:pointer;transition:all 0.15s}
+  .toolbar button:hover{background:var(--border);border-color:var(--accent)}
+  .toolbar .stats{color:var(--muted);font-size:11px;font-family:monospace}
+  #cy{grid-area:graph;background:var(--bg);position:relative}
+  .legend{position:absolute;bottom:12px;left:12px;background:rgba(26,29,36,0.92);
+          border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:11px;
+          display:flex;gap:14px;flex-wrap:wrap;backdrop-filter:blur(6px)}
+  .legend .item{display:flex;align-items:center;gap:6px}
+  .legend .dot{width:10px;height:10px;border-radius:50%}
+  .panel{grid-area:panel;background:var(--bg2);border-left:1px solid var(--border);
+         overflow-y:auto;padding:18px}
+  .panel h2{font-size:15px;font-weight:600;margin-bottom:4px}
+  .panel .role{display:inline-block;font-size:10px;padding:2px 8px;border-radius:4px;
+               text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;font-weight:600;
+               background:var(--bg3);color:var(--muted)}
+  .panel .meta{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5}
+  .panel .meta b{color:var(--text);font-weight:600}
+  .panel .section{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}
+  .panel .section h3{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
+                     color:var(--muted);margin-bottom:10px}
+  .row{padding:8px 10px;border-radius:5px;font-size:12px;margin-bottom:6px;cursor:pointer;
+       background:var(--bg3);border:1px solid var(--border)}
+  .row:hover{border-color:var(--accent)}
+  .row .t{font-weight:600;color:var(--text)}
+  .row .s{color:var(--muted);font-size:11px;margin-top:2px;font-family:monospace}
+  .pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin:2px 4px 0 0;
+        background:#1e3a5f;color:#bcdbff;font-family:monospace}
+  .open-btn{display:inline-block;margin:10px 0 4px;padding:7px 12px;border-radius:5px;
+            background:var(--accent);color:#0f1115;font-size:12px;font-weight:600;text-decoration:none}
+  .open-btn:hover{filter:brightness(1.1)}
+  .empty-state{color:var(--muted);font-size:11px;font-style:italic;padding:6px 0}
+  .close-btn{float:right;background:transparent;border:0;color:var(--muted);cursor:pointer;
+             font-size:18px;line-height:1}
+  .close-btn:hover{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Cross-Workspace Map<span class="sub">workspaces clustered · duplicates linked</span></h1>
+  <input id="search" placeholder="Search forms / workspaces..." autocomplete="off">
+  <button id="fit">Fit</button>
+  <button id="reset">Reset</button>
+  <div class="spacer"></div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div id="cy"></div>
+
+<div class="legend">
+  <div class="item"><div class="dot" style="background:var(--hub)"></div>Hub</div>
+  <div class="item"><div class="dot" style="background:var(--spoke)"></div>Spoke</div>
+  <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
+  <div class="item"><div class="dot" style="background:var(--wf)"></div>Workflow</div>
+  <div class="item" style="color:var(--muted)">solid = relationship · red dash = workflow · teal dash = same form name across workspaces</div>
+</div>
+
+<div class="panel" id="panel"></div>
+
+<script>
+const DATA = {"workspaces":[{"slug":"socal-whp","name":"SCE - ESA Whole Home (PP/D)"}],"forms":[{"id":"socal-whp::300 - Account Management","name":"300 - Account Management","slug":"socal-whp","role":"Hub","fieldCount":353},{"id":"socal-whp::310 - Enrollment Intake","name":"310 - Enrollment Intake","slug":"socal-whp","role":"Spoke","fieldCount":161},{"id":"socal-whp::315 - SoCal WHP Assessment","name":"315 - SoCal WHP Assessment","slug":"socal-whp","role":"Spoke","fieldCount":585},{"id":"socal-whp::325 - SoCal Installation","name":"325 - SoCal Installation","slug":"socal-whp","role":"Spoke","fieldCount":814},{"id":"socal-whp::395 - Inspection Work Order","name":"395 - Inspection Work Order","slug":"socal-whp","role":"Spoke","fieldCount":134},{"id":"socal-whp::399 - Measures","name":"399 - Measures","slug":"socal-whp","role":"Spoke","fieldCount":54},{"id":"socal-whp::Fee Schedule","name":"Fee Schedule","slug":"socal-whp","role":"Lookup","fieldCount":23},{"id":"socal-whp::Invoice","name":"Invoice","slug":"socal-whp","role":"Spoke","fieldCount":172},{"id":"socal-whp::Climate Zones","name":"Climate Zones","slug":"socal-whp","role":"Lookup","fieldCount":0}],"workflows":[{"id":"WF::socal-whp::INSPECT-01","callsign":"INSPECT-01","name":"Create Inspection","slug":"socal-whp"}],"relationships":[{"source":"socal-whp::300 - Account Management","target":"socal-whp::399 - Measures","label":"ReportingCode"},{"source":"socal-whp::300 - Account Management","target":"socal-whp::Climate Zones","label":"ClimateZone"},{"source":"socal-whp::300 - Account Management","target":"socal-whp::Invoice","label":"4 relationships"},{"source":"socal-whp::300 - Account Management","target":"socal-whp::310 - Enrollment Intake","label":"EnrollmentSubmissionRelationship"},{"source":"socal-whp::300 - Account Management","target":"socal-whp::315 - SoCal WHP Assessment","label":"AssessmentSubmissionRelationship"},{"source":"socal-whp::300 - Account Management","target":"socal-whp::325 - SoCal Installation","label":"InstallationSubmissionRelationship"},{"source":"socal-whp::310 - Enrollment Intake","target":"socal-whp::300 - Account Management","label":"ESAKey"},{"source":"socal-whp::315 - SoCal WHP Assessment","target":"socal-whp::300 - Account Management","label":"ESAKey"},{"source":"socal-whp::325 - SoCal Installation","target":"socal-whp::399 - Measures","label":"32 relationships"},{"source":"socal-whp::325 - SoCal Installation","target":"socal-whp::300 - Account Management","label":"ESAKey"},{"source":"socal-whp::395 - Inspection Work Order","target":"socal-whp::Fee Schedule","label":"Measure"},{"source":"socal-whp::395 - Inspection Work Order","target":"socal-whp::300 - Account Management","label":"ESAKey"},{"source":"socal-whp::399 - Measures","target":"socal-whp::Fee Schedule","label":"ProgramMeasure"},{"source":"socal-whp::Invoice","target":"socal-whp::300 - Account Management","label":"EsaKey"}],"wfEdges":[{"source":"socal-whp::300 - Account Management","target":"WF::socal-whp::INSPECT-01","label":"trigger"},{"source":"WF::socal-whp::INSPECT-01","target":"socal-whp::395 - Inspection Work Order","label":"CreateFormResponse"}],"dupForms":[],"dupFlows":[],"stats":{"workspaces":1,"forms":9,"workflows":1,"dupForms":0,"dupFlows":0}};
+// Cytoscape's canvas renderer can't resolve CSS var() — resolve role colors to hex.
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+const ROLE_COLOR = {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'), Workflow:cssVar('--wf')};
+
+// Node width never narrower than its label needs, capped; longer labels wrap.
+const G_MAX_W = 132;
+const nodeW = ele => {
+  if (ele.data('kind') === 'workflow') return 84;
+  const byFields = 30 + Math.sqrt(ele.data('fieldCount') || 40) * 3.2;
+  const byLabel  = Math.min(G_MAX_W, 24 + (ele.data('label') || '').length * 6.2);
+  return Math.max(byFields, byLabel);
+};
+const nodeH = ele => {
+  if (ele.data('kind') === 'workflow') return 46;
+  return Math.max(44, 30 + Math.sqrt(ele.data('fieldCount') || 40) * 3.2);
+};
+
+document.getElementById('stats').textContent =
+  `${DATA.stats.workspaces} workspaces · ${DATA.stats.forms} forms · ${DATA.stats.workflows} workflows · ${DATA.stats.dupForms} shared names · ${DATA.stats.dupFlows} duplicate flows`;
+
+const elements = [];
+DATA.workspaces.forEach(w => elements.push({data:{id:'WS::'+w.slug, label:w.name, kind:'workspace'}}));
+DATA.forms.forEach(f => elements.push({data:{
+  id:f.id, label:f.name, parent:'WS::'+f.slug, role:f.role, kind:'form',
+  fieldCount:f.fieldCount, slug:f.slug, name:f.name}}));
+DATA.workflows.forEach(w => elements.push({data:{
+  id:w.id, label:w.callsign, parent:'WS::'+w.slug, role:'Workflow', kind:'workflow',
+  slug:w.slug, name:w.name}}));
+DATA.relationships.forEach(r => elements.push({data:{
+  source:r.source, target:r.target, label:r.label, kind:'relationship'}}));
+DATA.wfEdges.forEach(e => elements.push({data:{
+  source:e.source, target:e.target, label:e.label, kind:'wf-edge'}}));
+DATA.dupForms.forEach(d => {
+  for (let i = 0; i < d.ids.length - 1; i++) {
+    elements.push({data:{source:d.ids[i], target:d.ids[i+1], label:'same name', kind:'dup-edge'}});
+  }
+});
+
+// Taxi routing stacks edges that share a node pair. Tag structural edges (not
+// the deliberately-arced dup links) whose endpoints are shared, so the
+// stylesheet fans them with bundled bezier instead of overlapping them.
+(() => {
+  const pairCount = {};
+  const pairKey = e => [e.data.source, e.data.target].sort().join('');
+  elements.forEach(e => {
+    if (e.data.source && e.data.target && e.data.kind !== 'dup-edge') {
+      const k = pairKey(e);
+      pairCount[k] = (pairCount[k] || 0) + 1;
+    }
+  });
+  elements.forEach(e => {
+    if (e.data.source && e.data.target && e.data.kind !== 'dup-edge'
+        && pairCount[pairKey(e)] > 1) {
+      e.classes = (e.classes ? e.classes + ' ' : '') + 'parallel';
+    }
+  });
+})();
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: elements,
+  style: [
+    {selector:'node[kind = "workspace"]', style:{
+      'label':'data(label)', 'color':cssVar('--muted'), 'font-size':13, 'font-weight':600,
+      'text-valign':'top', 'text-halign':'center', 'text-margin-y':-6,
+      'background-color':'#161922', 'background-opacity':0.6,
+      'border-width':1, 'border-color':'#2e3340', 'shape':'round-rectangle', 'padding':24,
+    }},
+    {selector:'node[kind = "form"], node[kind = "workflow"]', style:{
+      'background-color': ele => ROLE_COLOR[ele.data('role')] || '#888',
+      'label':'data(label)', 'color':'#ffffff', 'font-size':10, 'font-weight':600,
+      'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
+      'text-max-width': ele => nodeW(ele) - 14, 'width': nodeW, 'height': nodeH,
+      'shape':'round-rectangle', 'border-width':2, 'border-color':'#0f1115',
+    }},
+    {selector:'node:selected', style:{'border-color':'#5eead4','border-width':3}},
+    {selector:'node.dim', style:{'opacity':0.15}},
+    {selector:'node.highlight', style:{'border-color':'#5eead4','border-width':3}},
+    {selector:'edge', style:{
+      'width':1.5, 'line-color':'#3a4050', 'target-arrow-color':'#3a4050',
+      'target-arrow-shape':'triangle', 'curve-style':'round-taxi',
+      'taxi-direction':'auto', 'taxi-turn':'50%', 'taxi-turn-min-distance':'12px',
+      'taxi-radius':10,
+    }},
+    // Edges sharing a node pair fan onto distinct bezier arcs instead of stacking.
+    // Placed before the dup-edge rule so dup links keep their own curve style.
+    {selector:'edge.parallel', style:{
+      'curve-style':'bezier', 'control-point-step-size':38,
+    }},
+    {selector:'edge[kind = "wf-edge"]', style:{
+      'line-style':'dashed', 'line-color':'#f87171', 'target-arrow-color':'#f87171'}},
+    {selector:'edge[kind = "dup-edge"]', style:{
+      'line-style':'dashed', 'line-color':'#5eead4', 'target-arrow-shape':'none',
+      'width':2, 'curve-style':'unbundled-bezier', 'control-point-distances':[40],
+      'control-point-weights':[0.5]}},
+    {selector:'edge.dim', style:{'opacity':0.08}},
+    {selector:'edge.highlight', style:{'line-color':'#5eead4','target-arrow-color':'#5eead4',
+                                       'width':3, 'opacity':1}},
+  ],
+  layout: {name:'cose', animate:true, fit:true, padding:50, nodeRepulsion:9000,
+           idealEdgeLength:90, nestingFactor:1.2, gravity:0.4},
+  wheelSensitivity: 0.2, minZoom:0.15, maxZoom:3,
+});
+
+cy.ready(() => cy.fit(undefined, 50));
+
+const panel = document.getElementById('panel');
+
+function clearHighlights(){ cy.elements().removeClass('dim highlight'); }
+
+function highlightIds(ids){
+  clearHighlights();
+  cy.elements().addClass('dim');
+  const set = new Set(ids);
+  ids.forEach(id => {
+    const n = cy.$id(id);
+    n.removeClass('dim').addClass('highlight');
+    n.connectedEdges().forEach(e => {
+      if (set.has(e.source().id()) && set.has(e.target().id())) e.removeClass('dim').addClass('highlight');
+    });
+  });
+}
+
+function renderOverview(){
+  clearHighlights();
+  const collisions = DATA.dupForms;
+  const flows = DATA.dupFlows;
+  panel.innerHTML = `
+    <h2>Cross-workspace analysis</h2>
+    <div class="meta"><b>${DATA.stats.workspaces}</b> workspaces ·
+      <b>${DATA.stats.forms}</b> forms · <b>${DATA.stats.workflows}</b> workflows</div>
+
+    <div class="section"><h3>Form-name collisions (${collisions.length})</h3>
+      ${collisions.length ? collisions.map((c,i) => `
+        <div class="row" onclick="highlightCollision(${i})">
+          <div class="t">${escapeHtml(c.name)}</div>
+          <div class="s">${c.ids.map(id => escapeHtml(id.split('::')[0])).join(' · ')}</div>
+        </div>`).join('')
+        : '<div class="empty-state">No form name appears in more than one workspace yet.</div>'}
+    </div>
+
+    <div class="section"><h3>Duplicate flows (${flows.length})</h3>
+      ${flows.length ? flows.map(d => `
+        <div class="row">
+          <div class="t">${escapeHtml(d.signature)}</div>
+          <div class="s">${d.members.map(m => escapeHtml(m.slug+'/'+m.callsign)).join(' · ')}</div>
+        </div>`).join('')
+        : '<div class="empty-state">No workflows share a trigger/target signature yet.</div>'}
+    </div>
+  `;
+}
+
+function highlightCollision(i){
+  const c = DATA.dupForms[i];
+  if (c) { highlightIds(c.ids); cy.fit(c.ids.map(id => cy.$id(id)), 80); }
+}
+
+function renderForm(node){
+  const name = node.data('name'), slug = node.data('slug');
+  const dup = DATA.dupForms.find(d => d.name === name);
+  const otherSlugs = dup ? dup.ids.map(id => id.split('::')[0]).filter(s => s !== slug) : [];
+  panel.innerHTML = `
+    <button class="close-btn" onclick="renderOverview()">×</button>
+    <h2>${escapeHtml(name)}</h2>
+    <span class="role">${escapeHtml(node.data('role'))} · ${escapeHtml(slug)}</span>
+    <div class="meta"><b>${node.data('fieldCount')}</b> fields · workspace <b>${escapeHtml(slug)}</b></div>
+    <a class="open-btn" target="_blank" rel="noopener"
+       href="../${encodeURIComponent(slug)}/explorer.html#form=${encodeURIComponent(name)}">Open in per-workspace explorer →</a>
+    ${otherSlugs.length ? `<div class="section"><h3>Also appears in</h3>
+      ${otherSlugs.map(s => `<span class="pill">${escapeHtml(s)}</span>`).join('')}
+      <div class="meta" style="margin-top:8px">Rename impact crosses ${otherSlugs.length+1} workspaces.</div>
+      </div>` : '<div class="section"><div class="empty-state">Form name is unique across workspaces.</div></div>'}
+  `;
+}
+
+function renderWorkflow(node){
+  panel.innerHTML = `
+    <button class="close-btn" onclick="renderOverview()">×</button>
+    <h2>${escapeHtml(node.data('name'))}</h2>
+    <span class="role">Workflow · ${escapeHtml(node.data('slug'))}</span>
+    <div class="meta">Callsign <b>${escapeHtml(node.data('label'))}</b></div>
+  `;
+}
+
+cy.on('tap', 'node', evt => {
+  const n = evt.target;
+  const kind = n.data('kind');
+  if (kind === 'workspace') {
+    const ids = n.children().map(c => c.id());
+    highlightIds(ids);
+    return;
+  }
+  clearHighlights();
+  cy.elements().addClass('dim');
+  n.removeClass('dim').addClass('highlight');
+  n.connectedEdges().forEach(e => { e.removeClass('dim'); e.connectedNodes().removeClass('dim'); });
+  if (kind === 'workflow') renderWorkflow(n); else renderForm(n);
+});
+
+cy.on('tap', evt => { if (evt.target === cy) renderOverview(); });
+
+document.getElementById('fit').addEventListener('click', () => cy.fit(undefined, 50));
+document.getElementById('reset').addEventListener('click', () => {
+  cy.layout({name:'cose', animate:true, fit:true, padding:50, nodeRepulsion:9000,
+             idealEdgeLength:90, nestingFactor:1.2, gravity:0.4}).run();
+  renderOverview();
+});
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  if (!q) { clearHighlights(); return; }
+  clearHighlights();
+  cy.elements().addClass('dim');
+  cy.nodes().forEach(n => {
+    if ((n.data('label')||'').toLowerCase().includes(q) || (n.data('slug')||'').toLowerCase().includes(q)) {
+      n.removeClass('dim').addClass('highlight');
+      n.connectedEdges().forEach(ed => { ed.removeClass('dim'); ed.connectedNodes().removeClass('dim'); });
+    }
+  });
+});
+
+function escapeHtml(s){return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+window.renderOverview = renderOverview;
+window.highlightCollision = highlightCollision;
+window.cy = cy;
+
+renderOverview();
+</script>
+</body>
+</html>

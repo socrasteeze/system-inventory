@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SoCal WHP Workflow Inventory</title>
+<style>
+  :root{--bg:#0f1115;--bg2:#1a1d24;--bg3:#252932;--border:#2e3340;
+        --text:#e8ebf0;--muted:#8a92a3;--accent:#5eead4;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+            background:var(--bg);color:var(--text);min-height:100%}
+  body{max-width:760px;margin:0 auto;padding:56px 24px}
+  h1{font-size:20px;font-weight:600;letter-spacing:0.3px}
+  .sub{color:var(--muted);font-size:13px;margin-top:6px}
+  .views{margin-top:32px;display:flex;flex-direction:column;gap:12px}
+  a.view{display:block;background:var(--bg2);border:1px solid var(--border);
+         border-radius:8px;padding:16px 18px;text-decoration:none;color:var(--text);
+         transition:border-color 120ms,background 120ms}
+  a.view:hover{border-color:var(--accent);background:var(--bg3)}
+  a.view .name{font-size:15px;font-weight:600}
+  a.view .name .arrow{color:var(--accent)}
+  a.view .desc{color:var(--muted);font-size:12px;margin-top:4px}
+  .ts{color:var(--muted);font-size:12px;margin-top:36px;font-family:monospace}
+</style>
+</head>
+<body>
+  <h1>SoCal WHP Workflow Inventory</h1>
+  <div class="sub">Interactive form &amp; workflow explorers</div>
+  <div class="views">
+    <a class="view" href="global/explorer.html">
+      <div class="name">Global cross-workspace view <span class="arrow">&rarr;</span></div>
+      <div class="desc">Strategic overview - every workspace as a cluster, with shared form names and duplicate flows.</div>
+    </a>
+    <a class="view" href="socal-whp/explorer.html">
+      <div class="name">SCE - ESA Whole Home (PP/D) <span class="arrow">&rarr;</span></div>
+      <div class="desc">Operational explorer - forms, fields, relationships, and workflow detail.</div>
+    </a>
+  </div>
+  <div class="ts">Last regenerated: 2026-06-11 23:31</div>
+</body>
+</html>

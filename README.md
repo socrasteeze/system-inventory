@@ -4,6 +4,14 @@ Documentation system for the workflow automations and form architecture of platf
 
 The project is **multi-workspace**: each workspace lives under `data/<slug>/` and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. The first workspace is `socal-whp` (SCE - ESA Whole Home (PP/D)).
 
+## Live explorer
+
+The browsable explorers are published via GitHub Pages, served from the `docs/` folder:
+
+**<!-- PAGES_URL -->** _(fill in after enabling Pages: Settings → Pages → Source: `main` branch, `/docs` folder)_
+
+The landing page lists every view — the global cross-workspace explorer and each workspace's explorer. The published views are regenerated into `docs/` on every rebuild, so each push updates the live site. Spreadsheets are not published; pull the `.xlsx` files from `output/` in the repo directly.
+
 ## Purpose
 
 The project answers questions about workflow automations and form architecture that the platform itself does not surface:

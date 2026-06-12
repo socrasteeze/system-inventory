@@ -12,12 +12,12 @@ Every run refreshes docs/ from whatever explorers exist under output/, so a push
 publishes the current views. Excel artifacts stay in output/ and are never copied
 to docs/.
 """
-import sys, argparse
+import sys, argparse, json
 from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parser import Workspace, list_workspaces, OUTPUT_DIR
+from parser import Workspace, list_workspaces, discover_all, OUTPUT_DIR
 import build_inventory
 import build_explorer
 import build_global
@@ -89,6 +89,43 @@ def _write_landing(views, stamp):
     (DOCS_DIR / "index.html").write_text(html, encoding="utf-8")
 
 
+def emit_field_index():
+    """Write docs/field-index.json — a machine-readable field index for external tools.
+
+    CONTRACT: This file is a stable integration interface. Do not rename keys,
+    remove fields from the per-field objects, or change the key format without
+    versioning or migrating known consumers (e.g. the PDF field-mapper).
+
+    Structure:
+        {
+          "<slug>/<FormDisplayName>": [
+            {"name": "FieldApiName", "label": "Display Label", "type": "DataType"},
+            ...
+          ]
+        }
+
+    Keys are workspace-qualified ("<slug>/<FormDisplayName>") so forms that share
+    a display name across workspaces are distinct entries. Fields appear in
+    discovery order (design-tree order for individual exports; definition order
+    for workspace exports). Lookup stubs (role="Lookup") carry an empty field
+    array because they have no export of their own.
+    """
+    discovered = discover_all()
+    index = {}
+    for slug, data in sorted(discovered.items()):
+        fields_by_form = data["fields"]
+        for form in data["forms"]:
+            key = f"{slug}/{form['name']}"
+            index[key] = [
+                {"name": f["name"], "label": f.get("label", ""), "type": f.get("type", "")}
+                for f in fields_by_form.get(form["name"], [])
+            ]
+    out = DOCS_DIR / "field-index.json"
+    out.write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
+    total = sum(len(v) for v in index.values())
+    print(f"  docs/field-index.json -> {len(index)} forms, {total} fields")
+
+
 def publish_docs():
     """Mirror the built HTML explorers into docs/ and write the landing page.
 
@@ -130,7 +167,8 @@ def publish_docs():
         return
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     _write_landing(views, stamp)
-    print(f"  docs/ -> {len(views)} view(s) + index.html  ({stamp})")
+    emit_field_index()
+    print(f"  docs/ -> {len(views)} view(s) + index.html + field-index.json  ({stamp})")
 
 
 def main():

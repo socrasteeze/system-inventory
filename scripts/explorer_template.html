@@ -10,6 +10,7 @@
     --bg:#0f1115; --bg2:#1a1d24; --bg3:#252932; --border:#2e3340;
     --text:#e8ebf0; --muted:#8a92a3; --accent:#5eead4;
     --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171; --subform:#7d8a9c;
+    --wf-legacy:#f59e0b; --wf-engine:#f87171;
     --read:#60a5fa; --write:#f87171; --match:#a78bfa; --cond:#fbbf24;
     --overlay:rgba(26,29,36,0.92);
   }
@@ -20,6 +21,7 @@
     --bg:#f6f7f9; --bg2:#ffffff; --bg3:#eceff3; --border:#d3d8e0;
     --text:#1a1d24; --muted:#5b6472; --accent:#0d9488;
     --hub:#7c3aed; --spoke:#2563eb; --lookup:#d97706; --wf:#dc2626; --subform:#64748b;
+    --wf-legacy:#d97706; --wf-engine:#dc2626;
     --read:#2563eb; --write:#dc2626; --match:#7c3aed; --cond:#d97706;
     --overlay:rgba(255,255,255,0.92);
   }
@@ -163,8 +165,9 @@
   <div class="item"><div class="dot" style="background:var(--spoke)"></div>Spoke</div>
   <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
   <div class="item"><div class="dot" style="background:var(--subform)"></div>Subform</div>
-  <div class="item"><div class="dot" style="background:var(--wf)"></div>Workflow</div>
-  <div class="item" style="color:var(--muted)">solid edge = relationship · dashed = workflow trigger/target · dimmed workflow = disabled</div>
+  <div class="item"><div class="dot" style="background:var(--wf-legacy)"></div>Legacy WF (Prod)</div>
+  <div class="item"><div class="dot" style="background:var(--wf-engine)"></div>WFEngine WF (Staging)</div>
+  <div class="item" style="color:var(--muted)">solid edge = relationship · dashed = workflow trigger/target · dimmed = disabled</div>
 </div>
 
 <div class="panel empty" id="panel">
@@ -196,7 +199,8 @@ const elements = [];
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
 function roleColors(){
   return {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'),
-          Subform:cssVar('--subform'), Workflow:cssVar('--wf')};
+          Subform:cssVar('--subform'), Workflow:cssVar('--wf'),
+          WfLegacy:cssVar('--wf-legacy'), WfEngine:cssVar('--wf-engine')};
 }
 let ROLE_COLOR = roleColors();
 
@@ -205,14 +209,20 @@ DATA.forms.forEach(f => {
                        kind:'form'}});
 });
 
-// Workflow nodes. Disabled workflows are visually distinct (dimmed, dashed
-// border, "(off)" label) — a configured-but-not-running automation must read
-// as flagged, not identical to a live one.
+// Workflow nodes. Disabled workflows are dimmed/dashed. Legacy (prod WF system)
+// and WFEngine (staged replacement) get distinct amber vs red colors so the
+// two systems are never visually confused.
 DATA.workflows.forEach(w => {
   const off = w.enabled === false;
-  elements.push({data:{id:'WF:'+w.callsign, label:w.callsign + (off ? '\n(off)' : ''),
-                       role:'Workflow', kind:'workflow', wfRef:w.callsign},
-                 classes: off ? 'wf-off' : undefined});
+  const isLegacy = w.workflowType === 'Legacy';
+  const typeTag = isLegacy ? '\n[Legacy]' : '\n[WFEngine]';
+  elements.push({data:{
+    id:'WF:'+w.callsign,
+    label: w.callsign + (off ? '\n(off)' : '') + typeTag,
+    role:'Workflow', kind:'workflow', wfRef:w.callsign,
+    workflowType: w.workflowType || 'WFEngine',
+    environment: w.environment || '',
+  }, classes: off ? 'wf-off' : undefined});
 });
 
 // Relationship edges — one per direction. A direction can carry many
@@ -305,7 +315,9 @@ const cy = cytoscape({
   elements: elements,
   style: [
     {selector:'node', style:{
-      'background-color': ele => ROLE_COLOR[ele.data('role')] || '#888',
+      'background-color': ele => ele.data('kind') === 'workflow'
+        ? (ele.data('workflowType') === 'Legacy' ? ROLE_COLOR.WfLegacy : ROLE_COLOR.WfEngine)
+        : (ROLE_COLOR[ele.data('role')] || '#888'),
       'label':'data(label)', 'color':'#ffffff', 'font-size':10, 'font-weight':600,
       'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
       'text-max-width': ele => baseW(ele) - 16, 'width': baseW, 'height': baseH,

@@ -69,6 +69,17 @@ Both formats can coexist in one workspace. The workspace export is the **baselin
 
 ---
 
+## WorkflowType
+
+Every workflow carries a `workflowType` field derived from its export format — no manual tagging needed:
+
+- **`Legacy`** — embedded in a workspace export (`WorkflowConfigs` format). This is the older form-notification system.
+- **`WFEngine`** — individual workflow export (`Triggers`/`Steps` format). This is the newer workflow engine.
+
+`WorkflowType` appears as a colored column in the Workflows and AllWorkflows sheets (amber = Legacy, teal = WFEngine). In both explorers, workflow nodes are amber for Legacy and red for WFEngine so the two systems are visually distinct.
+
+---
+
 ## Design principles
 
 The two explorers are deliberately separate layers. Keep them that way.

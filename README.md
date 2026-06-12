@@ -80,7 +80,7 @@ Edit these files in any editor. Re-run `regenerate.py` to apply changes.
 
 ## Data sensitivity
 
-This repository contains the schema and structure of utility company workflow and form configurations. It does **not** contain customer data or PII — only field NAMES and labels. Even so, this repo must remain **private**. Do not share outside cleared personnel.
+This repository contains the schema and structure of utility company workflow and form configurations. It does **not** contain customer data or PII — only field NAMES and labels.
 
 ## License
 

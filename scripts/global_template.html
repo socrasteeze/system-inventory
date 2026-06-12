@@ -10,7 +10,7 @@
     --bg:#0f1115; --bg2:#1a1d24; --bg3:#252932; --border:#2e3340;
     --text:#e8ebf0; --muted:#8a92a3; --accent:#5eead4;
     --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171; --dup:#5eead4;
-    --subform:#7d8a9c;
+    --subform:#7d8a9c; --wf-legacy:#f59e0b; --wf-engine:#f87171;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -80,8 +80,9 @@
   <div class="item"><div class="dot" style="background:var(--spoke)"></div>Spoke</div>
   <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
   <div class="item"><div class="dot" style="background:var(--subform)"></div>Subform</div>
-  <div class="item"><div class="dot" style="background:var(--wf)"></div>Workflow</div>
-  <div class="item" style="color:var(--muted)">solid = relationship · red dash = workflow · teal dash = same form name across workspaces · dimmed workflow = disabled</div>
+  <div class="item"><div class="dot" style="background:var(--wf-legacy)"></div>Legacy WF (Prod)</div>
+  <div class="item"><div class="dot" style="background:var(--wf-engine)"></div>WFEngine WF (Staging)</div>
+  <div class="item" style="color:var(--muted)">solid = relationship · red dash = workflow · teal dash = same form name across workspaces · dimmed = disabled</div>
 </div>
 
 <div class="panel" id="panel"></div>
@@ -91,7 +92,8 @@ const DATA = __DATA__;
 // Cytoscape's canvas renderer can't resolve CSS var() — resolve role colors to hex.
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
 const ROLE_COLOR = {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'),
-                    Subform:cssVar('--subform'), Workflow:cssVar('--wf')};
+                    Subform:cssVar('--subform'), Workflow:cssVar('--wf'),
+                    WfLegacy:cssVar('--wf-legacy'), WfEngine:cssVar('--wf-engine')};
 
 // Node width never narrower than its label needs, capped; longer labels wrap.
 const G_MAX_W = 132;
@@ -116,9 +118,11 @@ DATA.forms.forEach(f => elements.push({data:{
   fieldCount:f.fieldCount, slug:f.slug, name:f.name}}));
 DATA.workflows.forEach(w => {
   const off = w.enabled === false;
+  const isLegacy = w.workflowType === 'Legacy';
   elements.push({data:{
     id:w.id, label:w.callsign + (off ? '\n(off)' : ''), parent:'WS::'+w.slug,
-    role:'Workflow', kind:'workflow', slug:w.slug, name:w.name, enabled:!off},
+    role:'Workflow', kind:'workflow', slug:w.slug, name:w.name, enabled:!off,
+    workflowType: w.workflowType || 'WFEngine'},
     classes: off ? 'wf-off' : undefined});
 });
 DATA.relationships.forEach(r => elements.push({data:{
@@ -162,7 +166,9 @@ const cy = cytoscape({
       'border-width':1, 'border-color':'#2e3340', 'shape':'round-rectangle', 'padding':24,
     }},
     {selector:'node[kind = "form"], node[kind = "workflow"]', style:{
-      'background-color': ele => ROLE_COLOR[ele.data('role')] || '#888',
+      'background-color': ele => ele.data('kind') === 'workflow'
+        ? (ele.data('workflowType') === 'Legacy' ? ROLE_COLOR.WfLegacy : ROLE_COLOR.WfEngine)
+        : (ROLE_COLOR[ele.data('role')] || '#888'),
       'label':'data(label)', 'color':'#ffffff', 'font-size':10, 'font-weight':600,
       'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
       'text-max-width': ele => nodeW(ele) - 14, 'width': nodeW, 'height': nodeH,

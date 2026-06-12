@@ -447,6 +447,7 @@ def _ws_parse_workflow(cfg, host_form, ws_display, ref_map, host_field_names):
         "callsign": name[:12].upper().replace(" ", "_"),
         "name": name,
         "description": "",
+        "workflowType": "Legacy",
         "staging_guid": "",
         "trigger": {
             "type": "Scheduled" if scheduled else "FormResponse",
@@ -706,6 +707,7 @@ class Workspace:
             "callsign": manual_meta.get("callsign", d.get("Name","")[:12].upper().replace(" ","_")),
             "name": d.get("Name",""),
             "description": d.get("Description",""),
+            "workflowType": "WFEngine",
             "staging_guid": "",  # populate from triggers below
             "trigger": None,
             "actions": [],

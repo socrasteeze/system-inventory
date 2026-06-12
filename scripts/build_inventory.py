@@ -25,6 +25,10 @@ BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 WRAP   = Alignment(horizontal="left", vertical="top", wrap_text=True)
 CTR    = Alignment(horizontal="center", vertical="center")
 
+# WorkflowType cell fills
+LEGACY_FILL = PatternFill("solid", start_color="FEF3C7")   # amber-100
+WFENG_FILL  = PatternFill("solid", start_color="CCFBF1")   # teal-100
+
 def sheet(ws, title, cols, rows, pk=None, fks=None):
     ws.sheet_view.showGridLines = False
     fks = fks or []
@@ -186,24 +190,33 @@ def build(workspace):
     wf_rows = [{
         "Callsign": w["callsign"], "WorkflowName": w["name"],
         "Description": w["description"],
+        "WorkflowType": w.get("workflowType", ""),
         "BusinessProcess": "", "Workspace": workspace_name, "Owner": "",
-        # Configured-but-not-running automations must be flagged, not rendered
-        # like live ones — Status comes from the export's enabled flag.
         "Status": "Active" if w.get("enabled", True) else "Disabled",
-        "Environment": "Staging", "Criticality": "",
-        "Staging_GUID": w["staging_guid"], "Prod_GUID": "",
-        "SourceFile": w["sourceFile"], "Notes": "",
+        "Criticality": "",
+        "TriggerGUID": w.get("staging_guid", ""),
+        "SourceFile": w.get("sourceFile", ""), "Notes": "",
     } for w in data["workflows"]]
-    sheet(wb.create_sheet("Workflows"), "Workflows · automation master",
-          [("Callsign",14,"PK · short alias"), ("WorkflowName",24,"Display name"),
-           ("Description",40,"Plain-English summary"),
-           ("BusinessProcess",20,"FK → BusinessProcesses"),
-           ("Workspace",28,"Workspace"), ("Owner",24,"Name/email"),
-           ("Status",12,"Active/Disabled"), ("Environment",14,"Staging/Prod"),
-           ("Criticality",12,"High/Med/Low"),
-           ("Staging_GUID",38,"Workflow ID in staging"), ("Prod_GUID",38,"ID in prod"),
-           ("SourceFile",40,"Source JSON"), ("Notes",40,"Free-form")],
-          wf_rows, pk="Callsign", fks=["BusinessProcess"])
+    wf_cols = [
+        ("Callsign",14,"PK · short alias"), ("WorkflowName",24,"Display name"),
+        ("Description",40,"Plain-English summary"),
+        ("WorkflowType",14,"Legacy (embedded WorkflowConfigs) or WFEngine (Triggers/Steps)"),
+        ("BusinessProcess",20,"FK → BusinessProcesses"),
+        ("Workspace",28,"Workspace"), ("Owner",24,"Name/email"),
+        ("Status",12,"Active/Disabled"), ("Criticality",12,"High/Med/Low"),
+        ("TriggerGUID",38,"Workflow trigger ID from the export"),
+        ("SourceFile",40,"Source JSON"), ("Notes",40,"Free-form"),
+    ]
+    wf_ws = wb.create_sheet("Workflows")
+    sheet(wf_ws, "Workflows · automation master", wf_cols, wf_rows,
+          pk="Callsign", fks=["BusinessProcess"])
+    # Color WorkflowType cells for at-a-glance reading.
+    wt_col = next((i+1 for i,c in enumerate(wf_cols) if c[0]=="WorkflowType"), None)
+    if wt_col:
+        for r_idx, row in enumerate(wf_rows, start=5):
+            fill = LEGACY_FILL if row["WorkflowType"]=="Legacy" else \
+                   WFENG_FILL  if row["WorkflowType"]=="WFEngine" else None
+            if fill: wf_ws.cell(row=r_idx, column=wt_col).fill = fill
 
     # Triggers
     trig_rows = []
@@ -282,9 +295,6 @@ def build(workspace):
           bp_rows, pk="ProcessID")
 
     # Reorder
-    desired = ["README","Forms","Fields","FormRelationships","ReferencedDataFields",
-               "Workflows","Triggers","Steps" if False else "Triggers",
-               "Actions","WorkflowFieldUsage","BusinessProcesses"]
     desired = [n for n in ["README","Forms","Fields","FormRelationships","ReferencedDataFields",
                            "Workflows","Triggers","Actions","WorkflowFieldUsage","BusinessProcesses"]
                if n in wb.sheetnames]

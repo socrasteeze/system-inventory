@@ -30,6 +30,7 @@ def build(ws):
         "workflows": [{
             "callsign": w["callsign"], "name": w["name"],
             "enabled": w.get("enabled", True),
+            "workflowType": w.get("workflowType", "WFEngine"),
             "trigger": {
                 "form": w["trigger"]["form"] if w["trigger"] else "",
                 "field": "",  # legacy field, unused

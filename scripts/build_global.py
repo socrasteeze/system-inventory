@@ -58,6 +58,7 @@ def aggregate():
             all_workflows.append({
                 "slug": slug, "name": name, "callsign": w["callsign"],
                 "workflow": w["name"],
+                "workflowType": w.get("workflowType", ""),
                 "triggerForm": w["trigger"]["form"] if w["trigger"] else "",
                 "triggerAction": w["trigger"]["databaseAction"] if w["trigger"] else "",
                 "targets": targets,
@@ -136,11 +137,14 @@ def _build_excel(agg):
 
     sheet(wb.create_sheet("AllWorkflows"), "AllWorkflows · every workflow, every workspace",
           [("Workspace",18,"FK -> Workspaces"), ("Callsign",14,"Short alias"),
-           ("WorkflowName",26,"Display name"), ("Status",12,"Active/Disabled"),
+           ("WorkflowName",26,"Display name"),
+           ("WorkflowType",14,"Legacy (embedded WorkflowConfigs) or WFEngine (Triggers/Steps)"),
+           ("Status",12,"Active/Disabled"),
            ("TriggerForm",28,"Form that fires it"),
            ("TriggerAction",14,"Create/Update/Delete"), ("TargetForms",40,"Forms it writes"),
            ("Writes",10,"Field writes")],
           [{"Workspace":w["slug"], "Callsign":w["callsign"], "WorkflowName":w["workflow"],
+            "WorkflowType":w.get("workflowType",""),
             "Status":"Active" if w.get("enabled", True) else "Disabled",
             "TriggerForm":w["triggerForm"], "TriggerAction":w["triggerAction"],
             "TargetForms":", ".join(w["targets"]), "Writes":w["writes"]}
@@ -200,7 +204,8 @@ def _build_html(agg):
                 continue
             wid = f"WF::{slug}::{w['callsign']}"
             workflows.append({"id": wid, "callsign": w["callsign"], "name": w["name"],
-                              "slug": slug, "enabled": w.get("enabled", True)})
+                              "slug": slug, "enabled": w.get("enabled", True),
+                              "workflowType": w.get("workflowType", "WFEngine")})
             if w["trigger"]["form"] in form_names:
                 wf_edges.append({"source": fid(slug, w["trigger"]["form"]), "target": wid,
                                  "label": "trigger"})

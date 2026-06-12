@@ -4,6 +4,43 @@ Documentation system for the workflow automations and form architecture of platf
 
 The project is **multi-workspace**: each workspace lives under `data/<slug>/` and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. The first workspace is `socal-whp` (SCE - ESA Whole Home (PP/D)).
 
+## Purpose
+
+The project answers questions about workflow automations and form architecture that the platform itself does not surface:
+
+- **Impact analysis** — given a field, which workflows, validation rules, formulas, and downstream forms depend on it. "What breaks if I rename this field" gets answered before the change is made.
+- **Discoverability** — given a process or task, which automations and forms already touch it. Keeps a duplicate flow from being built.
+- **Cross-workspace pattern detection** — given a workflow pattern, whether an equivalent already exists in another workspace. Surfaces consolidation candidates and standardization gaps.
+- **Architecture documentation** — a navigable map of the system for a new contributor or successor, without reading raw JSON.
+- **Bus-factor mitigation** — externalizes system knowledge that otherwise lives only with the people who built or maintained the workspaces.
+
+### Common questions this answers
+
+- What forms exist in this workspace, and what does each capture?
+- If field X is renamed or removed, which workflows and forms break?
+- Which workflows fire on changes to the customer master record?
+- Where is field X used — across forms, workflows, validation rules, and formulas?
+- Do workflows in different workspaces duplicate each other's logic?
+- Which automations run on a schedule, and when?
+
+## Scope
+
+**In scope:**
+
+- Static metadata extraction from form and workflow JSON exports.
+- Normalized inventory and dependency graph generation.
+- Field-level "Where Is This Used?" inspection, cross-form and intra-form.
+- Multi-workspace aggregation and cross-workspace pattern detection.
+- Read-only consumption interfaces: Excel inventory, browser-based explorer, zero-knowledge launcher.
+
+**Not in scope:**
+
+- Real-time data inspection. The inventory captures architecture, not record values.
+- Editing or write-back to the platform. Form and workflow changes happen in the platform; the inventory reflects them after re-export.
+- Live or streaming ingestion. JSON exports are manual today; automated ingestion is a separate future track dependent on platform webhook availability.
+- Operational analytics. The inventory feeds analytics but is not itself a reporting layer.
+- Platform-side enforcement. The inventory documents what exists; it does not prevent changes it would flag as impactful.
+
 Per workspace:
 
 - **`output/<slug>/workflow_master_inventory.xlsx`** — normalized spreadsheet inventory. One row per form, field, relationship, workflow, action, and field-usage event. Field rows also carry validators, computed formulas, filter/visibility conditions, default values, and the same-form fields each references. Filterable for impact analysis ("what breaks if I rename field X").

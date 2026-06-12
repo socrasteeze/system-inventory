@@ -75,6 +75,10 @@ data/
 output/
   <slug>/        ← per-workspace Excel + HTML
   global/        ← cross-workspace Excel + HTML
+docs/            ← GitHub Pages publish target (HTML only; generated, not hand-edited)
+  index.html       landing page listing every view
+  <slug>/explorer.html
+  global/explorer.html
 scripts/
   parser.py             Workspace class + shared parsing helpers
   build_inventory.py    per-workspace Excel builder
@@ -82,7 +86,7 @@ scripts/
   explorer_template.html    per-workspace HTML template (title + preset injected)
   build_global.py       cross-workspace aggregator (Excel + HTML)
   global_template.html      global HTML template
-  regenerate.py         rebuild orchestrator (CLI)
+  regenerate.py         rebuild orchestrator (CLI) + docs/ publish
 ```
 
 ---
@@ -98,6 +102,16 @@ python scripts/regenerate.py --global        rebuild only the global aggregator
 Run from the project root after adding or changing any JSON in `data/`. Open the relevant `output/<slug>/workspace_explorer.html` (or `output/global/global-explorer.html`) to confirm the graph.
 
 `--workspace X` intentionally does not rebuild the global view; run with no args (or `--global`) to refresh it.
+
+### Publishing to docs/ (GitHub Pages)
+
+Every `regenerate.py` run ends with `publish_docs()`, which mirrors the built HTML explorers into `docs/` — the GitHub Pages source folder (Pages serves `main` branch `/docs`). This is part of the standing regenerate behavior, not a separate step: a push after regeneration publishes the current views.
+
+- `publish_docs()` scans `output/` for whatever explorers exist and copies them, so `docs/` stays consistent regardless of which build path ran (full, `--workspace`, or `--global`). It also writes `docs/.nojekyll` so Pages serves files verbatim.
+- File mapping: `output/<slug>/workspace_explorer.html` → `docs/<slug>/explorer.html`; `output/global/global-explorer.html` → `docs/global/explorer.html`.
+- `docs/index.html` is a generated landing page (dark theme matching the explorer) listing the global view plus each workspace, with a one-line description and the last-regenerated timestamp. It is regenerated each run — never hand-edit it.
+- **Filename rewrite:** the global explorer's cross-view deep links point at the per-workspace file by its `output/` name (`workspace_explorer.html`). Because the docs copy is renamed `explorer.html`, `publish_docs()` rewrites that string in the global copy so the deep links resolve under Pages. If the per-workspace docs filename ever changes, update that rewrite.
+- **Excel stays out of `docs/`.** Pages publishes only the browsable HTML; spreadsheets are pulled from `output/` in the repo. Don't copy `.xlsx` into `docs/`.
 
 ---
 

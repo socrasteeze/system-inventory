@@ -8,6 +8,8 @@ per-workspace builders (build_inventory, build_explorer) consume one workspace;
 build_global aggregates across all of them.
 """
 import json
+import re
+import base64
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -18,6 +20,97 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # Components that are pure layout containers (not data fields)
 LAYOUT_TYPES = {"TwoWideLayout","ThreeWideLayout","FourWideLayout","StackedLayout",
                 "FormSection","FormGrid","FormPage","Header","FormComponent"}
+
+# ── field-level configuration extraction ────────────────────────────
+# Form designs carry per-field logic that references other fields on the same
+# form: computed formulas, conditional visibility/required rules, picklist
+# filters, default values, and validators. Field references appear two ways —
+# as a .Fields[].FieldName array on code-based (JS) rules, and as "@Field.X"
+# tokens inside builder expressions (sometimes base64-encoded). _config_field_refs
+# pulls both so we can build the intra-form "depends on" graph.
+
+def _decode_b64_json(s):
+    try:
+        return json.loads(base64.b64decode(s).decode("utf-8"))
+    except Exception:
+        return None
+
+def _as_config_obj(value):
+    """A config value may be a dict, a JSON string, or a base64-encoded expression."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value.strip():
+        s = value.strip()
+        if s.startswith("{"):
+            try:
+                return json.loads(s)
+            except Exception:
+                return None
+        return _decode_b64_json(s)
+    return None
+
+def _config_field_refs(value, own_name=None):
+    """Local field names a config references: .Fields[].FieldName plus @Field.X tokens."""
+    refs = set()
+    obj = _as_config_obj(value)
+    if isinstance(obj, dict):
+        for fr in obj.get("Fields") or []:
+            fn = fr.get("FieldName")
+            if fn:
+                refs.add(fn)
+        refs |= set(re.findall(r"@Field\.([A-Za-z0-9_]+)", json.dumps(obj)))
+    if isinstance(value, str):
+        refs |= set(re.findall(r"@Field\.([A-Za-z0-9_]+)", value))
+    refs.discard(own_name)
+    return sorted(refs)
+
+def _clean_formula(code):
+    """Drop the boilerplate JSDoc header and collapse whitespace from a JS formula."""
+    code = re.sub(r"/\*\*.*?\*/", "", code, flags=re.S)
+    return re.sub(r"\s+", " ", code).strip()
+
+def _extract_field_config(node, own_name):
+    """Field-level config + the fields each piece references (the intra-form depends-on)."""
+    ep = node.get("ExtraProperties", {}) or {}
+    deps = {"validation": [], "formula": [], "filter": [], "visibility": []}
+
+    validator = node.get("Validator") if isinstance(node.get("Validator"), str) else ""
+    dv = ep.get("DefaultValue")
+    default_value = str(dv) if dv not in (None, "") else ""
+
+    formula = ""
+    formula_cfg = ep.get("AdvancedConfiguration") or ep.get("ValueAdvancedConfiguration")
+    if formula_cfg:
+        obj = _as_config_obj(formula_cfg)
+        if isinstance(obj, dict) and obj.get("Configuration"):
+            formula = _clean_formula(obj["Configuration"])
+        deps["formula"] = _config_field_refs(formula_cfg, own_name)
+
+    visibility = ""
+    if ep.get("HiddenAdvancedConfiguration"):
+        visibility = "Yes"
+        deps["visibility"] = _config_field_refs(ep["HiddenAdvancedConfiguration"], own_name)
+
+    if ep.get("RequiredAdvancedConfiguration"):
+        deps["validation"] = _config_field_refs(ep["RequiredAdvancedConfiguration"], own_name)
+
+    filt = ""
+    filter_node = node.get("Filter")
+    if isinstance(filter_node, str) and filter_node:
+        filt = "Yes"
+        deps["filter"] = _config_field_refs(filter_node, own_name)
+    elif ep.get("HasFilter") == "True":
+        filt = "Yes"
+
+    return {
+        "validator": validator,
+        "formula": formula,
+        "filter": filt,
+        "visibility": visibility,
+        "defaultValue": default_value,
+        "dependsOn": deps,
+        "dependsOnAll": sorted({f for lst in deps.values() for f in lst}),
+    }
 
 # ── pure parsing helpers (no filesystem access) ─────────────────────
 def _walk(node, out):
@@ -35,6 +128,7 @@ def _walk(node, out):
             "enabled":  {"1":"Yes","2":"No"}.get(str(ep.get("Enabled","")), ""),
             "relatedForm": "", "relatedField": "", "via": "",
         }
+        meta.update(_extract_field_config(node, name))
         if ctype == "FormRelationshipInput":
             try:
                 rfn = json.loads(ep.get("RelatedFormNormalized","{}"))

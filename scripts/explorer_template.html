@@ -439,6 +439,22 @@ function showFieldDetail(formName, fieldName){
     connectedForm = relationshipTarget(formName, field.via);
   }
 
+  // Intra-form reverse: other fields on this form whose config depends on this field.
+  const KIND_PHRASE = {
+    validation: f => `Validation / required rule on ${f}`,
+    formula:    f => `Formula for computed field ${f}`,
+    filter:     f => `Filter condition on ${f}`,
+    visibility: f => `Visibility condition on ${f}`,
+  };
+  const KIND_BADGE = {validation:'REQ', formula:'FX', filter:'FILTER', visibility:'VISIBLE'};
+  const intraRefs = [];
+  (DATA.fields[formName] || []).forEach(g => {
+    const dep = g.dependsOn || {};
+    Object.keys(KIND_PHRASE).forEach(kind => {
+      if ((dep[kind] || []).includes(fieldName)) intraRefs.push({by: g.name, kind});
+    });
+  });
+
   const fieldDetail = document.createElement('div');
   fieldDetail.className = 'section';
   fieldDetail.innerHTML = `
@@ -450,7 +466,13 @@ function showFieldDetail(formName, fieldName){
       ${field.relatedForm?`<b>Linked to:</b> ${escapeHtml(field.relatedForm)}<br>`:''}
       ${field.relatedField?`<b>Pulls field:</b> ${escapeHtml(field.relatedField)}<br>`:''}
       ${field.via?`<b>Via relationship:</b> ${escapeHtml(field.via)}<br>`:''}
+      ${field.defaultValue?`<b>Default:</b> ${escapeHtml(field.defaultValue)}<br>`:''}
+      ${field.validator?`<b>Validator:</b> ${escapeHtml(field.validator)}<br>`:''}
     </div>
+
+    ${field.formula?`<h3 style="margin-top:14px">Formula</h3>
+      <div class="usage" style="font-family:monospace;white-space:pre-wrap;line-height:1.4">${escapeHtml(field.formula)}</div>`:''}
+
     ${usages.length?
       `<h3 style="margin-top:14px">Workflow usage (${usages.length})</h3>
        ${usages.map(({wf,usage}) => `<div class="usage ${usage.direction}">
@@ -466,6 +488,14 @@ function showFieldDetail(formName, fieldName){
         <div class="ctx">via ${escapeHtml(x.via)} → ${escapeHtml(x.localField)}</div>
       </div>`).join('')
       :'<div class="empty-state">no forms reference this field</div>'}
+
+    <h3 style="margin-top:14px">Used within this form (${intraRefs.length})</h3>
+    ${intraRefs.length?
+      intraRefs.map(x => `<div class="usage Condition">
+        <span class="dir">${KIND_BADGE[x.kind]}</span>${escapeHtml(x.by)}
+        <div class="ctx">${escapeHtml(KIND_PHRASE[x.kind](x.by))}</div>
+      </div>`).join('')
+      :'<div class="empty-state">not referenced by other fields on this form</div>'}
   `;
   panel.appendChild(fieldDetail);
   fieldDetail.scrollIntoView({behavior:'smooth', block:'start'});

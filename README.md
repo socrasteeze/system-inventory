@@ -1,4 +1,4 @@
-# SoCal WHP Workflow Inventory
+# Workflow Inventory
 
 Documentation system for the workflow automations and form architecture of platform workspaces. It ingests JSON exports of forms and workflows and regenerates a filterable spreadsheet and an interactive graph from them.
 

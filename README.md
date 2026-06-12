@@ -63,6 +63,7 @@ Across all workspaces:
 
 - **`output/global/cross-workspace-inventory.xlsx`** — every workspace in one workbook, plus form-name collision and duplicate-flow analysis.
 - **`output/global/global-explorer.html`** — single graph with each workspace as a cluster and duplicate form names linked across clusters. Form nodes link back into the per-workspace explorer.
+- **`docs/field-index.json`** — machine-readable field index published to GitHub Pages on every rebuild. Maps `"<slug>/<FormDisplayName>"` to an array of `{"name", "label", "type"}` for every field on that form, across all workspaces. This is a stable integration interface — its structure is a contract for external tools (currently a PDF field-mapper). Do not change key format or field names without migrating consumers.
 
 ## Quick start for read-only users
 

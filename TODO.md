@@ -2,9 +2,6 @@
 
 ## Active
 
-Field detail should expand inline beneath the clicked field row, not stack
-below the field list. Currently each click appends — scrolling problem.
-
 Toggle for displaying/sorting fields by Name vs Label. Both are extracted
 already; just a UI choice on which is primary.
 
@@ -45,5 +42,10 @@ tickets.
 
 ## Done
 
-(move items here as they complete — useful for project history and for
-articulating progress in conversations)
+Field detail expands inline beneath the clicked field row (replaced the
+append-and-stack behavior). Multiple fields expand at once; a sticky control
+bar shows the expanded count with Collapse all / Expand all (Expand all
+confirms above 20). A chevron marks expanded/collapsed state. Expansion
+resets when a different form is clicked; filtering hides non-matching rows
+without collapsing them.
+

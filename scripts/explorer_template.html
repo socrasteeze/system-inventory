@@ -9,7 +9,7 @@
   :root {
     --bg:#0f1115; --bg2:#1a1d24; --bg3:#252932; --border:#2e3340;
     --text:#e8ebf0; --muted:#8a92a3; --accent:#5eead4;
-    --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171;
+    --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171; --subform:#7d8a9c;
     --read:#60a5fa; --write:#f87171; --match:#a78bfa; --cond:#fbbf24;
     --overlay:rgba(26,29,36,0.92);
   }
@@ -19,7 +19,7 @@
   :root[data-theme="light"] {
     --bg:#f6f7f9; --bg2:#ffffff; --bg3:#eceff3; --border:#d3d8e0;
     --text:#1a1d24; --muted:#5b6472; --accent:#0d9488;
-    --hub:#7c3aed; --spoke:#2563eb; --lookup:#d97706; --wf:#dc2626;
+    --hub:#7c3aed; --spoke:#2563eb; --lookup:#d97706; --wf:#dc2626; --subform:#64748b;
     --read:#2563eb; --write:#dc2626; --match:#7c3aed; --cond:#d97706;
     --overlay:rgba(255,255,255,0.92);
   }
@@ -64,6 +64,10 @@
   .role.Spoke{background:#1e3a5f;color:#bcdbff}
   .role.Lookup{background:#523a14;color:#ffe0a3}
   .role.Workflow{background:#5f2424;color:#ffc4c4}
+  .role.Subform{background:#323b47;color:#c8d2de}
+  .badge.off{background:#5f2424;color:#ffc4c4;font-size:10px;padding:2px 8px;
+             border-radius:4px;text-transform:uppercase;letter-spacing:0.5px;
+             font-weight:600;margin-left:6px;vertical-align:top}
   .panel .meta{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
   .panel .meta b{color:var(--text);font-weight:600}
   .panel .section{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
@@ -158,8 +162,9 @@
   <div class="item"><div class="dot" style="background:var(--hub)"></div>Hub</div>
   <div class="item"><div class="dot" style="background:var(--spoke)"></div>Spoke</div>
   <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
+  <div class="item"><div class="dot" style="background:var(--subform)"></div>Subform</div>
   <div class="item"><div class="dot" style="background:var(--wf)"></div>Workflow</div>
-  <div class="item" style="color:var(--muted)">solid edge = relationship · dashed = workflow trigger/target</div>
+  <div class="item" style="color:var(--muted)">solid edge = relationship · dashed = workflow trigger/target · dimmed workflow = disabled</div>
 </div>
 
 <div class="panel empty" id="panel">
@@ -190,7 +195,8 @@ const elements = [];
 // and recompute them when the theme changes (see setTheme).
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
 function roleColors(){
-  return {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'), Workflow:cssVar('--wf')};
+  return {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'),
+          Subform:cssVar('--subform'), Workflow:cssVar('--wf')};
 }
 let ROLE_COLOR = roleColors();
 
@@ -199,10 +205,14 @@ DATA.forms.forEach(f => {
                        kind:'form'}});
 });
 
-// Workflow nodes
+// Workflow nodes. Disabled workflows are visually distinct (dimmed, dashed
+// border, "(off)" label) — a configured-but-not-running automation must read
+// as flagged, not identical to a live one.
 DATA.workflows.forEach(w => {
-  elements.push({data:{id:'WF:'+w.callsign, label:w.callsign, role:'Workflow',
-                       kind:'workflow', wfRef:w.callsign}});
+  const off = w.enabled === false;
+  elements.push({data:{id:'WF:'+w.callsign, label:w.callsign + (off ? '\n(off)' : ''),
+                       role:'Workflow', kind:'workflow', wfRef:w.callsign},
+                 classes: off ? 'wf-off' : undefined});
 });
 
 // Relationship edges — one per direction. A direction can carry many
@@ -308,6 +318,9 @@ const cy = cytoscape({
       'border-color':'#5eead4', 'border-width':3
     }},
     {selector:'node.dim', style:{'opacity':0.18}},
+    {selector:'node.wf-off', style:{
+      'opacity':0.45, 'border-style':'dashed', 'border-color':'#f87171',
+    }},
     {selector:'node.highlight', style:{'border-color':'#5eead4','border-width':3}},
     {selector:'edge', style:{
       'width': ele => Math.min(8, 1 + Math.log(1 + (parseInt((ele.data('label')||'').split('·')[1]) || 1))),
@@ -431,6 +444,8 @@ function renderForm(formName){
     <h2>${escapeHtml(f.name)}</h2>
     <span class="role ${f.role}">${f.role}</span>
     <div class="meta">
+      ${f.subformOf ? `Embedded grid of <b>${escapeHtml(f.subformOf)}</b><br>` : ''}
+      ${f.description ? `${escapeHtml(f.description)}<br>` : ''}
       <b>${f.fieldCount}</b> fields ·
       <b>${incomingRels.length}</b> incoming links ·
       <b>${outgoingRels.length}</b> outgoing links<br>
@@ -663,7 +678,8 @@ function renderWorkflow(callsign){
   panel.innerHTML = `
     <button class="close-btn" onclick="renderEmpty()">×</button>
     <h2>${escapeHtml(w.name)}</h2>
-    <span class="role Workflow">Workflow · ${escapeHtml(w.callsign)}</span>
+    <span class="role Workflow">Workflow · ${escapeHtml(w.callsign)}</span>${
+      w.enabled === false ? '<span class="badge off">Disabled</span>' : ''}
 
     <div class="section"><h3>Trigger</h3>
       <div class="usage Condition">

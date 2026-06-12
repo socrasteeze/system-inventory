@@ -55,7 +55,7 @@ def _write_landing(views, stamp):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SoCal WHP Workflow Inventory</title>
+<title>Workflow Inventory</title>
 <style>
   :root{{--bg:#0f1115;--bg2:#1a1d24;--bg3:#252932;--border:#2e3340;
         --text:#e8ebf0;--muted:#8a92a3;--accent:#5eead4;}}
@@ -77,7 +77,7 @@ def _write_landing(views, stamp):
 </style>
 </head>
 <body>
-  <h1>SoCal WHP Workflow Inventory</h1>
+  <h1>Workflow Inventory</h1>
   <div class="sub">Interactive form &amp; workflow explorers</div>
   <div class="views">
 {cards}

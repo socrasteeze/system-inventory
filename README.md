@@ -2,7 +2,12 @@
 
 Documentation system for the workflow automations and form architecture of platform workspaces. It ingests JSON exports of forms and workflows and regenerates a filterable spreadsheet and an interactive graph from them.
 
-The project is **multi-workspace**: each workspace lives under `data/<slug>/` and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. The first workspace is `socal-whp` (SCE - ESA Whole Home (PP/D)).
+Two export formats are supported, and they can coexist in one workspace:
+
+- **Whole-workspace export** — one JSON carrying the entire workspace (all forms, embedded workflows, relationships). Dropped at `data/<slug>/*.json`, it becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself.
+- **Individual form / workflow exports** — one JSON per form or workflow, under `data/<slug>/forms/` and `data/<slug>/workflows/`. When an individual export covers something also present in the workspace baseline, the **individual file always wins** — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.
+
+The project is **multi-workspace**: each workspace lives under `data/<slug>/` (slugs use hyphens, e.g. `sce-be`) and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. Current workspaces: `socal-whp` (SCE - ESA Whole Home (PP/D), individual-file format) and `sce-be` (SCE - Building Electrification, workspace-export format).
 
 ## Live explorer
 
@@ -79,9 +84,10 @@ If something is missing it prints plain-English instructions instead of failing 
 ```
 .
 ├── data/
-│   └── <slug>/                  one directory per workspace, e.g. socal-whp/
-│       ├── forms/               ← form profile JSON exports
-│       ├── workflows/           ← workflow JSON exports
+│   └── <slug>/                  one directory per workspace, e.g. sce-be/ (hyphenated slugs)
+│       ├── *.json               ← whole-workspace export(s) — the baseline, if using that format
+│       ├── forms/               ← individual form design exports (override the baseline)
+│       ├── workflows/           ← individual workflow exports (override the baseline)
 │       └── manual/              ← human-maintained overrides
 │           ├── workspace.json           (slug + display name)
 │           ├── form_aliases.json        (filename → display name; plus name_aliases)
@@ -131,11 +137,15 @@ Python 3.9 or newer. `openpyxl` is the only runtime dependency.
 
 When new JSONs come from the platform:
 
-1. Export the form profile or workflow JSON from the platform UI.
-2. Drop it into the matching folder under `data/<slug>/`.
-3. Run the rebuild: `python scripts/regenerate.py` (or `--workspace <slug>` for just that one).
+1. Export from the platform UI — either the whole workspace (one JSON) or an individual form/workflow.
+2. Drop it in place: a workspace export goes at `data/<slug>/` (root); individual exports go into `data/<slug>/forms/` or `data/<slug>/workflows/`.
+3. Run the rebuild: `python scripts/regenerate.py` (or `--workspace <slug>` for just that one). Watch for `!` warnings — each one names an individual file that is shadowing the workspace baseline.
 4. Open `output/<slug>/workspace_explorer.html` to confirm the new node/edge appears.
 5. Commit + push.
+
+Typical workspace-export lifecycle: baseline the workspace with one full export → update individual forms surgically as they change (each shows a shadow warning, which is expected) → when drift accumulates, re-export the whole workspace and delete the stale individual files.
+
+**Disabled workflows are surfaced, not hidden:** the Workflows sheet carries a Status column (Active/Disabled), and the explorers render disabled workflows dimmed with an `(off)` label and a Disabled badge — a configured-but-not-running automation is flagged, never drawn identically to a live one. Subforms (embedded grids from workspace exports) appear as their own slate-colored nodes linked to their parent form.
 
 ## Manual tagging
 
@@ -151,24 +161,28 @@ Edit these in any editor, then re-run `regenerate.py`.
 
 ## Adding a new workspace
 
+**With a whole-workspace export (preferred):** create `data/<slug>/` (hyphenated slug), drop the export JSON at its root, and regenerate. Workspace name, forms, workflows, and relationships all come from the export — no manual files needed.
+
+**With individual files:**
+
 1. Create `data/<slug>/forms/`, `data/<slug>/workflows/`, and `data/<slug>/manual/`.
 2. Add `data/<slug>/manual/workspace.json` with the `slug` and `displayName`.
 3. Drop form and workflow JSON exports into the respective folders, and add `form_aliases.json` entries as needed.
 4. Run `python scripts/regenerate.py`. Output appears under `output/<slug>/`, and the global view picks the workspace up automatically.
 
-## Adding a new workflow
+## Adding a new workflow (individual export)
 
 1. Build the workflow in the platform and export its JSON.
 2. Save it into `data/<slug>/workflows/`.
-3. Optionally add an entry to that workspace's `workflow_metadata.json` with a callsign and criticality rating.
+3. Optionally add an entry to that workspace's `workflow_metadata.json` with a callsign and criticality rating (key by filename stem; workflows embedded in a workspace export key by workflow name instead).
 4. If the workflow references a form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
 5. Regenerate.
 
-## Adding a new form
+## Adding or updating a form (individual export)
 
 1. Export the form design JSON.
 2. Save it into `data/<slug>/forms/`.
-3. Add an entry to that workspace's `form_aliases.json` mapping the filename to a display name.
+3. Add an entry to that workspace's `form_aliases.json` mapping the filename to a display name. If the form also exists in a workspace-export baseline, the display name must match the export's spelling exactly — that match is what makes the individual file override the baseline.
 4. Regenerate.
 
 ## Data sensitivity

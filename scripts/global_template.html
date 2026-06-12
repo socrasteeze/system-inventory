@@ -10,6 +10,7 @@
     --bg:#0f1115; --bg2:#1a1d24; --bg3:#252932; --border:#2e3340;
     --text:#e8ebf0; --muted:#8a92a3; --accent:#5eead4;
     --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171; --dup:#5eead4;
+    --subform:#7d8a9c;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -78,8 +79,9 @@
   <div class="item"><div class="dot" style="background:var(--hub)"></div>Hub</div>
   <div class="item"><div class="dot" style="background:var(--spoke)"></div>Spoke</div>
   <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
+  <div class="item"><div class="dot" style="background:var(--subform)"></div>Subform</div>
   <div class="item"><div class="dot" style="background:var(--wf)"></div>Workflow</div>
-  <div class="item" style="color:var(--muted)">solid = relationship · red dash = workflow · teal dash = same form name across workspaces</div>
+  <div class="item" style="color:var(--muted)">solid = relationship · red dash = workflow · teal dash = same form name across workspaces · dimmed workflow = disabled</div>
 </div>
 
 <div class="panel" id="panel"></div>
@@ -88,7 +90,8 @@
 const DATA = __DATA__;
 // Cytoscape's canvas renderer can't resolve CSS var() — resolve role colors to hex.
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
-const ROLE_COLOR = {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'), Workflow:cssVar('--wf')};
+const ROLE_COLOR = {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'),
+                    Subform:cssVar('--subform'), Workflow:cssVar('--wf')};
 
 // Node width never narrower than its label needs, capped; longer labels wrap.
 const G_MAX_W = 132;
@@ -111,9 +114,13 @@ DATA.workspaces.forEach(w => elements.push({data:{id:'WS::'+w.slug, label:w.name
 DATA.forms.forEach(f => elements.push({data:{
   id:f.id, label:f.name, parent:'WS::'+f.slug, role:f.role, kind:'form',
   fieldCount:f.fieldCount, slug:f.slug, name:f.name}}));
-DATA.workflows.forEach(w => elements.push({data:{
-  id:w.id, label:w.callsign, parent:'WS::'+w.slug, role:'Workflow', kind:'workflow',
-  slug:w.slug, name:w.name}}));
+DATA.workflows.forEach(w => {
+  const off = w.enabled === false;
+  elements.push({data:{
+    id:w.id, label:w.callsign + (off ? '\n(off)' : ''), parent:'WS::'+w.slug,
+    role:'Workflow', kind:'workflow', slug:w.slug, name:w.name, enabled:!off},
+    classes: off ? 'wf-off' : undefined});
+});
 DATA.relationships.forEach(r => elements.push({data:{
   source:r.source, target:r.target, label:r.label, kind:'relationship'}}));
 DATA.wfEdges.forEach(e => elements.push({data:{
@@ -163,6 +170,9 @@ const cy = cytoscape({
     }},
     {selector:'node:selected', style:{'border-color':'#5eead4','border-width':3}},
     {selector:'node.dim', style:{'opacity':0.15}},
+    {selector:'node.wf-off', style:{
+      'opacity':0.45, 'border-style':'dashed', 'border-color':'#f87171',
+    }},
     {selector:'node.highlight', style:{'border-color':'#5eead4','border-width':3}},
     {selector:'edge', style:{
       'width':1.5, 'line-color':'#3a4050', 'target-arrow-color':'#3a4050',
@@ -265,7 +275,8 @@ function renderWorkflow(node){
   panel.innerHTML = `
     <button class="close-btn" onclick="renderOverview()">×</button>
     <h2>${escapeHtml(node.data('name'))}</h2>
-    <span class="role">Workflow · ${escapeHtml(node.data('slug'))}</span>
+    <span class="role">Workflow · ${escapeHtml(node.data('slug'))}</span>${
+      node.data('enabled') === false ? '<span class="role" style="background:#5f2424;color:#ffc4c4;margin-left:6px">Disabled</span>' : ''}
     <div class="meta">Callsign <b>${escapeHtml(node.data('label'))}</b></div>
   `;
 }

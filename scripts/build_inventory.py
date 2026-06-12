@@ -84,9 +84,9 @@ def build(workspace):
         ("Auto-generated. Do not edit by hand — re-run scripts/build_inventory.py to refresh.", NFONT),
         ("", None),
         ("Sheet relationships", SFONT),
-        ("FOUNDATION (parsed from data/forms/*.json):", SFONT),
+        ("FOUNDATION (parsed from the workspace export and/or data/forms/*.json):", SFONT),
         ("  Forms · Fields · FormRelationships · ReferencedDataFields", BFONT),
-        ("WORKFLOWS (parsed from data/workflows/*.json):", SFONT),
+        ("WORKFLOWS (embedded in the workspace export and/or data/workflows/*.json):", SFONT),
         ("  Workflows · Triggers · Steps · Actions · WorkflowFieldUsage", BFONT),
         ("CONTEXT (manual, see data/manual/):", SFONT),
         ("  BusinessProcesses · QueryExamples", BFONT),
@@ -101,12 +101,22 @@ def build(workspace):
     # Forms
     forms_rows = [{
         "FormName": f["name"], "Workspace": workspace_name, "Role": f["role"],
-        "FieldCount": f["fieldCount"], "SourceFile": f.get("sourceFile") or "(no JSON)",
+        "ParentForm": f.get("subformOf", ""),
+        "FieldCount": f["fieldCount"],
+        "Description": f.get("description", ""),
+        "DuplicateRules": f.get("duplicateRules", ""),
+        "SavedFilters": (lambda sf: f"{len(sf)}: " + ", ".join(sf) if sf else "")(f.get("savedFilters") or []),
+        "SourceFile": f.get("sourceFile") or "(no JSON)",
         "Notes": "",
     } for f in data["forms"]]
     sheet(wb.create_sheet("Forms"), "Forms · master inventory",
           [("FormName",30,"PK · stable name"), ("Workspace",32,"Workspace"),
-           ("Role",12,"Hub/Spoke/Lookup"), ("FieldCount",12,"Total data fields"),
+           ("Role",12,"Hub/Spoke/Lookup/Subform"),
+           ("ParentForm",28,"Containing form (subforms only)"),
+           ("FieldCount",12,"Total data fields"),
+           ("Description",44,"From the workspace export"),
+           ("DuplicateRules",44,"Duplicate-response match rules"),
+           ("SavedFilters",40,"Count + names of saved views"),
            ("SourceFile",50,"Source JSON file (or empty if no profile yet)"),
            ("Notes",30,"Free-form")],
           forms_rows, pk="FormName")
@@ -130,6 +140,7 @@ def build(workspace):
                 "FilterCondition": ", ".join(dep.get("filter",[])) or fld.get("filter",""),
                 "VisibilityCondition": ", ".join(dep.get("visibility",[])) or fld.get("visibility",""),
                 "DefaultValue": fld.get("defaultValue",""),
+                "AutoIncrement": fld.get("autoIncrement",""),
                 "DependsOn": ", ".join(fld.get("dependsOnAll",[])),
             })
     sheet(wb.create_sheet("Fields"), "Fields · every field on every form",
@@ -144,6 +155,7 @@ def build(workspace):
            ("FilterCondition",28,"Picklist filter depends on"),
            ("VisibilityCondition",28,"Visible-when depends on"),
            ("DefaultValue",18,"Static default"),
+           ("AutoIncrement",24,"Prefix + counter start, if auto-numbered"),
            ("DependsOn",36,"All same-form fields this field references")],
           field_rows, pk="FieldKey", fks=["FormName"])
 
@@ -175,7 +187,10 @@ def build(workspace):
         "Callsign": w["callsign"], "WorkflowName": w["name"],
         "Description": w["description"],
         "BusinessProcess": "", "Workspace": workspace_name, "Owner": "",
-        "Status": "Draft", "Environment": "Staging", "Criticality": "",
+        # Configured-but-not-running automations must be flagged, not rendered
+        # like live ones — Status comes from the export's enabled flag.
+        "Status": "Active" if w.get("enabled", True) else "Disabled",
+        "Environment": "Staging", "Criticality": "",
         "Staging_GUID": w["staging_guid"], "Prod_GUID": "",
         "SourceFile": w["sourceFile"], "Notes": "",
     } for w in data["workflows"]]
@@ -184,7 +199,7 @@ def build(workspace):
            ("Description",40,"Plain-English summary"),
            ("BusinessProcess",20,"FK → BusinessProcesses"),
            ("Workspace",28,"Workspace"), ("Owner",24,"Name/email"),
-           ("Status",12,"Active/Disabled/Draft"), ("Environment",14,"Staging/Prod"),
+           ("Status",12,"Active/Disabled"), ("Environment",14,"Staging/Prod"),
            ("Criticality",12,"High/Med/Low"),
            ("Staging_GUID",38,"Workflow ID in staging"), ("Prod_GUID",38,"ID in prod"),
            ("SourceFile",40,"Source JSON"), ("Notes",40,"Free-form")],

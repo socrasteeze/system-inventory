@@ -82,6 +82,22 @@
   .field .flbl{color:var(--muted);font-size:10px;margin-left:6px;font-family:inherit}
   .field .ftype{color:var(--accent);font-size:10px;float:right;font-family:monospace}
   .field .badges{display:inline-flex;gap:4px;margin-left:6px}
+  .field .chev{display:inline-block;width:0;height:0;margin-right:7px;vertical-align:middle;
+         border-left:5px solid var(--muted);border-top:4px solid transparent;
+         border-bottom:4px solid transparent;transition:transform 0.12s}
+  .field.expanded .chev{transform:rotate(90deg);border-left-color:var(--accent)}
+  .field-controls{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;
+         background:var(--bg2);border-bottom:1px solid var(--border);padding:6px 2px;margin-bottom:6px}
+  .field-controls .exp-count{font-size:11px;color:var(--muted);font-family:monospace}
+  .field-controls .spacer{flex:1}
+  .mini-btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);
+         padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit}
+  .mini-btn:hover{border-color:var(--accent)}
+  .field-detail{margin:2px 0 8px 12px;padding:6px 10px;border-left:2px solid var(--border);
+         background:var(--bg);border-radius:0 5px 5px 0}
+  .field-detail h3{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
+         color:var(--muted);margin:12px 0 8px}
+  .field-detail h3:first-child{margin-top:2px}
   .badge{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg3);
          color:var(--muted);font-family:inherit;letter-spacing:0.3px}
   .badge.rel{background:#3b2d63;color:#d9c9ff}
@@ -326,6 +342,8 @@ function selectFromHash(){
 const panel = document.getElementById('panel');
 let activeNodeId = null;
 let activeFieldFilter = '';
+let currentFormName = null;
+let expandedFields = new Set();  // field names expanded inline; reset when the form changes
 
 function clearHighlights(){
   cy.elements().removeClass('dim highlight m-match m-hop1 m-hop2 m-dim m-edge1 m-edge2');
@@ -341,6 +359,9 @@ function renderEmpty(){
 function renderForm(formName){
   const f = DATA.forms.find(x => x.name === formName);
   if (!f) return;
+  // Switching forms auto-collapses any inline detail from the previous form.
+  currentFormName = formName;
+  expandedFields = new Set();
   const fields = DATA.fields[formName] || [];
   const incomingRels = DATA.relationships.filter(r => r.target === formName);
   const outgoingRels = DATA.relationships.filter(r => r.source === formName);
@@ -396,36 +417,107 @@ function renderForm(formName){
   renderFieldList(formName);
 }
 
+// Fields matching the current filter; expansion state is tracked separately so a
+// filter only changes what's visible, never what's expanded.
+function visibleFields(formName){
+  const q = activeFieldFilter.toLowerCase();
+  return (DATA.fields[formName] || []).filter(f =>
+    !q || f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q));
+}
+
 function renderFieldList(formName){
   const list = document.getElementById('field-list');
   if (!list) return;
-  const fields = DATA.fields[formName] || [];
-  const q = activeFieldFilter.toLowerCase();
-  const wfsTouching = DATA.workflows.filter(w =>
-    w.fieldUsage.some(u => u.form === formName));
   const touchedFieldNames = new Set();
-  wfsTouching.forEach(w => w.fieldUsage.filter(u => u.form === formName)
-                                       .forEach(u => touchedFieldNames.add(u.field)));
-  const filtered = fields.filter(f =>
-    !q || f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q));
+  DATA.workflows.forEach(w => w.fieldUsage.filter(u => u.form === formName)
+                                          .forEach(u => touchedFieldNames.add(u.field)));
+  const visible = visibleFields(formName);
 
-  if (!filtered.length) {
-    list.innerHTML = `<div class="empty-state">no fields match</div>`;
+  const controls = `<div class="field-controls">
+    <span class="exp-count" id="exp-count">${expandedFields.size} expanded</span>
+    <span class="spacer"></span>
+    <button class="mini-btn" onclick="collapseAllFields()">Collapse all</button>
+    <button class="mini-btn" onclick="expandAllFields()">Expand all</button>
+  </div>`;
+
+  if (!visible.length) {
+    list.innerHTML = controls + `<div class="empty-state">no fields match the filter</div>`;
     return;
   }
-  list.innerHTML = filtered.map(f => {
+
+  list.innerHTML = controls + visible.map(f => {
     const touched = touchedFieldNames.has(f.name);
-    return `<div class="field ${touched?'touched':''}" onclick="showFieldDetail('${escapeAttr(formName)}','${escapeAttr(f.name)}')">
-      <span class="fname">${escapeHtml(f.name)}</span>
-      <span class="ftype">${escapeHtml(f.type||'')}</span>
-      <span class="flbl">${escapeHtml(f.label||'')}</span>
-      <span class="badges">
-        ${f.required==='Yes'?'<span class="badge req">REQ</span>':''}
-        ${f.component==='FormRelationshipInput'?'<span class="badge rel">REL</span>':''}
-        ${f.component==='FormRelationshipReferenceDataInput'?'<span class="badge ref">REF</span>':''}
-      </span>
+    const isExp = expandedFields.has(f.name);
+    return `<div class="field-row" data-field="${escapeAttr(f.name)}">
+      <div class="field ${touched?'touched':''} ${isExp?'expanded':''}"
+           onclick="toggleField(this,'${escapeAttr(formName)}','${escapeAttr(f.name)}')">
+        <span class="chev"></span>
+        <span class="fname">${escapeHtml(f.name)}</span>
+        <span class="ftype">${escapeHtml(f.type||'')}</span>
+        <span class="flbl">${escapeHtml(f.label||'')}</span>
+        <span class="badges">
+          ${f.required==='Yes'?'<span class="badge req">REQ</span>':''}
+          ${f.component==='FormRelationshipInput'?'<span class="badge rel">REL</span>':''}
+          ${f.component==='FormRelationshipReferenceDataInput'?'<span class="badge ref">REF</span>':''}
+        </span>
+      </div>
+      ${isExp ? `<div class="field-detail">${fieldDetailHTML(formName, f.name)}</div>` : ''}
     </div>`;
   }).join('');
+}
+
+function updateExpandCount(){
+  const el = document.getElementById('exp-count');
+  if (el) el.textContent = `${expandedFields.size} expanded`;
+}
+
+// Toggle one field's inline detail. Targeted DOM edit (not a full re-render) so the
+// scroll position is preserved and only the toggled field's detail is built.
+function toggleField(headerEl, formName, fieldName){
+  const row = headerEl.closest('.field-row');
+  if (expandedFields.has(fieldName)) {
+    expandedFields.delete(fieldName);
+    headerEl.classList.remove('expanded');
+    const d = row.querySelector('.field-detail');
+    if (d) d.remove();
+  } else {
+    expandedFields.add(fieldName);
+    headerEl.classList.add('expanded');
+    const d = document.createElement('div');
+    d.className = 'field-detail';
+    d.innerHTML = fieldDetailHTML(formName, fieldName);
+    row.appendChild(d);
+    pulseConnectedForm(formName, fieldName);
+  }
+  updateExpandCount();
+}
+
+function expandAllFields(){
+  if (!currentFormName) return;
+  const visible = visibleFields(currentFormName);
+  const toOpen = visible.filter(f => !expandedFields.has(f.name));
+  if (!toOpen.length) return;
+  if (toOpen.length > 20 &&
+      !confirm(`Expand all ${toOpen.length} fields? This may take a moment on a large form.`)) {
+    return;
+  }
+  visible.forEach(f => expandedFields.add(f.name));
+  renderFieldList(currentFormName);
+}
+
+function collapseAllFields(){
+  expandedFields.clear();
+  if (currentFormName) renderFieldList(currentFormName);
+}
+
+// Flash the connected form when a relationship field is expanded.
+function pulseConnectedForm(formName, fieldName){
+  const field = (DATA.fields[formName]||[]).find(f => f.name === fieldName);
+  if (!field) return;
+  let cf = null;
+  if (field.component === 'FormRelationshipInput') cf = field.relatedForm || null;
+  else if (field.component === 'FormRelationshipReferenceDataInput') cf = relationshipTarget(formName, field.via);
+  if (cf) { const cn = cy.$id(cf); if (cn.nonempty()) cn.flashClass('pulse', 1300); }
 }
 
 // Resolve the form on the far end of one of formName's relationship fields.
@@ -434,17 +526,15 @@ function relationshipTarget(formName, via){
   return rel ? rel.target : null;
 }
 
-function showFieldDetail(formName, fieldName){
-  const usages = [];
-  DATA.workflows.forEach(w => {
-    w.fieldUsage.forEach(u => {
-      if (u.form === formName && u.field === fieldName) {
-        usages.push({wf:w, usage:u});
-      }
-    });
-  });
+// Inner HTML for a field's inline detail block (no DOM side effects).
+function fieldDetailHTML(formName, fieldName){
   const field = (DATA.fields[formName]||[]).find(f => f.name === fieldName);
-  if (!field) return;
+  if (!field) return '';
+
+  const usages = [];
+  DATA.workflows.forEach(w => w.fieldUsage.forEach(u => {
+    if (u.form === formName && u.field === fieldName) usages.push({wf:w, usage:u});
+  }));
 
   // Reverse direction: forms that pull this field in via a ReferenceDataInput.
   // A refPull {destForm, via, sourceField} pulls sourceField from the form that
@@ -456,14 +546,6 @@ function showFieldDetail(formName, fieldName){
       referencedBy.push({form: r.destForm, via: r.via, localField: r.destField});
     }
   });
-
-  // For the optional node flash: the form this field itself reaches, if any.
-  let connectedForm = null;
-  if (field.component === 'FormRelationshipInput') {
-    connectedForm = field.relatedForm || null;
-  } else if (field.component === 'FormRelationshipReferenceDataInput') {
-    connectedForm = relationshipTarget(formName, field.via);
-  }
 
   // Intra-form reverse: other fields on this form whose config depends on this field.
   const KIND_PHRASE = {
@@ -481,10 +563,7 @@ function showFieldDetail(formName, fieldName){
     });
   });
 
-  const fieldDetail = document.createElement('div');
-  fieldDetail.className = 'section';
-  fieldDetail.innerHTML = `
-    <h3>Field detail · ${escapeHtml(fieldName)}</h3>
+  return `
     <div class="meta">
       <b>Label:</b> ${escapeHtml(field.label||'(none)')}<br>
       <b>Type:</b> ${escapeHtml(field.type||'')}<br>
@@ -496,18 +575,18 @@ function showFieldDetail(formName, fieldName){
       ${field.validator?`<b>Validator:</b> ${escapeHtml(field.validator)}<br>`:''}
     </div>
 
-    ${field.formula?`<h3 style="margin-top:14px">Formula</h3>
+    ${field.formula?`<h3>Formula</h3>
       <div class="usage" style="font-family:monospace;white-space:pre-wrap;line-height:1.4">${escapeHtml(field.formula)}</div>`:''}
 
     ${usages.length?
-      `<h3 style="margin-top:14px">Workflow usage (${usages.length})</h3>
+      `<h3>Workflow usage (${usages.length})</h3>
        ${usages.map(({wf,usage}) => `<div class="usage ${usage.direction}">
          <span class="dir">${usage.direction}</span>${escapeHtml(wf.callsign)}
          <div class="ctx">${escapeHtml(usage.context)}</div>
        </div>`).join('')}`
       :'<div class="empty-state">no workflows touch this field yet</div>'}
 
-    <h3 style="margin-top:14px">Referenced by (${referencedBy.length})</h3>
+    <h3>Referenced by (${referencedBy.length})</h3>
     ${referencedBy.length?
       referencedBy.map(x => `<div class="usage Match">
         <span class="dir">REF</span>${escapeHtml(x.form)}
@@ -515,7 +594,7 @@ function showFieldDetail(formName, fieldName){
       </div>`).join('')
       :'<div class="empty-state">no forms reference this field</div>'}
 
-    <h3 style="margin-top:14px">Used within this form (${intraRefs.length})</h3>
+    <h3>Used within this form (${intraRefs.length})</h3>
     ${intraRefs.length?
       intraRefs.map(x => `<div class="usage Condition">
         <span class="dir">${KIND_BADGE[x.kind]}</span>${escapeHtml(x.by)}
@@ -523,13 +602,6 @@ function showFieldDetail(formName, fieldName){
       </div>`).join('')
       :'<div class="empty-state">not referenced by other fields on this form</div>'}
   `;
-  panel.appendChild(fieldDetail);
-  fieldDetail.scrollIntoView({behavior:'smooth', block:'start'});
-
-  if (connectedForm) {
-    const cn = cy.$id(connectedForm);
-    if (cn.nonempty()) cn.flashClass('pulse', 1300);
-  }
 }
 
 function renderWorkflow(callsign){
@@ -713,7 +785,9 @@ document.getElementById('search').addEventListener('input', e => runSearch(e.tar
 function escapeHtml(s){return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function escapeAttr(s){return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');}
 window.renderEmpty = renderEmpty;
-window.showFieldDetail = showFieldDetail;
+window.toggleField = toggleField;
+window.expandAllFields = expandAllFields;
+window.collapseAllFields = collapseAllFields;
 window.cy = cy;
 </script>
 </body>

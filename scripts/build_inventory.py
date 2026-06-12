@@ -115,6 +115,7 @@ def build(workspace):
     field_rows = []
     for form_name, flds in data["fields"].items():
         for fld in flds:
+            dep = fld.get("dependsOn", {}) or {}
             field_rows.append({
                 "FieldKey": f"{form_name}::{fld['name']}",
                 "FormName": form_name, "FieldName": fld["name"], "Label": fld["label"],
@@ -124,6 +125,12 @@ def build(workspace):
                 "IsRefData": "Yes" if fld["component"]=="FormRelationshipReferenceDataInput" else "",
                 "RelatedForm": fld["relatedForm"], "RelatedField": fld["relatedField"],
                 "ViaRelationship": fld["via"],
+                "Validator": fld.get("validator",""),
+                "Formula": (fld.get("formula","") or "")[:500],
+                "FilterCondition": ", ".join(dep.get("filter",[])) or fld.get("filter",""),
+                "VisibilityCondition": ", ".join(dep.get("visibility",[])) or fld.get("visibility",""),
+                "DefaultValue": fld.get("defaultValue",""),
+                "DependsOn": ", ".join(fld.get("dependsOnAll",[])),
             })
     sheet(wb.create_sheet("Fields"), "Fields · every field on every form",
           [("FieldKey",38,"PK · FormName::FieldName"), ("FormName",30,"FK → Forms"),
@@ -132,7 +139,12 @@ def build(workspace):
            ("Required",10,"Yes/No"), ("Hidden",10,"Yes/No"), ("Enabled",10,"Yes/No"),
            ("IsRelationship",14,"Yes if defines link"), ("IsRefData",14,"Yes if pulls through link"),
            ("RelatedForm",30,"Target form"), ("RelatedField",24,"Pulled field"),
-           ("ViaRelationship",24,"Which rel field")],
+           ("ViaRelationship",24,"Which rel field"),
+           ("Validator",16,"Field-type validator"), ("Formula",48,"Computed-field formula"),
+           ("FilterCondition",28,"Picklist filter depends on"),
+           ("VisibilityCondition",28,"Visible-when depends on"),
+           ("DefaultValue",18,"Static default"),
+           ("DependsOn",36,"All same-form fields this field references")],
           field_rows, pk="FieldKey", fks=["FormName"])
 
     # FormRelationships

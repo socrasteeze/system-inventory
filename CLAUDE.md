@@ -106,6 +106,7 @@ Pure parsing helpers (`_walk`, `_expr_to_text`, `_summarize_*`, `_parse_field_as
 - Each field extracts name, label, data type, component type, required/hidden/enabled flags.
 - `FormRelationshipInput` fields produce `relationships` (form-to-form links).
 - `FormRelationshipReferenceDataInput` fields produce `refPulls` (cross-form data pulls).
+- `_extract_field_config()` pulls per-field logic: `validator` (node-level type), computed `formula` (Computed `AdvancedConfiguration` / DropDown `ValueAdvancedConfiguration`), `visibility` (`HiddenAdvancedConfiguration`), conditional-required (`RequiredAdvancedConfiguration`), picklist `filter` (node-level `Filter`), and `defaultValue`. Each yields a `dependsOn` map of the same-form fields it references. References come from a config's `.Fields[].FieldName` array (code-based JS rules) and from `@Field.X` tokens inside builder expressions (`_config_field_refs`, which base64-decodes encoded expressions). This is the intra-form half of the field "Where Is This Used?" view; `refPulls` is the cross-form half.
 - Form display name is resolved by `Workspace.guess_form_name(stem)`, which checks the workspace's `form_aliases.json` first, then falls back to a regex heuristic.
 
 **Workflow parsing** (`Workspace.parse_workflow`):

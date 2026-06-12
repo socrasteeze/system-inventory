@@ -1,11 +1,18 @@
 # SoCal WHP Workflow Inventory
 
-Documentation system for the workflow automations and form architecture across the SCE - ESA Whole Home (PP/D) workspace.
+Documentation system for the workflow automations and form architecture of platform workspaces. It ingests JSON exports of forms and workflows and regenerates a filterable spreadsheet and an interactive graph from them.
 
-Provides two artifacts, both regenerated from raw JSON exports:
+The project is **multi-workspace**: each workspace lives under `data/<slug>/` and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. The first workspace is `socal-whp` (SCE - ESA Whole Home (PP/D)).
 
-- **`output/workflow_master_inventory.xlsx`** — normalized spreadsheet inventory. One row per form, field, relationship, workflow, action, and field-usage event. Filterable for impact analysis ("what breaks if I rename field X").
-- **`output/workspace_explorer.html`** — interactive graph view. Open in any browser. Zoom, pan, click forms to inspect fields, click the workflow node to see what it touches.
+Per workspace:
+
+- **`output/<slug>/workflow_master_inventory.xlsx`** — normalized spreadsheet inventory. One row per form, field, relationship, workflow, action, and field-usage event. Field rows also carry validators, computed formulas, filter/visibility conditions, default values, and the same-form fields each references. Filterable for impact analysis ("what breaks if I rename field X").
+- **`output/<slug>/workspace_explorer.html`** — interactive graph. Open in any browser. Zoom, pan, click forms to inspect fields, click the workflow node to see what it touches. Field detail answers "where is this used?" across forms and within the form. Light/dark toggle in the toolbar.
+
+Across all workspaces:
+
+- **`output/global/cross-workspace-inventory.xlsx`** — every workspace in one workbook, plus form-name collision and duplicate-flow analysis.
+- **`output/global/global-explorer.html`** — single graph with each workspace as a cluster and duplicate form names linked across clusters. Form nodes link back into the per-workspace explorer.
 
 ## Quick start for read-only users
 
@@ -27,75 +34,101 @@ If something is missing it prints plain-English instructions instead of failing 
 ```
 .
 ├── data/
-│   ├── forms/              ← drop form profile JSON exports here
-│   ├── workflows/          ← drop workflow JSON exports here
-│   └── manual/             ← human-maintained metadata
-│       ├── form_aliases.json         (filename → clean display name)
-│       ├── workflow_metadata.json    (callsigns, criticality, owners)
-│       └── business_processes.json   (real-world process tagging)
-├── output/                 ← generated artifacts (commit or .gitignore — your call)
+│   └── <slug>/                  one directory per workspace, e.g. socal-whp/
+│       ├── forms/               ← form profile JSON exports
+│       ├── workflows/           ← workflow JSON exports
+│       └── manual/              ← human-maintained overrides
+│           ├── workspace.json           (slug + display name)
+│           ├── form_aliases.json        (filename → display name; plus name_aliases)
+│           ├── workflow_metadata.json   (callsigns, criticality, owners)
+│           ├── business_processes.json  (real-world process tagging)
+│           └── explorer_layout.json     (optional preset graph positions)
+├── output/
+│   ├── <slug>/                  ← per-workspace Excel + HTML
+│   └── global/                  ← cross-workspace Excel + HTML
 ├── scripts/
-│   ├── parser.py           (shared JSON parser)
-│   ├── build_inventory.py  (Excel builder)
-│   ├── build_explorer.py   (HTML builder)
-│   ├── explorer_template.html
-│   └── regenerate.py       (one-command rebuild)
+│   ├── parser.py                (Workspace class + shared JSON parser)
+│   ├── build_inventory.py       (per-workspace Excel builder)
+│   ├── build_explorer.py        (per-workspace HTML builder)
+│   ├── build_global.py          (cross-workspace aggregator)
+│   ├── explorer_template.html   (per-workspace HTML template)
+│   ├── global_template.html     (global HTML template)
+│   └── regenerate.py            (rebuild orchestrator)
+├── refresh-and-open.bat         (Windows read-only launcher)
+├── refresh-and-open.command     (macOS/Linux read-only launcher)
+├── requirements.txt
 └── README.md
 ```
+
+## Rebuild command
+
+```
+python scripts/regenerate.py                 # rebuild all workspaces + global
+python scripts/regenerate.py --workspace X   # rebuild only workspace X
+python scripts/regenerate.py --global        # rebuild only the global aggregator
+```
+
+Run from the project root after adding or changing any JSON under `data/`, then open the relevant file in `output/<slug>/` (or `output/global/`) to confirm.
+
+## First-time setup
+
+```bash
+# Install Python deps
+pip install -r requirements.txt
+
+# Generate artifacts from the JSONs already in data/
+python scripts/regenerate.py
+```
+
+Python 3.9 or newer. `openpyxl` is the only runtime dependency.
 
 ## Standing operating procedure
 
 When new JSONs come from the platform:
 
 1. Export the form profile or workflow JSON from the platform UI.
-2. Drop it into the matching folder under `data/`.
-3. Run the rebuild:
-   ```
-   python scripts/regenerate.py
-   ```
-4. Open `output/workspace_explorer.html` in a browser to confirm the new node/edge appears.
+2. Drop it into the matching folder under `data/<slug>/`.
+3. Run the rebuild: `python scripts/regenerate.py` (or `--workspace <slug>` for just that one).
+4. Open `output/<slug>/workspace_explorer.html` to confirm the new node/edge appears.
 5. Commit + push.
-
-## First-time setup
-
-```bash
-# Install Python deps
-pip install openpyxl
-
-# Generate artifacts from the JSONs already in data/
-python scripts/regenerate.py
-```
-
-Python 3.9 or newer. No other dependencies.
 
 ## Manual tagging
 
-Three files in `data/manual/` let you override or annotate without touching the auto-discovered data:
+Files in `data/<slug>/manual/` override or annotate without touching the auto-discovered data. None are required; sensible defaults apply when absent.
 
-- **`form_aliases.json`** — maps the messy export filename to a clean display name (e.g. `so_cal-esa_whole_home_pp_d__300-account_management_v342_design` → `300 - Account Management`).
-- **`workflow_metadata.json`** — assigns each workflow its callsign, criticality, owner, and which business process it serves.
+- **`workspace.json`** — the workspace `slug` and `displayName` (used as the Excel title and graph heading).
+- **`form_aliases.json`** — maps the messy export filename to a clean display name (e.g. `so_cal-esa_whole_home_pp_d__300-account_management_v342_design` → `300 - Account Management`). Its `name_aliases` section corrects stale form names that workflow exports still reference.
+- **`workflow_metadata.json`** — assigns each workflow its callsign, criticality, owner, and business process.
 - **`business_processes.json`** — defines the real-world processes workflows can be tagged against.
+- **`explorer_layout.json`** — optional preset node positions for the graph; without it the explorer uses a force-directed layout.
 
-Edit these files in any editor. Re-run `regenerate.py` to apply changes.
+Edit these in any editor, then re-run `regenerate.py`.
+
+## Adding a new workspace
+
+1. Create `data/<slug>/forms/`, `data/<slug>/workflows/`, and `data/<slug>/manual/`.
+2. Add `data/<slug>/manual/workspace.json` with the `slug` and `displayName`.
+3. Drop form and workflow JSON exports into the respective folders, and add `form_aliases.json` entries as needed.
+4. Run `python scripts/regenerate.py`. Output appears under `output/<slug>/`, and the global view picks the workspace up automatically.
 
 ## Adding a new workflow
 
-1. Build the workflow in the platform.
-2. Export its JSON.
-3. Save into `data/workflows/`.
-4. Optionally add an entry to `data/manual/workflow_metadata.json` with a callsign and criticality rating.
+1. Build the workflow in the platform and export its JSON.
+2. Save it into `data/<slug>/workflows/`.
+3. Optionally add an entry to that workspace's `workflow_metadata.json` with a callsign and criticality rating.
+4. If the workflow references a form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
 5. Regenerate.
 
 ## Adding a new form
 
 1. Export the form design JSON.
-2. Save into `data/forms/`.
-3. Add an entry to `data/manual/form_aliases.json` mapping filename to display name.
+2. Save it into `data/<slug>/forms/`.
+3. Add an entry to that workspace's `form_aliases.json` mapping the filename to a display name.
 4. Regenerate.
 
 ## Data sensitivity
 
-This repository contains the schema and structure of utility company workflow and form configurations. It does **not** contain customer data or PII — only field NAMES and labels.
+This repository contains the schema and structure of utility company workflow and form configurations. It does **not** contain customer data or PII — only field names and labels.
 
 ## License
 

@@ -7,6 +7,21 @@ Provides two artifacts, both regenerated from raw JSON exports:
 - **`output/workflow_master_inventory.xlsx`** — normalized spreadsheet inventory. One row per form, field, relationship, workflow, action, and field-usage event. Filterable for impact analysis ("what breaks if I rename field X").
 - **`output/workspace_explorer.html`** — interactive graph view. Open in any browser. Zoom, pan, click forms to inspect fields, click the workflow node to see what it touches.
 
+## Quick start for read-only users
+
+If you just want to see the latest inventory and have never touched Python or git, use the launcher for your platform — no terminal required.
+
+- **Windows:** double-click **`refresh-and-open.bat`**
+- **macOS / Linux:** double-click **`refresh-and-open.command`** (first time on macOS, right-click → **Open** to clear the security prompt)
+
+The launcher:
+
+1. Pulls the latest data and code (`git pull`) if git is available — and continues with the local copy if not.
+2. Rebuilds the Excel and HTML artifacts.
+3. Asks which view to open — a workspace by number, or the combined cross-workspace view (the default) — and opens it in your browser.
+
+If something is missing it prints plain-English instructions instead of failing silently. The one thing it can't install for you is Python itself: get it from <https://www.python.org/downloads/> and check **Add Python to PATH** during install (Windows). Everything else — dependencies included — the launcher offers to set up.
+
 ## Folder structure
 
 ```

@@ -1,0 +1,5 @@
+# Keep launchers in the line endings their interpreter needs, regardless of
+# the cloner's platform or core.autocrlf setting.
+*.command text eol=lf
+*.sh      text eol=lf
+*.bat     text eol=crlf

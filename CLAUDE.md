@@ -4,7 +4,7 @@ Reference for maintaining the inventory pipeline: architecture, data flow, overr
 
 ## What this project is
 
-A documentation system for platform forms and workflows. It ingests JSON exports, parses them into a normalized structure, and produces per-workspace and cross-workspace artifacts.
+A documentation system for platform forms and workflows. It ingests JSON exports (two supported formats — see *Ingestion formats* below), parses them into a normalized structure, and produces per-workspace and cross-workspace artifacts.
 
 The project is **multi-workspace**. Each workspace lives under `data/<slug>/` and gets its own output under `output/<slug>/`:
 
@@ -18,18 +18,54 @@ A global aggregator combines every workspace into one view under `output/global/
 
 No output file is hand-edited. All are regenerated from the JSON exports in `data/`.
 
-The first (and currently only) workspace is `socal-whp` — **SCE - ESA Whole Home (PP/D)**.
+Current workspaces: `socal-whp` — **SCE - ESA Whole Home (PP/D)** (individual-file format) and `sce-be` — **SCE - Building Electrification** (whole-workspace export format). `data/liwp/` is an empty stub for a future workspace.
+
+**Slug naming convention: hyphens**, not underscores (`sce-be`, `socal-whp`).
 
 ---
 
 ## Multi-workspace model
 
-A workspace is a directory under `data/` containing `forms/`, `workflows/`, and `manual/`. The `parser.Workspace` class is the unit of work: `Workspace(slug).discover()` parses one workspace; `parser.list_workspaces()` enumerates every workspace on disk (any `data/*` dir holding a `forms/` or `workflows/` folder).
+A workspace is a directory under `data/` containing any of: `forms/`, `workflows/`, `manual/`, and/or one or more root-level whole-workspace export JSONs. The `parser.Workspace` class is the unit of work: `Workspace(slug).discover()` parses one workspace; `parser.list_workspaces()` enumerates every workspace on disk (any `data/*` dir holding a `forms/` or `workflows/` folder, or a root-level `*.json`).
 
 - Per-workspace builders (`build_inventory`, `build_explorer`) take a `Workspace` and write under `output/<slug>/`.
 - The global builder (`build_global`) calls `parser.discover_all()` (returns `{slug: discovered}`) and writes under `output/global/`.
 
 Nothing in the scripts is workspace-specific. Display name and graph layout live in the workspace's `manual/` folder (see below), so adding a workspace never means editing code.
+
+---
+
+## Ingestion formats & precedence
+
+Two export formats are supported, detected per file by root shape (`parser.detect_format`):
+
+| Root shape | Format | Where it lives |
+|---|---|---|
+| `Forms` array + workspace metadata (`Name`/`DisplayName`) | **whole-workspace export** | `data/<slug>/*.json` (slug root) |
+| `Components` tree | individual form design export | `data/<slug>/forms/` |
+| `Triggers`/`Steps` | individual workflow export | `data/<slug>/workflows/` |
+
+A non-workspace JSON dropped at the slug root is warned about and skipped — individual exports belong in `forms/` and `workflows/`.
+
+### Whole-workspace export
+
+One JSON carries the entire workspace: metadata, all forms (design tree under `FormDesign.Components` — a *flat* list typed by `FormDesignComponentType`, unlike the individual export's nested tree typed by `ComponentType`), a flattened `Fields` array per form, embedded workflows per form (`WorkflowConfigs`), and `FormRelationships`. Key differences from the individual format, all normalized inside `parser.py` so downstream builders are format-agnostic:
+
+- **GUID-based, not name-based.** Relationships, reference pulls, and trigger conditions point at `FormId`/`FieldId` GUIDs that resolve within the file. `parse_workspace_export()` builds a workspace-wide GUID→name index first. Consequence: **no `form_aliases.json` and no `name_aliases` are needed** for workspace-export data — `DisplayName` is carried per form and GUID links can't go stale.
+- **Workflows are embedded per-form** under `WorkflowConfigs` (`EventTrigger` like `WorkflowUpsertEventConsts:Create|Update|Scheduled`, dict-shaped `TriggerCondition` with type names *without* the `Dto` suffix, `Actions` with handler-specific `Configuration`). `_ws_parse_workflow()` maps these onto the same internal model `parse_workflow` produces. Notification actions (`NotificationActionHandler`) contribute `Read` field-usage rows for every `{FieldName}` template token that matches a host-form field. Unknown handlers degrade to a generic action row.
+- **Workflow identity is `(trigger form, name)`** — two embedded workflows on different forms can share a name (e.g. "Pending Reviews"). Callsigns are de-duped within a workspace (`_2`, `_3` suffixes) since they're node IDs and Excel PKs.
+- **Subforms.** Most forms in a workspace export are embedded grids (`FormDesign: null`, `TopLevelFormId` ≠ own `Id`). They get role **`Subform`**, fields from the flattened `Fields` array, and a containment relationship `parent → subform` via `"(embedded grid)"` so they stay connected in the graph. Duplicate display names get parent-qualified (`HouseholdMemberInformation (210 - …)`); an orphan grid whose parent isn't in the export is still a `Subform`, just with no containment edge.
+- **Disabled workflows** (`IsEnabled: false`) are surfaced, not hidden: `Status` column (Active/Disabled) in the Workflows and AllWorkflows sheets, and a dimmed, dash-bordered node with an `(off)` label plus a "Disabled" badge in both explorers. Individual workflow exports carry no enabled flag and default to Active.
+- **Extras captured:** form `Description`, `AutoIncrementFormFields` (per-field prefix/counter, Fields sheet + field detail), `DuplicateResponseConfiguration` (summarized rules, Forms sheet), `SavedFilters` (names/count only, Forms sheet). `SecurityPolicy` is deliberately not captured.
+
+### Precedence: individual file always wins
+
+Both formats can coexist in one workspace. The workspace export is the **baseline** (all forms at once); an individual form/workflow export for something that also exists in the baseline **always takes precedence** — it's treated as a surgical update. The tiebreaker is *presence*, never file mtime: **git does not preserve mtimes**, so newest-file-wins would resolve differently on every clone (the read-only launcher distributes via `git pull`). Individual-always-wins is deterministic from the file listing alone.
+
+- Form override replaces fields/relationships/refPulls; workspace-only extras (description, saved filters, dup rules) are kept from the baseline.
+- Workflow override matches on `(trigger form, name)`.
+- Every shadowing prints a rebuild-time warning (`! <form>: individual export (...) overrides workspace baseline (...)`) so stale overrides stay visible. When you re-baseline with a fresh workspace export, delete the stale individual files — that's the explicit reset.
+- Multiple workspace exports in one slug root merge in filename order (later wins) before individual files are applied.
 
 ---
 
@@ -69,8 +105,9 @@ Edge-detail lives only in the per-workspace explorer, not the global view — it
 ```
 data/
   <slug>/
-    forms/       ← form profile JSON exports (one file per form)
-    workflows/   ← workflow JSON exports (one file per workflow)
+    *.json       ← whole-workspace export(s), if using that format (baseline)
+    forms/       ← individual form design JSON exports (override the baseline)
+    workflows/   ← individual workflow JSON exports (override the baseline)
     manual/      ← human-maintained overrides and metadata (see below)
 output/
   <slug>/        ← per-workspace Excel + HTML
@@ -118,9 +155,11 @@ Every `regenerate.py` run ends with `publish_docs()`, which mirrors the built HT
 ## Data flow
 
 ```
-data/<slug>/forms/*.json      ──┐
-data/<slug>/workflows/*.json   ─┼─► Workspace.discover() ─┬─► build_inventory.build(ws) ─► output/<slug>/*.xlsx
-data/<slug>/manual/*.json     ──┘                         └─► build_explorer.build(ws)  ─► output/<slug>/*.html
+data/<slug>/*.json (workspace) ──┐
+data/<slug>/forms/*.json       ──┤
+data/<slug>/workflows/*.json    ─┼─► Workspace.discover() ─┬─► build_inventory.build(ws) ─► output/<slug>/*.xlsx
+data/<slug>/manual/*.json      ──┘   (baseline + override   └─► build_explorer.build(ws)  ─► output/<slug>/*.html
+                                      merge happens here)
 
 all workspaces ─► parser.discover_all() ─► build_global.build() ─► output/global/*.xlsx + *.html
 ```
@@ -143,7 +182,9 @@ Pure parsing helpers (`_walk`, `_expr_to_text`, `_summarize_*`, `_parse_field_as
 - Extracts trigger (form, condition, timing) and steps/actions (target form, field assignments, duplicate policy).
 - Produces `fieldUsage` rows for every field the workflow reads or writes.
 
-**`Workspace.discover()`** walks the workspace's `forms/` and `workflows/`, merges results, and auto-stubs any referenced-but-unprovisioned form as role `"Lookup"`. Returns a dict that also carries `slug` and `workspaceName`.
+**Workspace-export parsing** (`parse_workspace_export`, module-level): builds the GUID→name index, resolves display names (with subform parent-qualification for duplicates), parses each form's flat component list through the shared `_node_to_field()` (the same per-node extraction `_walk` uses for nested trees), backfills design-less subforms from the flattened `Fields` arrays, and maps embedded `WorkflowConfigs` onto the internal workflow model. The expression helpers (`_expr_to_text`, `_extract_condition_fields`) accept both JSON-string and dict conditions and match type names by prefix (`Grouping` vs `GroupingDto`).
+
+**`Workspace.discover()`** loads the workspace-export baseline (cached on the instance), overlays individual `forms/` and `workflows/` exports per the precedence rule (warning on each shadow), auto-stubs any referenced-but-unprovisioned form as role `"Lookup"`, and de-dupes workflow callsigns. Returns a dict that also carries `slug` and `workspaceName`.
 
 ### build_global.py internals
 
@@ -157,7 +198,7 @@ Pure parsing helpers (`_walk`, `_expr_to_text`, `_summarize_*`, `_parse_field_as
 Each workspace owns its overrides. None are required; sensible defaults apply when a file is absent.
 
 ### `workspace.json`
-Workspace identity. `displayName` is used as the Excel title and the graph heading; falls back to the slug if absent.
+Workspace identity. `displayName` is used as the Excel title and the graph heading. Resolution order: this file → the workspace export's own `DisplayName` → the slug. Workspaces ingested via a whole-workspace export don't need this file; if present anyway, it wins (manual = override layer).
 ```json
 { "slug": "socal-whp", "displayName": "SCE - ESA Whole Home (PP/D)" }
 ```
@@ -169,7 +210,7 @@ Two sections in one file.
 ```json
 { "so_cal-esa_whole_home_pp_d__395-inspection_work_order_v77_design__1_": "395 - Inspection Work Order" }
 ```
-Add an entry whenever you add a new form JSON — otherwise the heuristic may guess wrong.
+Add an entry whenever you add a new *individual* form JSON — otherwise the heuristic may guess wrong. Not needed for workspace-export forms (they carry `DisplayName`), **but**: when an individual file overrides a baseline form, its alias entry must resolve to the same display name the export uses, or the override won't match and you'll get two forms.
 
 **`name_aliases` section** (maps wrong/stale display names to canonical ones):
 ```json
@@ -178,7 +219,7 @@ Add an entry whenever you add a new form JSON — otherwise the heuristic may gu
 Use this when a workflow JSON's `ExternalReferences` uses a form name that doesn't match the form's canonical display name. `Workspace.canonicalize_name()` consults this section for every workflow export.
 
 ### `workflow_metadata.json`
-Keyed by workflow JSON filename stem (no `.json`). Provides `callsign` (PK in the Excel Workflows sheet), `criticality` (High/Med/Low), `businessProcess` (FK into `business_processes.json`), `owner` (name and email).
+Provides `callsign` (PK in the Excel Workflows sheet), `criticality` (High/Med/Low), `businessProcess` (FK into `business_processes.json`), `owner` (name and email). Keying: **filename stem** (no `.json`) for individual workflow exports; **workflow display name** for workflows embedded in a workspace export (they have no file of their own).
 
 ### `business_processes.json`
 Real-world process definitions (`ProcessID`, `ProcessName`, `OwnerArea`, `Description`). Loaded into the BusinessProcesses sheet. If absent, a hardcoded default list in `build_inventory.py` is used.
@@ -200,20 +241,35 @@ Optional preset node positions for the explorer graph: `{ "<form or WF:callsign>
 
 ## Adding a new workspace
 
+Slug convention: **hyphens** (`sce-be`), never underscores.
+
+**Preferred — whole-workspace export:**
+1. Create `data/<slug>/` and drop the workspace export JSON at its root.
+2. Run `python scripts/regenerate.py`. That's it — workspace name, form names, workflows, and relationships all come from the export; no manual files required.
+3. Optionally add `manual/` overrides (workflow callsigns/owners, explorer layout).
+
+**Individual-file route (when no workspace export is available):**
 1. Create `data/<slug>/forms/`, `data/<slug>/workflows/`, `data/<slug>/manual/`.
 2. Add `data/<slug>/manual/workspace.json` with `slug` and `displayName`.
 3. Drop form and workflow JSON exports into the respective folders.
 4. Add `form_aliases.json` (and other overrides) as needed.
 5. Run `python scripts/regenerate.py`. Output appears under `output/<slug>/`, and the global view picks the workspace up automatically.
 
-## Adding a new form
+## Updating a form in a workspace-export workspace (surgical update)
+
+1. Export just that form's design JSON from the platform.
+2. Drop it in `data/<slug>/forms/` and map its filename stem in `form_aliases.json` to the form's display name *exactly as the workspace export spells it*.
+3. Regenerate — the rebuild log warns that the individual file now shadows the baseline. That warning is expected and stays until you either delete the file or re-baseline.
+4. When you re-export the whole workspace, delete the now-stale individual files.
+
+## Adding a new form (individual-file workspace)
 
 1. Export the form design JSON from the platform.
 2. Drop it in `data/<slug>/forms/`.
 3. Add an entry to that workspace's `form_aliases.json` mapping the filename stem to a clean display name.
 4. Run `python scripts/regenerate.py` (or `--workspace <slug>`).
 
-## Adding a new workflow
+## Adding a new workflow (individual-file workspace)
 
 1. Export the workflow JSON from the platform.
 2. Drop it in `data/<slug>/workflows/`.

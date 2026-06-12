@@ -15,7 +15,9 @@ def build(ws):
 
     # Reshape for the viewer (it expects a specific shape)
     viz_data = {
-        "forms": [{"name": f["name"], "role": f["role"], "fieldCount": f["fieldCount"]}
+        "forms": [{"name": f["name"], "role": f["role"], "fieldCount": f["fieldCount"],
+                   "description": f.get("description", ""),
+                   "subformOf": f.get("subformOf", "")}
                   for f in data["forms"]],
         "fields": data["fields"],
         "relationships": [{"source": r["source"], "target": r["target"],
@@ -27,10 +29,14 @@ def build(ws):
                      for r in data["refPulls"]],
         "workflows": [{
             "callsign": w["callsign"], "name": w["name"],
+            "enabled": w.get("enabled", True),
             "trigger": {
                 "form": w["trigger"]["form"] if w["trigger"] else "",
                 "field": "",  # legacy field, unused
-                "type": (w["trigger"]["type"] + " · " + w["trigger"]["databaseAction"]) if w["trigger"] else "",
+                # Type · action, plus the schedule text for scheduled workflows.
+                "type": " · ".join(x for x in (w["trigger"]["type"],
+                                               w["trigger"]["databaseAction"],
+                                               w["trigger"]["cron"] or "") if x) if w["trigger"] else "",
                 "condition": w["trigger"]["condition"] if w["trigger"] else "",
             } if w["trigger"] else None,
             "actions": [{

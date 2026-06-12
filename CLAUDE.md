@@ -48,6 +48,20 @@ When a feature request would add operational detail (fields, field usage, per-re
 
 The global view's per-form link points at `../<slug>/workspace_explorer.html#form=<url-encoded form name>`. On load, the per-workspace explorer's `selectFromHash()` reads the `form` hash param, taps the matching node (`cy.$id(name).emit('tap')`), and centers on it — so the operational view opens with that form already selected. Form node IDs in both views are the plain display name, which is what makes the handoff work.
 
+### Per-workspace side-panel views
+
+The per-workspace explorer's side panel has **three view categories**, one per click target:
+
+- **Form-detail** — click a node. Shows the form's role, link counts, relationships, touching workflows, and its field list.
+- **Edge-detail** — click a relationship edge. Shows every individual relationship the edge carries (its name, via-field, target-match-field, and pull count), even when the edge's graph label is an aggregate like "32 relationships · 87 pulls". Header names the source and target form; "View source/target form" buttons pivot to either endpoint. The active edge gets a teal glow (`edge.sel`) so it's clear which edge drives the panel. Each relationship edge carries its full relationship list on `edge.data('rels')`, populated when elements are built; the aggregated graph label is intentionally lossy, the edge data is not.
+- **Field-detail** — click a field within a form's field list. Expands inline with validators, formulas, workflow usage, and the "where is this used?" cross- and intra-form references.
+
+Workflow edges (the dashed trigger/action arrows) are deliberately **non-interactive** — the workflow node already opens full workflow detail, so its arrows carry only direction. The edge tap handler returns early for any edge whose `kind !== 'relationship'`. (Making workflow edges individually clickable is a deferred backlog item, not an omission.)
+
+**View state is single.** Clicking anywhere replaces the side-panel content — it never stacks. A node click renders form-detail, an edge click renders edge-detail, a background click clears the panel; each switch first runs `clearHighlights()` (which also drops the `sel` edge class) so no stale selection or prior view survives. Field-detail is the one nested case: multiple field details expand *within* a single form-detail view, but they reset whenever a different form is opened.
+
+Edge-detail lives only in the per-workspace explorer, not the global view — it is operational, relationship-level depth, which by the design principle above belongs in the operational layer.
+
 ---
 
 ## Folder structure

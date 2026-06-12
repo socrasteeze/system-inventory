@@ -181,10 +181,17 @@ def _build_html(agg):
         for f in data["forms"]:
             forms.append({"id": fid(slug, f["name"]), "name": f["name"], "slug": slug,
                           "role": f["role"], "fieldCount": f["fieldCount"]})
+        # One edge per direction; a direction carrying many relationship fields
+        # (e.g. 325 -> 399 through 32 measure-code fields) collapses to a single
+        # labeled edge instead of stacking 32 identical arcs.
+        rel_by_dir = {}
         for r in data["relationships"]:
             if r["target"] in form_names and r["source"] in form_names:
-                relationships.append({"source": fid(slug, r["source"]),
-                                      "target": fid(slug, r["target"]), "label": r["via"]})
+                rel_by_dir.setdefault((r["source"], r["target"]), []).append(r["via"])
+        for (src, tgt), vias in rel_by_dir.items():
+            label = vias[0] if len(vias) == 1 else f"{len(vias)} relationships"
+            relationships.append({"source": fid(slug, src),
+                                  "target": fid(slug, tgt), "label": label})
         for w in data["workflows"]:
             if not w["trigger"]:
                 continue

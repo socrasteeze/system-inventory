@@ -8,6 +8,7 @@
   "so_cal-esa_whole_home_pp_d__invoice_v169_design":                 "Invoice",
 
   "name_aliases": {
-    "395X - Inspections": "395 - Inspection Work Order"
+    "395X - Inspections": "395 - Inspection Work Order",
+    "310 - WH Enrollment": "310 - Enrollment Intake"
   }
 }

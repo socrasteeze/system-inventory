@@ -321,8 +321,12 @@ class Workspace:
         ref_pulls = []
         for f in fields:
             if f["component"] == "FormRelationshipInput" and f["relatedForm"]:
+                # The related form name stored on the field can be stale/abbreviated
+                # (e.g. "310 - WH Enrollment"); canonicalize so the edge resolves to a
+                # real form node instead of stubbing a phantom Lookup.
                 relationships.append({
-                    "source": form_name, "target": f["relatedForm"],
+                    "source": form_name,
+                    "target": self.canonicalize_name(f["relatedForm"]),
                     "via": f["name"], "label": f["label"],
                     "targetMatchField": f["relatedField"],
                 })

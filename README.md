@@ -177,4 +177,5 @@ This repository contains the schema and structure of utility company workflow an
 
 ## License
 
-Internal use only.
+Proprietary. All rights reserved. Internal use only — not for
+distribution outside authorized personnel. See NOTICE for full terms.

@@ -2,6 +2,14 @@
 
 ## Active
 
+Circuit-board edge routing. Switch graph edges from bezier to round-taxi
+(orthogonal right-angle routing) so connectors read like a circuit board and
+the connecting-field label sits on a horizontal jog instead of being buried
+on a vertical line. Applies to both explorer_template.html and
+global_template.html. Tier 1 only — the force-directed layout still stacks
+some nodes nearly vertically, so a hierarchical layout (dagre) is a separate
+follow-up if the stacked case still reads poorly.
+
 Toggle for displaying/sorting fields by Name vs Label. Both are extracted
 already; just a UI choice on which is primary.
 
@@ -39,6 +47,12 @@ everything.
 
 Export current view. Copy field info as text or markdown for pasting into
 tickets.
+
+Workflow trigger/action edges (dashed red) clickable to
+jump to the specific action or trigger they represent. Currently only the
+workflow node is clickable for workflow detail. Adding edge-level clicks
+gives a more granular navigation path but risks duplicating intent —
+worth evaluating after relationship-edge clicks are in active use.
 
 ## Done
 

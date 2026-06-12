@@ -170,13 +170,14 @@
 const DATA = __DATA__;
 
 const stats = document.getElementById('stats');
-const refPullsByPair = {};
+const refPullsByPair = {};  // pulls per source->target direction (drives the edge label)
+const pullsByRel = {};      // pulls per individual relationship field (drives edge detail)
 DATA.refPulls.forEach(r => {
   // resolve via -> target form using relationships
   const rel = DATA.relationships.find(x => x.source === r.destForm && x.via === r.via);
   if (rel) {
-    const k = r.destForm + '→' + rel.target;
-    refPullsByPair[k] = (refPullsByPair[k] || 0) + 1;
+    refPullsByPair[r.destForm + '→' + rel.target] = (refPullsByPair[r.destForm + '→' + rel.target] || 0) + 1;
+    pullsByRel[rel.source + '|' + rel.via] = (pullsByRel[rel.source + '|' + rel.via] || 0) + 1;
   }
 });
 
@@ -204,18 +205,31 @@ DATA.workflows.forEach(w => {
                        kind:'workflow', wfRef:w.callsign}});
 });
 
-// Relationship edges
-const seenEdges = new Set();
+// Relationship edges — one per direction. A direction can carry many
+// relationship fields (e.g. 325 -> 399 links through 32 measure-code fields);
+// rendering each as its own arc would be an unreadable fan, so they aggregate
+// into a single edge whose label names the field (or the count when several).
+// The genuinely distinct edges to separate are the two *directions* of a pair
+// (A -> B and B -> A), which the parallel-fan pass below pulls onto split arcs.
+const relByDir = {};
 DATA.relationships.forEach(r => {
   if (!DATA.forms.find(f => f.name === r.target)) return; // skip if target not in our form list
-  const key = r.source + '|' + r.target;
-  const count = refPullsByPair[r.source + '→' + r.target] || 0;
-  if (seenEdges.has(key)) return;
-  seenEdges.add(key);
+  const k = r.source + '→' + r.target;
+  (relByDir[k] = relByDir[k] || {source:r.source, target:r.target, rels:[]}).rels.push({
+    name: r.label || r.via, via: r.via, match: r.targetMatchField || '',
+    pulls: pullsByRel[r.source + '|' + r.via] || 0,
+  });
+});
+Object.values(relByDir).forEach(e => {
+  const pulls = e.rels.reduce((a, r) => a + r.pulls, 0);
+  const base = e.rels.length === 1 ? e.rels[0].via : `${e.rels.length} relationships`;
+  // Carry the full relationship list on the edge so an edge click can render
+  // every individual relationship even when the label is an aggregate count.
   elements.push({data:{
-    source:r.source, target:r.target,
-    label: count > 0 ? `${r.via} · ${count} pulls` : r.via,
-    kind:'relationship'
+    id: `rel::${e.source}::${e.target}`,
+    source:e.source, target:e.target,
+    label: pulls > 0 ? `${base} · ${pulls} pulls` : base,
+    kind:'relationship', rels: e.rels, pulls,
   }});
 });
 
@@ -232,6 +246,26 @@ DATA.workflows.forEach(w => {
     }
   });
 });
+
+// Taxi routing can't separate edges that share a node pair — they stack and
+// their labels garble. Tag every edge whose endpoints (in either direction)
+// are shared by another edge; those get bundled-bezier routing in the
+// stylesheet, which auto-fans them along distinct arcs with their own labels.
+(() => {
+  const pairCount = {};
+  const pairKey = e => [e.data.source, e.data.target].sort().join('');
+  elements.forEach(e => {
+    if (e.data.source && e.data.target) {
+      const k = pairKey(e);
+      pairCount[k] = (pairCount[k] || 0) + 1;
+    }
+  });
+  elements.forEach(e => {
+    if (e.data.source && e.data.target && pairCount[pairKey(e)] > 1) {
+      e.classes = (e.classes ? e.classes + ' ' : '') + 'parallel';
+    }
+  });
+})();
 
 // Preset positions (hub-and-spoke layout), injected from the workspace's
 // manual/explorer_layout.json. Empty when the workspace has no saved layout —
@@ -278,9 +312,11 @@ const cy = cytoscape({
     {selector:'edge', style:{
       'width': ele => Math.min(8, 1 + Math.log(1 + (parseInt((ele.data('label')||'').split('·')[1]) || 1))),
       'line-color':'#3a4050', 'target-arrow-color':'#3a4050',
-      'target-arrow-shape':'triangle', 'curve-style':'bezier',
+      'target-arrow-shape':'triangle', 'curve-style':'round-taxi',
+      'taxi-direction':'auto', 'taxi-turn':'50%', 'taxi-turn-min-distance':'12px',
+      'taxi-radius':10,
       'label':'data(label)', 'font-size':10, 'font-weight':500, 'color':'#eef1f6',
-      'text-rotation':'autorotate', 'text-background-color':'#11141a',
+      'text-rotation':'none', 'text-background-color':'#11141a',
       'text-background-opacity':0.92, 'text-background-padding':4,
       'text-background-shape':'round-rectangle', 'text-opacity':0.9,
       'transition-property':'line-color, target-arrow-color, opacity, text-opacity',
@@ -294,9 +330,25 @@ const cy = cytoscape({
     {selector:'edge[kind = "wf-edge"]', style:{
       'line-style':'dashed', 'line-color':'#f87171', 'target-arrow-color':'#f87171'
     }},
+    // Edges sharing a node pair: bundled bezier fans them onto distinct arcs
+    // (control-point-step-size spaces the fan); autorotate sits each label on
+    // its own arc, and full-opacity backgrounds keep them legible where close.
+    {selector:'edge.parallel', style:{
+      'curve-style':'bezier', 'control-point-step-size':38,
+      'text-rotation':'autorotate', 'text-background-opacity':1,
+    }},
     {selector:'edge.dim', style:{'opacity':0.1}},
     {selector:'edge.highlight', style:{'line-color':'#5eead4','target-arrow-color':'#5eead4',
                                        'width':3, 'opacity':1}},
+    // Active edge selection: brighter, thicker, with a teal glow — the edge
+    // counterpart to a node's selected border, so it's clear which edge drives
+    // the side panel.
+    {selector:'edge.sel', style:{
+      'line-color':'#5eead4', 'target-arrow-color':'#5eead4', 'width':4.5, 'opacity':1,
+      'z-index':45, 'underlay-color':'#5eead4', 'underlay-opacity':0.3,
+      'underlay-padding':6, 'underlay-shape':'round-rectangle',
+      'text-opacity':1, 'text-background-opacity':1, 'font-size':11, 'color':'#ffffff',
+    }},
     // search result tiers
     {selector:'node.m-match', style:{
       'background-blacken':-0.3, 'border-color':'#5eead4', 'border-width':4,
@@ -346,7 +398,7 @@ let currentFormName = null;
 let expandedFields = new Set();  // field names expanded inline; reset when the form changes
 
 function clearHighlights(){
-  cy.elements().removeClass('dim highlight m-match m-hop1 m-hop2 m-dim m-edge1 m-edge2');
+  cy.elements().removeClass('dim highlight m-match m-hop1 m-hop2 m-dim m-edge1 m-edge2 sel');
 }
 
 function renderEmpty(){
@@ -657,6 +709,45 @@ function highlightWorkflow(w){
   });
 }
 
+// Edge-detail view — the third side-panel category alongside form-detail and
+// field-detail. Renders every individual relationship carried by the edge even
+// when its graph label is an aggregate count.
+function renderEdge(e){
+  const src = e.data('source'), tgt = e.data('target');
+  const rels = e.data('rels') || [];
+  const pulls = e.data('pulls') || 0;
+  const count = `${rels.length} relationship${rels.length===1?'':'s'}` +
+                (pulls ? ` · ${pulls} pull${pulls===1?'':'s'}` : '');
+  panel.className = 'panel';
+  panel.innerHTML = `
+    <button class="close-btn" onclick="renderEmpty()">×</button>
+    <h2>Relationships from ${escapeHtml(src)} to ${escapeHtml(tgt)}</h2>
+    <div class="meta">${count}</div>
+
+    <div class="section"><h3>Relationships (${rels.length})</h3>
+      ${rels.map(r => `<div class="usage Match">
+        <span class="dir">REL</span>${escapeHtml(r.name)}
+        <div class="ctx">via field: ${escapeHtml(r.via)}` +
+          `${r.match ? ` · matches on: ${escapeHtml(r.match)}` : ''}` +
+          `${r.pulls ? ` · ${r.pulls} pull${r.pulls===1?'':'s'}` : ''}</div>
+      </div>`).join('')}
+    </div>
+
+    <div class="section"><h3>Navigate</h3>
+      <button class="mini-btn" style="margin-right:6px" onclick="cy.$id('${escapeAttr(src)}').emit('tap')">View source form</button>
+      <button class="mini-btn" onclick="cy.$id('${escapeAttr(tgt)}').emit('tap')">View target form</button>
+    </div>
+  `;
+}
+
+// Visual feedback for the active edge: dim the rest, glow the edge, lift its endpoints.
+function selectEdgeVisual(e){
+  clearHighlights();           // also drops any prior edge 'sel'
+  cy.elements().addClass('dim');
+  e.removeClass('dim').addClass('sel');
+  e.connectedNodes().removeClass('dim').addClass('highlight');
+}
+
 cy.on('tap', 'node', evt => {
   const n = evt.target;
   activeNodeId = n.id();
@@ -673,6 +764,19 @@ cy.on('tap', 'node', evt => {
     });
     renderForm(n.id());
   }
+});
+
+cy.on('tap', 'edge', evt => {
+  const e = evt.target;
+  // Workflow edges (trigger/action arrows) stay non-interactive: the workflow
+  // node already opens full workflow detail, so its arrows carry only direction.
+  // Edge-detail is for relationship edges, where the aggregate label hides the
+  // individual relationships a click should reveal.
+  if (e.data('kind') !== 'relationship') return;
+  activeNodeId = null;
+  activeFieldFilter = '';
+  selectEdgeVisual(e);
+  renderEdge(e);
 });
 
 cy.on('tap', evt => {

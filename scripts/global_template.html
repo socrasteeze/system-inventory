@@ -124,6 +124,26 @@ DATA.dupForms.forEach(d => {
   }
 });
 
+// Taxi routing stacks edges that share a node pair. Tag structural edges (not
+// the deliberately-arced dup links) whose endpoints are shared, so the
+// stylesheet fans them with bundled bezier instead of overlapping them.
+(() => {
+  const pairCount = {};
+  const pairKey = e => [e.data.source, e.data.target].sort().join('');
+  elements.forEach(e => {
+    if (e.data.source && e.data.target && e.data.kind !== 'dup-edge') {
+      const k = pairKey(e);
+      pairCount[k] = (pairCount[k] || 0) + 1;
+    }
+  });
+  elements.forEach(e => {
+    if (e.data.source && e.data.target && e.data.kind !== 'dup-edge'
+        && pairCount[pairKey(e)] > 1) {
+      e.classes = (e.classes ? e.classes + ' ' : '') + 'parallel';
+    }
+  });
+})();
+
 const cy = cytoscape({
   container: document.getElementById('cy'),
   elements: elements,
@@ -146,7 +166,14 @@ const cy = cytoscape({
     {selector:'node.highlight', style:{'border-color':'#5eead4','border-width':3}},
     {selector:'edge', style:{
       'width':1.5, 'line-color':'#3a4050', 'target-arrow-color':'#3a4050',
-      'target-arrow-shape':'triangle', 'curve-style':'bezier',
+      'target-arrow-shape':'triangle', 'curve-style':'round-taxi',
+      'taxi-direction':'auto', 'taxi-turn':'50%', 'taxi-turn-min-distance':'12px',
+      'taxi-radius':10,
+    }},
+    // Edges sharing a node pair fan onto distinct bezier arcs instead of stacking.
+    // Placed before the dup-edge rule so dup links keep their own curve style.
+    {selector:'edge.parallel', style:{
+      'curve-style':'bezier', 'control-point-step-size':38,
     }},
     {selector:'edge[kind = "wf-edge"]', style:{
       'line-style':'dashed', 'line-color':'#f87171', 'target-arrow-color':'#f87171'}},

@@ -19,7 +19,8 @@ def build(ws):
                   for f in data["forms"]],
         "fields": data["fields"],
         "relationships": [{"source": r["source"], "target": r["target"],
-                           "via": r["via"], "label": r["label"]}
+                           "via": r["via"], "label": r["label"],
+                           "targetMatchField": r.get("targetMatchField", "")}
                           for r in data["relationships"]],
         "refPulls": [{"destForm": r["destForm"], "destField": r["destField"],
                       "via": r["via"], "sourceField": r["sourceField"]}

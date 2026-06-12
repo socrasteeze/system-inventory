@@ -31,6 +31,9 @@
   .toolbar button{cursor:pointer;transition:all 0.15s}
   .toolbar button:hover{background:var(--border);border-color:var(--accent)}
   .toolbar .stats{color:var(--muted);font-size:11px;font-family:monospace}
+  .toolbar .match-count{color:var(--accent);font-size:11px;font-family:monospace;
+    white-space:nowrap;min-width:0}
+  .toolbar .match-count:empty{display:none}
   /* graph */
   #cy{grid-area:graph;background:var(--bg);position:relative}
   .legend{position:absolute;bottom:12px;left:12px;background:rgba(26,29,36,0.92);
@@ -102,7 +105,8 @@
 
 <div class="toolbar">
   <h1>SCE - ESA Whole Home (PP/D)<span class="sub">interactive map · click any node</span></h1>
-  <input id="search" placeholder="Search forms / fields..." autocomplete="off">
+  <input id="search" placeholder="Search forms, fields, conditions, actions..." autocomplete="off">
+  <span class="match-count" id="match-count"></span>
   <select id="layout">
     <option value="preset">Layout: Hub &amp; Spoke</option>
     <option value="cose">Layout: Force</option>
@@ -199,6 +203,9 @@ const FORCE = {name:'cose', animate:true, fit:true, padding:60, nodeRepulsion:80
                idealEdgeLength:120, gravity:0.5};
 const INITIAL = hasPreset ? {name:'preset', positions: PRESET, fit:true, padding:60} : FORCE;
 
+const baseW = ele => ele.data('kind')==='workflow' ? 100 : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4;
+const baseH = ele => ele.data('kind')==='workflow' ? 60  : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4;
+
 const cy = cytoscape({
   container: document.getElementById('cy'),
   elements: elements,
@@ -207,11 +214,10 @@ const cy = cytoscape({
       'background-color': ele => ROLE_COLOR[ele.data('role')] || '#888',
       'label':'data(label)', 'color':'#e8ebf0', 'font-size':11, 'font-weight':500,
       'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
-      'text-max-width':110, 'width': ele => ele.data('kind')==='workflow' ? 100 : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4,
-      'height': ele => ele.data('kind')==='workflow' ? 60 : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4,
-      'shape': ele => ele.data('kind')==='workflow' ? 'round-rectangle' : 'round-rectangle',
+      'text-max-width':110, 'width': baseW, 'height': baseH,
+      'shape':'round-rectangle',
       'border-width':2, 'border-color':'#0f1115',
-      'transition-property':'background-color, border-color, opacity',
+      'transition-property':'background-color, border-color, border-width, opacity, width, height',
       'transition-duration': '180ms',
     }},
     {selector:'node:selected', style:{
@@ -236,6 +242,23 @@ const cy = cytoscape({
     {selector:'edge.dim', style:{'opacity':0.1}},
     {selector:'edge.highlight', style:{'line-color':'#5eead4','target-arrow-color':'#5eead4',
                                        'width':3, 'opacity':1}},
+    // search result tiers
+    {selector:'node.m-match', style:{
+      'background-blacken':-0.3, 'border-color':'#5eead4', 'border-width':4,
+      'width': ele => baseW(ele)*1.35, 'height': ele => baseH(ele)*1.35,
+      'font-size':13, 'font-weight':700, 'color':'#ffffff', 'z-index':40,
+      'underlay-color':'#5eead4', 'underlay-opacity':0.5, 'underlay-padding':14,
+      'underlay-shape':'round-rectangle',
+    }},
+    {selector:'node.m-hop1', style:{
+      'border-color':'#2f6f68', 'border-width':2.5, 'z-index':20,
+    }},
+    {selector:'node.m-hop2', style:{'opacity':0.4}},
+    {selector:'node.m-dim', style:{'opacity':0.07}},
+    {selector:'edge.m-edge1', style:{
+      'line-color':'#5eead4', 'target-arrow-color':'#5eead4', 'width':3, 'opacity':1, 'z-index':20}},
+    {selector:'edge.m-edge2', style:{'opacity':0.3}},
+    {selector:'edge.m-dim', style:{'opacity':0.04}},
   ],
   layout: INITIAL,
   wheelSensitivity: 0.2,
@@ -250,7 +273,7 @@ let activeNodeId = null;
 let activeFieldFilter = '';
 
 function clearHighlights(){
-  cy.elements().removeClass('dim highlight');
+  cy.elements().removeClass('dim highlight m-match m-hop1 m-hop2 m-dim m-edge1 m-edge2');
 }
 
 function renderEmpty(){
@@ -478,26 +501,67 @@ document.getElementById('reset').addEventListener('click', () => {
   renderEmpty();
 });
 
-document.getElementById('search').addEventListener('input', e => {
-  const q = e.target.value.toLowerCase().trim();
-  if (!q) { clearHighlights(); return; }
+const matchCount = document.getElementById('match-count');
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+function workflowMatches(w, q){
+  if (w.callsign.toLowerCase().includes(q) || (w.name||'').toLowerCase().includes(q)) return true;
+  if (w.trigger) {
+    if ((w.trigger.condition||'').toLowerCase().includes(q)) return true;
+    if ((w.trigger.type||'').toLowerCase().includes(q)) return true;
+  }
+  return w.actions.some(a => (a.type||'').toLowerCase().includes(q));
+}
+
+function runSearch(raw){
+  const q = raw.toLowerCase().trim();
   clearHighlights();
-  cy.elements().addClass('dim');
-  // Match forms by name
-  cy.nodes().forEach(n => {
-    const formMatch = n.id().toLowerCase().includes(q);
-    let fieldMatch = false;
-    if (n.data('kind') === 'form') {
-      const fields = DATA.fields[n.id()] || [];
-      fieldMatch = fields.some(f =>
-        f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q));
-    }
-    if (formMatch || fieldMatch) {
-      n.removeClass('dim').addClass('highlight');
-      n.connectedEdges().forEach(e => { e.removeClass('dim'); e.connectedNodes().removeClass('dim'); });
-    }
+  if (!q) {
+    matchCount.textContent = '';
+    cy.animate({fit:{eles: cy.elements(), padding:60}}, {duration:250});
+    return;
+  }
+
+  let formCount = 0, fieldCount = 0, wfCount = 0;
+  const matches = cy.collection();
+  DATA.forms.forEach(f => {
+    const nameHit = f.name.toLowerCase().includes(q);
+    if (nameHit) formCount++;
+    const hits = (DATA.fields[f.name] || []).filter(x =>
+      x.name.toLowerCase().includes(q) || (x.label||'').toLowerCase().includes(q));
+    fieldCount += hits.length;
+    if (nameHit || hits.length) matches.merge(cy.$id(f.name));
   });
-});
+  DATA.workflows.forEach(w => {
+    if (workflowMatches(w, q)) { wfCount++; matches.merge(cy.$id('WF:'+w.callsign)); }
+  });
+
+  matchCount.textContent =
+    `${raw.trim()} — ${plural(formCount,'form')}, ${plural(fieldCount,'field')}, ${plural(wfCount,'workflow')} match`;
+
+  // Tier nodes by hop distance from the match set.
+  const hop1 = matches.neighborhood().nodes().difference(matches);
+  const hop2 = hop1.neighborhood().nodes().difference(matches).difference(hop1);
+  cy.elements().addClass('m-dim');
+  matches.removeClass('m-dim').addClass('m-match');
+  hop1.removeClass('m-dim').addClass('m-hop1');
+  hop2.removeClass('m-dim').addClass('m-hop2');
+
+  // Tier edges by the tier of the nodes they connect.
+  const tier1 = new Set(matches.union(hop1).map(n => n.id()));
+  const tier2 = new Set(matches.union(hop1).union(hop2).map(n => n.id()));
+  cy.edges().forEach(ed => {
+    const s = ed.source().id(), t = ed.target().id();
+    if (tier1.has(s) && tier1.has(t)) ed.removeClass('m-dim').addClass('m-edge1');
+    else if (tier2.has(s) && tier2.has(t)) ed.removeClass('m-dim').addClass('m-edge2');
+  });
+
+  if (matches.nonempty()) {
+    cy.animate({fit:{eles: matches, padding:90}}, {duration:350, easing:'ease-out'});
+  }
+}
+
+document.getElementById('search').addEventListener('input', e => runSearch(e.target.value));
 
 // Helpers
 function escapeHtml(s){return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}

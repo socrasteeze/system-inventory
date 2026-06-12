@@ -1,15 +1,15 @@
 """
-build_inventory.py — generate the master Excel inventory from parsed data.
-Run from project root or scripts/ dir. Outputs to output/workflow_master_inventory.xlsx.
+build_inventory.py — generate a workspace's master Excel inventory.
+Outputs to output/<workspace-slug>/workflow_master_inventory.xlsx.
 """
-import sys, json
+import sys
 from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parser import discover_all, OUTPUT_DIR, MANUAL_DIR
+from parser import Workspace, list_workspaces, OUTPUT_DIR
 
 # ── styles ─────────────────────────────────────────────────────────
 HFONT  = Font(name="Arial", size=10, bold=True, color="FFFFFF")
@@ -49,11 +49,10 @@ def sheet(ws, title, cols, rows, pk=None, fks=None):
         ws.auto_filter.ref = f"A3:{get_column_letter(len(cols))}{4+len(rows)}"
 
 # ── load manual context (business processes, callsigns, etc.) ─────
-def load_business_processes():
-    f = MANUAL_DIR / "business_processes.json"
-    if f.exists():
-        try: return json.loads(f.read_text())
-        except Exception: pass
+def load_business_processes(ws):
+    bp = ws.business_processes()
+    if bp:
+        return bp
     return [
         {"ProcessID":"INTAKE",  "ProcessName":"Customer Intake & Account Setup",
          "OwnerArea":"Energy Programs", "Description":"Initial customer info capture, eligibility.","Notes":""},
@@ -69,9 +68,9 @@ def load_business_processes():
          "Description":"Contractor invoicing; payment status; chargebacks.","Notes":""},
     ]
 
-def build(workspace_name=None):
-    data = discover_all()
-    workspace_name = workspace_name or "SCE - ESA Whole Home (PP/D)"
+def build(workspace):
+    data = workspace.discover()
+    workspace_name = data["workspaceName"]
     wb = Workbook()
 
     # README
@@ -247,7 +246,7 @@ def build(workspace_name=None):
           wfu_rows, fks=["Callsign","FormName"])
 
     # BusinessProcesses
-    bp_rows = load_business_processes()
+    bp_rows = load_business_processes(workspace)
     sheet(wb.create_sheet("BusinessProcesses"),
           "BusinessProcesses · real-world function tagging",
           [("ProcessID",14,"PK · slug used in Workflows.BusinessProcess"),
@@ -264,11 +263,15 @@ def build(workspace_name=None):
                if n in wb.sheetnames]
     wb._sheets = [wb[n] for n in desired]
 
-    out = OUTPUT_DIR / "workflow_master_inventory.xlsx"
+    out_dir = OUTPUT_DIR / workspace.slug
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / "workflow_master_inventory.xlsx"
     wb.save(out)
     print(f"  Forms: {len(data['forms'])}  Fields: {sum(len(v) for v in data['fields'].values())}  "
           f"Relationships: {len(data['relationships'])}  Workflows: {len(data['workflows'])}")
     print(f"  Saved -> {out.relative_to(OUTPUT_DIR.parent)}")
 
 if __name__ == "__main__":
-    build()
+    for slug in list_workspaces():
+        print(f"[{slug}]")
+        build(Workspace(slug))

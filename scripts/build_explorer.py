@@ -1,17 +1,17 @@
 """
-build_explorer.py — generate the interactive HTML map from parsed data.
-Outputs to output/workspace_explorer.html.
+build_explorer.py — generate a workspace's interactive HTML map.
+Outputs to output/<workspace-slug>/workspace_explorer.html.
 """
 import sys, json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parser import discover_all, OUTPUT_DIR
+from parser import Workspace, list_workspaces, OUTPUT_DIR
 
 TEMPLATE = (Path(__file__).resolve().parent / "explorer_template.html").read_text(encoding="utf-8")
 
-def build():
-    data = discover_all()
+def build(ws):
+    data = ws.discover()
 
     # Reshape for the viewer (it expects a specific shape)
     viz_data = {
@@ -44,10 +44,19 @@ def build():
     }
 
     data_json = json.dumps(viz_data, separators=(",", ":")).replace("</", "<\\/")
-    html = TEMPLATE.replace("__DATA__", data_json)
-    out = OUTPUT_DIR / "workspace_explorer.html"
+    preset_json = json.dumps(ws.explorer_layout(), separators=(",", ":"))
+    html = (TEMPLATE
+            .replace("__DATA__", data_json)
+            .replace("__PRESET__", preset_json)
+            .replace("__TITLE__", data["workspaceName"]))
+
+    out_dir = OUTPUT_DIR / ws.slug
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / "workspace_explorer.html"
     out.write_text(html, encoding="utf-8")
     print(f"  Saved -> {out.relative_to(OUTPUT_DIR.parent)}  ({out.stat().st_size/1024:.1f} KB)")
 
 if __name__ == "__main__":
-    build()
+    for slug in list_workspaces():
+        print(f"[{slug}]")
+        build(Workspace(slug))

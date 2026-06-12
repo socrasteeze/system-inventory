@@ -1,16 +1,35 @@
-# SoCal WHP Workflow Inventory — Claude Standing Context
+# SoCal WHP Workflow Inventory — Architecture & Maintenance Notes
 
-This file is loaded automatically on every session. It replaces the need to re-read the README or walk the repo.
+Reference for maintaining the inventory pipeline: architecture, data flow, override files, and the rebuild command. Read before modifying the parsers or build scripts.
 
 ## What this project is
 
-A documentation system for the **SCE - ESA Whole Home (PP/D)** workspace.
-It ingests JSON exports of platform forms and workflows, parses them into a normalized structure, and produces:
+A documentation system for platform forms and workflows. It ingests JSON exports, parses them into a normalized structure, and produces per-workspace and cross-workspace artifacts.
 
-- `output/workflow_master_inventory.xlsx` — filterable Excel inventory (forms, fields, relationships, workflows, actions, field usage)
-- `output/workspace_explorer.html` — interactive browser-based graph (forms as nodes, relationships as edges, workflow node shows what it touches)
+The project is **multi-workspace**. Each workspace lives under `data/<slug>/` and gets its own output under `output/<slug>/`:
 
-Neither output file is hand-edited. Both are fully regenerated from the JSON exports in `data/`.
+- `output/<slug>/workflow_master_inventory.xlsx` — filterable Excel inventory (forms, fields, relationships, workflows, actions, field usage)
+- `output/<slug>/workspace_explorer.html` — interactive browser graph (forms as nodes, relationships as edges, workflow node shows what it touches)
+
+A global aggregator combines every workspace into one view under `output/global/`:
+
+- `output/global/cross-workspace-inventory.xlsx` — all workspaces in one workbook, plus collision and duplicate-flow analysis
+- `output/global/global-explorer.html` — single graph with each workspace as a cluster, duplicate form names linked across clusters
+
+No output file is hand-edited. All are regenerated from the JSON exports in `data/`.
+
+The first (and currently only) workspace is `socal-whp` — **SCE - ESA Whole Home (PP/D)**.
+
+---
+
+## Multi-workspace model
+
+A workspace is a directory under `data/` containing `forms/`, `workflows/`, and `manual/`. The `parser.Workspace` class is the unit of work: `Workspace(slug).discover()` parses one workspace; `parser.list_workspaces()` enumerates every workspace on disk (any `data/*` dir holding a `forms/` or `workflows/` folder).
+
+- Per-workspace builders (`build_inventory`, `build_explorer`) take a `Workspace` and write under `output/<slug>/`.
+- The global builder (`build_global`) calls `parser.discover_all()` (returns `{slug: discovered}`) and writes under `output/global/`.
+
+Nothing in the scripts is workspace-specific. Display name and graph layout live in the workspace's `manual/` folder (see below), so adding a workspace never means editing code.
 
 ---
 
@@ -18,16 +37,21 @@ Neither output file is hand-edited. Both are fully regenerated from the JSON exp
 
 ```
 data/
-  forms/       ← form profile JSON exports (one file per form)
-  workflows/   ← workflow JSON exports (one file per workflow)
-  manual/      ← human-maintained overrides and metadata (see below)
-output/        ← generated artifacts (Excel + HTML)
+  <slug>/
+    forms/       ← form profile JSON exports (one file per form)
+    workflows/   ← workflow JSON exports (one file per workflow)
+    manual/      ← human-maintained overrides and metadata (see below)
+output/
+  <slug>/        ← per-workspace Excel + HTML
+  global/        ← cross-workspace Excel + HTML
 scripts/
-  parser.py           shared parser (forms + workflows)
-  build_inventory.py  Excel builder
-  build_explorer.py   HTML builder
-  explorer_template.html  HTML template injected with graph data
-  regenerate.py       one-command rebuild (runs both builders in sequence)
+  parser.py             Workspace class + shared parsing helpers
+  build_inventory.py    per-workspace Excel builder
+  build_explorer.py     per-workspace HTML builder
+  explorer_template.html    per-workspace HTML template (title + preset injected)
+  build_global.py       cross-workspace aggregator (Excel + HTML)
+  global_template.html      global HTML template
+  regenerate.py         rebuild orchestrator (CLI)
 ```
 
 ---
@@ -35,100 +59,121 @@ scripts/
 ## Rebuild command
 
 ```
-python scripts/regenerate.py
+python scripts/regenerate.py                 rebuild all workspaces + global
+python scripts/regenerate.py --workspace X   rebuild only workspace X (skips global)
+python scripts/regenerate.py --global        rebuild only the global aggregator
 ```
 
-Run this from the project root any time a JSON in `data/` is added or changed.
-Then open `output/workspace_explorer.html` in a browser to confirm the graph.
+Run from the project root after adding or changing any JSON in `data/`. Open the relevant `output/<slug>/workspace_explorer.html` (or `output/global/global-explorer.html`) to confirm the graph.
+
+`--workspace X` intentionally does not rebuild the global view; run with no args (or `--global`) to refresh it.
 
 ---
 
 ## Data flow
 
 ```
-data/forms/*.json  ──┐
-                      ├─► parser.discover_all() ──► build_inventory.build() ──► output/*.xlsx
-data/workflows/*.json ┤                         └──► build_explorer.build()  ──► output/*.html
-data/manual/*.json  ──┘
+data/<slug>/forms/*.json      ──┐
+data/<slug>/workflows/*.json   ─┼─► Workspace.discover() ─┬─► build_inventory.build(ws) ─► output/<slug>/*.xlsx
+data/<slug>/manual/*.json     ──┘                         └─► build_explorer.build(ws)  ─► output/<slug>/*.html
+
+all workspaces ─► parser.discover_all() ─► build_global.build() ─► output/global/*.xlsx + *.html
 ```
 
 ### parser.py internals
 
-**Form parsing** (`parse_form`):
+Pure parsing helpers (`_walk`, `_expr_to_text`, `_summarize_*`, `_parse_field_assignments`, `_infer_role`) are module-level and filesystem-free. Everything path-dependent is a method on `Workspace`, which caches the workspace's `form_aliases.json`.
+
+**Form parsing** (`Workspace.parse_form`):
 - `_walk()` recursively visits the `Components` tree, skipping layout containers (`LAYOUT_TYPES`), collecting data fields.
 - Each field extracts name, label, data type, component type, required/hidden/enabled flags.
 - `FormRelationshipInput` fields produce `relationships` (form-to-form links).
 - `FormRelationshipReferenceDataInput` fields produce `refPulls` (cross-form data pulls).
-- Form display name is resolved by `_guess_form_name(stem)` which checks `form_aliases.json` first, then falls back to a regex heuristic.
+- Form display name is resolved by `Workspace.guess_form_name(stem)`, which checks the workspace's `form_aliases.json` first, then falls back to a regex heuristic.
 
-**Workflow parsing** (`parse_workflow`):
+**Workflow parsing** (`Workspace.parse_workflow`):
 - Resolves form/field names via `ExternalReferences` GUID→name lookup.
-- **Before building `ref_by_id`**, all `FormName` values in `ExternalReferences` are normalized through `canonicalize_name()` so stale/abbreviated names in workflow exports are corrected.
+- **Before building `ref_by_id`**, all `FormName` values in `ExternalReferences` are normalized through `Workspace.canonicalize_name()` so stale/abbreviated names in workflow exports are corrected.
 - Extracts trigger (form, condition, timing) and steps/actions (target form, field assignments, duplicate policy).
 - Produces `fieldUsage` rows for every field the workflow reads or writes.
 
-**`discover_all()`** walks both folders, merges results, and auto-stubs any referenced-but-unprovisioned forms as role `"Lookup"`.
+**`Workspace.discover()`** walks the workspace's `forms/` and `workflows/`, merges results, and auto-stubs any referenced-but-unprovisioned form as role `"Lookup"`. Returns a dict that also carries `slug` and `workspaceName`.
+
+### build_global.py internals
+
+- **Form-name collisions** — display names carried by 2+ workspaces. These are the rename-impact targets (the `FormNameCollisions` sheet, teal dashed links in the global graph).
+- **Duplicate flows** — workflows sharing a signature `"<trigger action> -> <sorted target forms>"`. Two workflows in different workspaces with the same signature are likely the same flow replicated (the `DuplicateFlows` sheet).
 
 ---
 
-## Manual override files (`data/manual/`)
+## Manual override files (`data/<slug>/manual/`)
+
+Each workspace owns its overrides. None are required; sensible defaults apply when a file is absent.
+
+### `workspace.json`
+Workspace identity. `displayName` is used as the Excel title and the graph heading; falls back to the slug if absent.
+```json
+{ "slug": "socal-whp", "displayName": "SCE - ESA Whole Home (PP/D)" }
+```
 
 ### `form_aliases.json`
-Two sections in one file:
+Two sections in one file.
 
 **Filename-to-display-name mapping** (top-level keys = filename stem without `.json`):
 ```json
-{
-  "so_cal-esa_whole_home_pp_d__395-inspection_work_order_v77_design__1_": "395 - Inspection Work Order",
-  ...
-}
+{ "so_cal-esa_whole_home_pp_d__395-inspection_work_order_v77_design__1_": "395 - Inspection Work Order" }
 ```
-Add an entry here whenever you add a new form JSON — otherwise the heuristic may guess wrong.
+Add an entry whenever you add a new form JSON — otherwise the heuristic may guess wrong.
 
 **`name_aliases` section** (maps wrong/stale display names to canonical ones):
 ```json
-{
-  "name_aliases": {
-    "395X - Inspections": "395 - Inspection Work Order"
-  }
-}
+{ "name_aliases": { "395X - Inspections": "395 - Inspection Work Order" } }
 ```
-Use this when a workflow JSON's `ExternalReferences` uses a form name that doesn't match the form's canonical display name. `canonicalize_name()` in `parser.py` consults this section when processing every workflow export.
+Use this when a workflow JSON's `ExternalReferences` uses a form name that doesn't match the form's canonical display name. `Workspace.canonicalize_name()` consults this section for every workflow export.
 
 ### `workflow_metadata.json`
-Keyed by workflow JSON filename stem (no `.json`). Provides:
-- `callsign` — short alias used as PK in the Excel Workflows sheet
-- `criticality` — High/Med/Low
-- `businessProcess` — FK into `business_processes.json`
-- `owner` — name and email
+Keyed by workflow JSON filename stem (no `.json`). Provides `callsign` (PK in the Excel Workflows sheet), `criticality` (High/Med/Low), `businessProcess` (FK into `business_processes.json`), `owner` (name and email).
 
 ### `business_processes.json`
-List of real-world process definitions (`ProcessID`, `ProcessName`, `OwnerArea`, `Description`). Loaded directly into the BusinessProcesses sheet of the Excel inventory. If the file is absent, a hardcoded default list is used.
+Real-world process definitions (`ProcessID`, `ProcessName`, `OwnerArea`, `Description`). Loaded into the BusinessProcesses sheet. If absent, a hardcoded default list in `build_inventory.py` is used.
+
+### `explorer_layout.json`
+Optional preset node positions for the explorer graph: `{ "<form or WF:callsign>": {"x": N, "y": N} }`. When present the graph opens in this hub-and-spoke layout; when absent it falls back to force-directed (`cose`).
 
 ---
 
 ## Known quirks / past fixes
 
-**"395X - Inspections" mismatch** — The `create_inspection_workflow.json` export references the inspection form as `"395X - Inspections"` (old platform name) but the form JSON maps to `"395 - Inspection Work Order"`. Without canonicalization this caused a dangling edge in the graph that broke the HTML renderer. Fix: `name_aliases` entry in `form_aliases.json` + `canonicalize_name()` in `parser.py` normalizes the name before GUID→name lookups are built.
+**"395X - Inspections" mismatch** — `socal-whp`'s `create_inspection_workflow.json` references the inspection form as `"395X - Inspections"` (old platform name); the form JSON maps to `"395 - Inspection Work Order"`. Without canonicalization this leaves a dangling edge that breaks the HTML renderer. Fix: `name_aliases` entry in the workspace's `form_aliases.json` + `Workspace.canonicalize_name()` normalizes the name before GUID→name lookups are built.
 
-**Windows console encoding** — Print statements in `build_inventory.py` and `build_explorer.py` use `->` (ASCII) not `→` (U+2192) to avoid cp1252 encode errors on Windows.
+**Windows console encoding** — Print statements use `->` (ASCII) not `→` (U+2192) to avoid cp1252 encode errors on Windows. Unicode arrows in Excel cell text are fine (written via openpyxl, not printed).
+
+**`build_inventory.build` parameter is `workspace`, not `ws`** — the function body uses `ws` as the local worksheet handle. Passing the `Workspace` in as `ws` would shadow it.
 
 ---
+
+## Adding a new workspace
+
+1. Create `data/<slug>/forms/`, `data/<slug>/workflows/`, `data/<slug>/manual/`.
+2. Add `data/<slug>/manual/workspace.json` with `slug` and `displayName`.
+3. Drop form and workflow JSON exports into the respective folders.
+4. Add `form_aliases.json` (and other overrides) as needed.
+5. Run `python scripts/regenerate.py`. Output appears under `output/<slug>/`, and the global view picks the workspace up automatically.
 
 ## Adding a new form
 
 1. Export the form design JSON from the platform.
-2. Drop it in `data/forms/`.
-3. Add an entry to `data/manual/form_aliases.json` mapping the filename stem to a clean display name.
-4. Run `python scripts/regenerate.py`.
+2. Drop it in `data/<slug>/forms/`.
+3. Add an entry to that workspace's `form_aliases.json` mapping the filename stem to a clean display name.
+4. Run `python scripts/regenerate.py` (or `--workspace <slug>`).
 
 ## Adding a new workflow
 
 1. Export the workflow JSON from the platform.
-2. Drop it in `data/workflows/`.
-3. Optionally add an entry to `data/manual/workflow_metadata.json` with callsign, criticality, owner, businessProcess.
+2. Drop it in `data/<slug>/workflows/`.
+3. Optionally add an entry to that workspace's `workflow_metadata.json` with callsign, criticality, owner, businessProcess.
 4. If the workflow references any form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
-5. Run `python scripts/regenerate.py`.
+5. Run `python scripts/regenerate.py` (or `--workspace <slug>`).
 
 ---
 

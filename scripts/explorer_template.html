@@ -13,11 +13,14 @@
     --read:#60a5fa; --write:#f87171; --match:#a78bfa; --cond:#fbbf24;
     --overlay:rgba(26,29,36,0.92);
   }
-  /* Light theme swaps only the background/text set; role and usage colors
-     (hub/spoke/lookup/wf, read/write/match/cond) read fine on both backdrops. */
+  /* Light theme has its own background/text set and a deeper role palette:
+     the dark-theme pastels wash out on a light backdrop, so light mode uses
+     saturated 600-weight colors that hold contrast (and keep white node text legible). */
   :root[data-theme="light"] {
     --bg:#f6f7f9; --bg2:#ffffff; --bg3:#eceff3; --border:#d3d8e0;
     --text:#1a1d24; --muted:#5b6472; --accent:#0d9488;
+    --hub:#7c3aed; --spoke:#2563eb; --lookup:#d97706; --wf:#dc2626;
+    --read:#2563eb; --write:#dc2626; --match:#7c3aed; --cond:#d97706;
     --overlay:rgba(255,255,255,0.92);
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -165,7 +168,14 @@ stats.textContent = `${DATA.forms.length} forms · ${DATA.relationships.length} 
 
 // Build cytoscape elements
 const elements = [];
-const ROLE_COLOR = {Hub:'var(--hub)', Spoke:'var(--spoke)', Lookup:'var(--lookup)', Workflow:'var(--wf)'};
+// Cytoscape renders nodes to a canvas, which can't resolve CSS var() strings —
+// resolve the role colors to concrete hex from the active theme's computed styles,
+// and recompute them when the theme changes (see setTheme).
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+function roleColors(){
+  return {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'), Workflow:cssVar('--wf')};
+}
+let ROLE_COLOR = roleColors();
 
 DATA.forms.forEach(f => {
   elements.push({data:{id:f.name, label:f.name, role:f.role, fieldCount:f.fieldCount,
@@ -216,8 +226,19 @@ const FORCE = {name:'cose', animate:true, fit:true, padding:60, nodeRepulsion:80
                idealEdgeLength:120, gravity:0.5};
 const INITIAL = hasPreset ? {name:'preset', positions: PRESET, fit:true, padding:60} : FORCE;
 
-const baseW = ele => ele.data('kind')==='workflow' ? 100 : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4;
-const baseH = ele => ele.data('kind')==='workflow' ? 60  : 30 + Math.sqrt(ele.data('fieldCount') || 50)*4;
+// Node width grows with field count (the bubble encoding) but never narrower than
+// the label needs, capped at NODE_MAX_W; longer labels wrap to a second line.
+const NODE_MAX_W = 144;
+const baseW = ele => {
+  if (ele.data('kind') === 'workflow') return 104;
+  const byFields = 34 + Math.sqrt(ele.data('fieldCount') || 50) * 3.5;
+  const byLabel  = Math.min(NODE_MAX_W, 26 + (ele.data('label') || '').length * 6.5);
+  return Math.max(byFields, byLabel);
+};
+const baseH = ele => {
+  if (ele.data('kind') === 'workflow') return 56;
+  return Math.max(48, 34 + Math.sqrt(ele.data('fieldCount') || 50) * 3.5);
+};
 
 const cy = cytoscape({
   container: document.getElementById('cy'),
@@ -225,9 +246,9 @@ const cy = cytoscape({
   style: [
     {selector:'node', style:{
       'background-color': ele => ROLE_COLOR[ele.data('role')] || '#888',
-      'label':'data(label)', 'color':'#e8ebf0', 'font-size':11, 'font-weight':500,
+      'label':'data(label)', 'color':'#ffffff', 'font-size':10, 'font-weight':600,
       'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
-      'text-max-width':110, 'width': baseW, 'height': baseH,
+      'text-max-width': ele => baseW(ele) - 16, 'width': baseW, 'height': baseH,
       'shape':'round-rectangle',
       'border-width':2, 'border-color':'#0f1115',
       'transition-property':'background-color, border-color, border-width, opacity, width, height',
@@ -242,12 +263,17 @@ const cy = cytoscape({
       'width': ele => Math.min(8, 1 + Math.log(1 + (parseInt((ele.data('label')||'').split('·')[1]) || 1))),
       'line-color':'#3a4050', 'target-arrow-color':'#3a4050',
       'target-arrow-shape':'triangle', 'curve-style':'bezier',
-      'label':'data(label)', 'font-size':9, 'color':'#8a92a3',
-      'text-rotation':'autorotate', 'text-background-color':'#0f1115',
-      'text-background-opacity':0.8, 'text-background-padding':2,
-      'text-background-shape':'round-rectangle',
-      'transition-property':'line-color, target-arrow-color, opacity',
+      'label':'data(label)', 'font-size':10, 'font-weight':500, 'color':'#eef1f6',
+      'text-rotation':'autorotate', 'text-background-color':'#11141a',
+      'text-background-opacity':0.92, 'text-background-padding':4,
+      'text-background-shape':'round-rectangle', 'text-opacity':0.9,
+      'transition-property':'line-color, target-arrow-color, opacity, text-opacity',
       'transition-duration':'180ms',
+    }},
+    // Hovered edge gets a fully opaque, larger label to read on a dense graph.
+    {selector:'edge.hovered', style:{
+      'text-opacity':1, 'font-size':11, 'text-background-opacity':1, 'z-index':30,
+      'line-color':'#5eead4', 'target-arrow-color':'#5eead4',
     }},
     {selector:'edge[kind = "wf-edge"]', style:{
       'line-style':'dashed', 'line-color':'#f87171', 'target-arrow-color':'#f87171'
@@ -581,6 +607,9 @@ cy.on('tap', evt => {
   if (evt.target === cy) { renderEmpty(); }
 });
 
+cy.on('mouseover', 'edge', e => e.target.addClass('hovered'));
+cy.on('mouseout', 'edge', e => e.target.removeClass('hovered'));
+
 // Toolbar wiring
 document.getElementById('layout').addEventListener('change', e => {
   const name = e.target.value;
@@ -605,6 +634,12 @@ function setTheme(t){
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem('explorer-theme', t); } catch (e) {}
   themeBtn.textContent = t === 'dark' ? 'Light mode' : 'Dark mode';
+  // Role colors are resolved from CSS vars, which differ per theme — re-resolve
+  // and re-apply to the (canvas-rendered) nodes since they can't track var() live.
+  ROLE_COLOR = roleColors();
+  if (typeof cy !== 'undefined') {
+    cy.nodes().forEach(n => n.style('background-color', ROLE_COLOR[n.data('role')] || '#888'));
+  }
 }
 let savedTheme = 'dark';
 try { savedTheme = localStorage.getItem('explorer-theme') || 'dark'; } catch (e) {}

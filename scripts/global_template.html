@@ -86,7 +86,22 @@
 
 <script>
 const DATA = __DATA__;
-const ROLE_COLOR = {Hub:'var(--hub)', Spoke:'var(--spoke)', Lookup:'var(--lookup)', Workflow:'var(--wf)'};
+// Cytoscape's canvas renderer can't resolve CSS var() — resolve role colors to hex.
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+const ROLE_COLOR = {Hub:cssVar('--hub'), Spoke:cssVar('--spoke'), Lookup:cssVar('--lookup'), Workflow:cssVar('--wf')};
+
+// Node width never narrower than its label needs, capped; longer labels wrap.
+const G_MAX_W = 132;
+const nodeW = ele => {
+  if (ele.data('kind') === 'workflow') return 84;
+  const byFields = 30 + Math.sqrt(ele.data('fieldCount') || 40) * 3.2;
+  const byLabel  = Math.min(G_MAX_W, 24 + (ele.data('label') || '').length * 6.2);
+  return Math.max(byFields, byLabel);
+};
+const nodeH = ele => {
+  if (ele.data('kind') === 'workflow') return 46;
+  return Math.max(44, 30 + Math.sqrt(ele.data('fieldCount') || 40) * 3.2);
+};
 
 document.getElementById('stats').textContent =
   `${DATA.stats.workspaces} workspaces · ${DATA.stats.forms} forms · ${DATA.stats.workflows} workflows · ${DATA.stats.dupForms} shared names · ${DATA.stats.dupFlows} duplicate flows`;
@@ -114,17 +129,16 @@ const cy = cytoscape({
   elements: elements,
   style: [
     {selector:'node[kind = "workspace"]', style:{
-      'label':'data(label)', 'color':'var(--muted)', 'font-size':13, 'font-weight':600,
+      'label':'data(label)', 'color':cssVar('--muted'), 'font-size':13, 'font-weight':600,
       'text-valign':'top', 'text-halign':'center', 'text-margin-y':-6,
       'background-color':'#161922', 'background-opacity':0.6,
       'border-width':1, 'border-color':'#2e3340', 'shape':'round-rectangle', 'padding':24,
     }},
     {selector:'node[kind = "form"], node[kind = "workflow"]', style:{
       'background-color': ele => ROLE_COLOR[ele.data('role')] || '#888',
-      'label':'data(label)', 'color':'#e8ebf0', 'font-size':10, 'font-weight':500,
-      'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap', 'text-max-width':100,
-      'width': ele => ele.data('kind')==='workflow' ? 80 : 28 + Math.sqrt(ele.data('fieldCount') || 40)*3.5,
-      'height': ele => ele.data('kind')==='workflow' ? 48 : 28 + Math.sqrt(ele.data('fieldCount') || 40)*3.5,
+      'label':'data(label)', 'color':'#ffffff', 'font-size':10, 'font-weight':600,
+      'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
+      'text-max-width': ele => nodeW(ele) - 14, 'width': nodeW, 'height': nodeH,
       'shape':'round-rectangle', 'border-width':2, 'border-color':'#0f1115',
     }},
     {selector:'node:selected', style:{'border-color':'#5eead4','border-width':3}},

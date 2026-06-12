@@ -11,6 +11,14 @@
     --text:#e8ebf0; --muted:#8a92a3; --accent:#5eead4;
     --hub:#a78bfa; --spoke:#60a5fa; --lookup:#fbbf24; --wf:#f87171;
     --read:#60a5fa; --write:#f87171; --match:#a78bfa; --cond:#fbbf24;
+    --overlay:rgba(26,29,36,0.92);
+  }
+  /* Light theme swaps only the background/text set; role and usage colors
+     (hub/spoke/lookup/wf, read/write/match/cond) read fine on both backdrops. */
+  :root[data-theme="light"] {
+    --bg:#f6f7f9; --bg2:#ffffff; --bg3:#eceff3; --border:#d3d8e0;
+    --text:#1a1d24; --muted:#5b6472; --accent:#0d9488;
+    --overlay:rgba(255,255,255,0.92);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -36,7 +44,7 @@
   .toolbar .match-count:empty{display:none}
   /* graph */
   #cy{grid-area:graph;background:var(--bg);position:relative}
-  .legend{position:absolute;bottom:12px;left:12px;background:rgba(26,29,36,0.92);
+  .legend{position:absolute;bottom:12px;left:12px;background:var(--overlay);
           border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:11px;
           display:flex;gap:14px;flex-wrap:wrap;backdrop-filter:blur(6px)}
   .legend .item{display:flex;align-items:center;gap:6px}
@@ -100,6 +108,10 @@
   .close-btn:hover{color:var(--text)}
   .empty-state{color:var(--muted);font-size:11px;font-style:italic;padding:6px 0}
 </style>
+<script>
+  // Apply the saved theme before first paint to avoid a flash. Default dark.
+  try { document.documentElement.setAttribute('data-theme', localStorage.getItem('explorer-theme') || 'dark'); } catch (e) {}
+</script>
 </head>
 <body>
 
@@ -116,6 +128,7 @@
   </select>
   <button id="fit">Fit</button>
   <button id="reset">Reset</button>
+  <button id="theme-toggle" title="Toggle light / dark">Light mode</button>
   <div class="spacer"></div>
   <div class="stats" id="stats"></div>
 </div>
@@ -554,6 +567,20 @@ document.getElementById('reset').addEventListener('click', () => {
   cy.layout(INITIAL).run();
   renderEmpty();
 });
+
+// Light/dark toggle. The head script already applied the saved theme; here we
+// sync the button label and persist on change. Default dark.
+const themeBtn = document.getElementById('theme-toggle');
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('explorer-theme', t); } catch (e) {}
+  themeBtn.textContent = t === 'dark' ? 'Light mode' : 'Dark mode';
+}
+let savedTheme = 'dark';
+try { savedTheme = localStorage.getItem('explorer-theme') || 'dark'; } catch (e) {}
+setTheme(savedTheme);
+themeBtn.addEventListener('click', () =>
+  setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
 
 const matchCount = document.getElementById('match-count');
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;

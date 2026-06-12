@@ -62,6 +62,7 @@ def aggregate():
                 "triggerAction": w["trigger"]["databaseAction"] if w["trigger"] else "",
                 "targets": targets,
                 "writes": sum(1 for u in w["fieldUsage"] if u["direction"] == "Write"),
+                "enabled": w.get("enabled", True),
             })
             sig = _flow_signature(w)
             flows_by_sig.setdefault(sig, []).append(
@@ -135,10 +136,12 @@ def _build_excel(agg):
 
     sheet(wb.create_sheet("AllWorkflows"), "AllWorkflows · every workflow, every workspace",
           [("Workspace",18,"FK -> Workspaces"), ("Callsign",14,"Short alias"),
-           ("WorkflowName",26,"Display name"), ("TriggerForm",28,"Form that fires it"),
+           ("WorkflowName",26,"Display name"), ("Status",12,"Active/Disabled"),
+           ("TriggerForm",28,"Form that fires it"),
            ("TriggerAction",14,"Create/Update/Delete"), ("TargetForms",40,"Forms it writes"),
            ("Writes",10,"Field writes")],
           [{"Workspace":w["slug"], "Callsign":w["callsign"], "WorkflowName":w["workflow"],
+            "Status":"Active" if w.get("enabled", True) else "Disabled",
             "TriggerForm":w["triggerForm"], "TriggerAction":w["triggerAction"],
             "TargetForms":", ".join(w["targets"]), "Writes":w["writes"]}
            for w in agg["allWorkflows"]],
@@ -196,7 +199,8 @@ def _build_html(agg):
             if not w["trigger"]:
                 continue
             wid = f"WF::{slug}::{w['callsign']}"
-            workflows.append({"id": wid, "callsign": w["callsign"], "name": w["name"], "slug": slug})
+            workflows.append({"id": wid, "callsign": w["callsign"], "name": w["name"],
+                              "slug": slug, "enabled": w.get("enabled", True)})
             if w["trigger"]["form"] in form_names:
                 wf_edges.append({"source": fid(slug, w["trigger"]["form"]), "target": wid,
                                  "label": "trigger"})

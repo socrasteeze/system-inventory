@@ -8,7 +8,7 @@ The project is **multi-workspace**: each workspace lives under `data/<slug>/` an
 
 The browsable explorers are published via GitHub Pages, served from the `docs/` folder:
 
-**https://maroma-it.github.io/socal-wh-inventory/** _(fill in after enabling Pages: Settings → Pages → Source: `main` branch, `/docs` folder)_
+**https://maroma-it.github.io/socal-wh-inventory/**
 
 The landing page lists every view — the global cross-workspace explorer and each workspace's explorer. The published views are regenerated into `docs/` on every rebuild, so each push updates the live site. Spreadsheets are not published; pull the `.xlsx` files from `output/` in the repo directly.
 

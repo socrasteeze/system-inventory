@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SoCal WHP Workspace · Interactive Map</title>
+<title>SCE - ESA Whole Home (PP/D) · Interactive Map</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
 <style>
   :root {
@@ -101,7 +101,7 @@
 <body>
 
 <div class="toolbar">
-  <h1>SoCal WHP Workspace<span class="sub">interactive map · click any node</span></h1>
+  <h1>SCE - ESA Whole Home (PP/D)<span class="sub">interactive map · click any node</span></h1>
   <input id="search" placeholder="Search forms / fields..." autocomplete="off">
   <select id="layout">
     <option value="preset">Layout: Hub &amp; Spoke</option>
@@ -190,19 +190,14 @@ DATA.workflows.forEach(w => {
   });
 });
 
-// Preset positions (hub-and-spoke layout)
-const PRESET = {
-  '300 - Account Management':   {x:520, y:380},
-  '310 - Enrollment Intake':    {x:180, y:560},
-  '315 - SoCal WHP Assessment': {x:340, y:660},
-  '325 - SoCal Installation':   {x:560, y:680},
-  'Invoice':                    {x:820, y:600},
-  '395 - Inspection Work Order':{x:880, y:420},
-  '399 - Measures':             {x:760, y:180},
-  'Climate Zones':              {x:240, y:180},
-  'Fee Schedule':               {x:1020, y:280},
-  'WF:INSPECT-01':              {x:1020, y:520},
-};
+// Preset positions (hub-and-spoke layout), injected from the workspace's
+// manual/explorer_layout.json. Empty when the workspace has no saved layout —
+// the graph then falls back to the force-directed layout.
+const PRESET = {"300 - Account Management":{"x":520,"y":380},"310 - Enrollment Intake":{"x":180,"y":560},"315 - SoCal WHP Assessment":{"x":340,"y":660},"325 - SoCal Installation":{"x":560,"y":680},"Invoice":{"x":820,"y":600},"395 - Inspection Work Order":{"x":880,"y":420},"399 - Measures":{"x":760,"y":180},"Climate Zones":{"x":240,"y":180},"Fee Schedule":{"x":1020,"y":280},"WF:INSPECT-01":{"x":1020,"y":520}};
+const hasPreset = Object.keys(PRESET).length > 0;
+const FORCE = {name:'cose', animate:true, fit:true, padding:60, nodeRepulsion:8000,
+               idealEdgeLength:120, gravity:0.5};
+const INITIAL = hasPreset ? {name:'preset', positions: PRESET, fit:true, padding:60} : FORCE;
 
 const cy = cytoscape({
   container: document.getElementById('cy'),
@@ -242,7 +237,7 @@ const cy = cytoscape({
     {selector:'edge.highlight', style:{'line-color':'#5eead4','target-arrow-color':'#5eead4',
                                        'width':3, 'opacity':1}},
   ],
-  layout:{name:'preset', positions: PRESET, fit:true, padding:60},
+  layout: INITIAL,
   wheelSensitivity: 0.2,
   minZoom: 0.2, maxZoom: 3,
 });
@@ -470,17 +465,16 @@ cy.on('tap', evt => {
 document.getElementById('layout').addEventListener('change', e => {
   const name = e.target.value;
   if (name === 'preset') {
-    cy.layout({name:'preset', positions: PRESET, fit:true, padding:60}).run();
+    cy.layout(hasPreset ? {name:'preset', positions: PRESET, fit:true, padding:60} : FORCE).run();
   } else if (name === 'cose') {
-    cy.layout({name:'cose', animate:true, fit:true, padding:60, nodeRepulsion:8000,
-               idealEdgeLength:120, gravity:0.5}).run();
+    cy.layout(FORCE).run();
   } else {
     cy.layout({name, fit:true, padding:60, animate:true}).run();
   }
 });
 document.getElementById('fit').addEventListener('click', () => cy.fit(undefined, 60));
 document.getElementById('reset').addEventListener('click', () => {
-  cy.layout({name:'preset', positions: PRESET, fit:true, padding:60}).run();
+  cy.layout(INITIAL).run();
   renderEmpty();
 });
 

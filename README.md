@@ -187,9 +187,8 @@ Edit these in any editor, then re-run `regenerate.py`.
 
 ## Data sensitivity
 
-This repository contains the schema and structure of utility company workflow and form configurations. It does **not** contain customer data or PII — only field names and labels.
+This repository contains no customer data, PII, or credentials — only form and field schema.
 
 ## License
 
-Proprietary. All rights reserved. Internal use only — not for
-distribution outside authorized personnel. See NOTICE for full terms.
+Proprietary. All rights reserved. See NOTICE for full terms.

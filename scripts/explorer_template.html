@@ -132,6 +132,16 @@
              font-size:18px;line-height:1}
   .close-btn:hover{color:var(--text)}
   .empty-state{color:var(--muted);font-size:11px;font-style:italic;padding:6px 0}
+  /* field section/page group headers */
+  .field-group-header{font-size:10px;text-transform:uppercase;letter-spacing:0.8px;
+    color:var(--muted);padding:10px 2px 4px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .field-groups .field-group:first-child .field-group-header{padding-top:2px}
+  .field-group-count{background:var(--bg3);color:var(--muted);border-radius:10px;
+    padding:0 5px;font-size:9px;letter-spacing:0;font-weight:600}
+  /* workflow direction badges on touched fields */
+  .badge.dir-read{background:var(--read);color:#0f1115}
+  .badge.dir-write{background:var(--write);color:#0f1115}
+  .badge.dir-condition{background:var(--cond);color:#0f1115}
 </style>
 <script>
   // Apply the saved theme before first paint to avoid a flash. Default dark.
@@ -166,7 +176,7 @@
   <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
   <div class="item"><div class="dot" style="background:var(--subform)"></div>Subform</div>
   <div class="item"><div class="dot" style="background:var(--wf-legacy)"></div>Legacy WF (Prod)</div>
-  <div class="item"><div class="dot" style="background:var(--wf-engine)"></div>WFEngine WF (Staging)</div>
+  <div class="item"><div class="dot" style="background:var(--wf-engine)"></div>WF Engine</div>
   <div class="item" style="color:var(--muted)">solid edge = relationship · dashed = workflow trigger/target · dimmed = disabled</div>
 </div>
 
@@ -210,12 +220,12 @@ DATA.forms.forEach(f => {
 });
 
 // Workflow nodes. Disabled workflows are dimmed/dashed. Legacy (prod WF system)
-// and WFEngine (staged replacement) get distinct amber vs red colors so the
+// and WFEngine (staged replacement) get distinct red vs olive colors so the
 // two systems are never visually confused.
 DATA.workflows.forEach(w => {
   const off = w.enabled === false;
   const isLegacy = w.workflowType === 'Legacy';
-  const typeTag = isLegacy ? '\n[Legacy]' : '\n[WFEngine]';
+  const typeTag = isLegacy ? '\n[Legacy]' : '\n[WF Engine]';
   elements.push({data:{
     id:'WF:'+w.callsign,
     label: w.callsign + (off ? '\n(off)' : '') + typeTag,
@@ -257,12 +267,12 @@ Object.values(relByDir).forEach(e => {
 DATA.workflows.forEach(w => {
   if (w.trigger && w.trigger.form) {
     elements.push({data:{source:w.trigger.form, target:'WF:'+w.callsign,
-      label:'trigger', kind:'wf-edge'}});
+      label:'trigger', kind:'wf-edge', workflowType:w.workflowType}});
   }
   w.actions.forEach(a => {
     if (a.targetForm) {
       elements.push({data:{source:'WF:'+w.callsign, target:a.targetForm,
-        label:a.type.replace('BuiltIn.',''), kind:'wf-edge'}});
+        label:a.type.replace('BuiltIn.',''), kind:'wf-edge', workflowType:w.workflowType}});
     }
   });
 });
@@ -352,8 +362,11 @@ const cy = cytoscape({
       'text-opacity':1, 'font-size':11, 'text-background-opacity':1, 'z-index':30,
       'line-color':'#5eead4', 'target-arrow-color':'#5eead4',
     }},
-    {selector:'edge[kind = "wf-edge"]', style:{
-      'line-style':'dashed', 'line-color':'#f87171', 'target-arrow-color':'#f87171'
+    {selector:'edge[kind="wf-edge"][workflowType="Legacy"]', style:{
+      'line-style':'dashed', 'line-color':ROLE_COLOR.WfLegacy, 'target-arrow-color':ROLE_COLOR.WfLegacy
+    }},
+    {selector:'edge[kind="wf-edge"][workflowType="WFEngine"]', style:{
+      'line-style':'dashed', 'line-color':ROLE_COLOR.WfEngine, 'target-arrow-color':ROLE_COLOR.WfEngine
     }},
     // Edges sharing a node pair: bundled bezier fans them onto distinct arcs
     // (control-point-step-size spaces the fan); autorotate sits each label on
@@ -446,9 +459,6 @@ function renderForm(formName){
     w.fieldUsage.some(u => u.form === formName) ||
     (w.trigger && w.trigger.form === formName) ||
     w.actions.some(a => a.targetForm === formName));
-  const touchedFieldNames = new Set();
-  wfsTouching.forEach(w => w.fieldUsage.filter(u => u.form === formName)
-                                       .forEach(u => touchedFieldNames.add(u.field)));
 
   panel.className = 'panel';
   panel.innerHTML = `
@@ -504,12 +514,22 @@ function visibleFields(formName){
     !q || f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q));
 }
 
+// Map of field name -> Set of directions (Read/Write/Condition) for every workflow
+// that touches the given form.  Used both for the .touched row class and the R/W/C badges.
+function buildTouchedDirs(formName){
+  const dirs = new Map();
+  DATA.workflows.forEach(w => w.fieldUsage.forEach(u => {
+    if (u.form !== formName) return;
+    if (!dirs.has(u.field)) dirs.set(u.field, new Set());
+    dirs.get(u.field).add(u.direction);
+  }));
+  return dirs;
+}
+
 function renderFieldList(formName){
   const list = document.getElementById('field-list');
   if (!list) return;
-  const touchedFieldNames = new Set();
-  DATA.workflows.forEach(w => w.fieldUsage.filter(u => u.form === formName)
-                                          .forEach(u => touchedFieldNames.add(u.field)));
+  const touchedDirs = buildTouchedDirs(formName);
   const visible = visibleFields(formName);
 
   const controls = `<div class="field-controls">
@@ -524,17 +544,26 @@ function renderFieldList(formName){
     return;
   }
 
-  list.innerHTML = controls + visible.map(f => {
-    const touched = touchedFieldNames.has(f.name);
+  // Direction badges: R / W / C in fixed order, distinct colors.
+  const DIR_ORDER = ['Read', 'Write', 'Condition'];
+  function dirBadges(dirs){
+    if (!dirs) return '';
+    return DIR_ORDER.filter(d => dirs.has(d))
+      .map(d => `<span class="badge dir-${d.toLowerCase()}">${d[0]}</span>`).join('');
+  }
+
+  function renderFieldRow(f){
+    const dirs = touchedDirs.get(f.name);
     const isExp = expandedFields.has(f.name);
     return `<div class="field-row" data-field="${escapeAttr(f.name)}">
-      <div class="field ${touched?'touched':''} ${isExp?'expanded':''}"
+      <div class="field ${dirs?'touched':''} ${isExp?'expanded':''}"
            onclick="toggleField(this,'${escapeAttr(formName)}','${escapeAttr(f.name)}')">
         <span class="chev"></span>
         <span class="fname">${escapeHtml(f.name)}</span>
         <span class="ftype">${escapeHtml(f.type||'')}</span>
         <span class="flbl">${escapeHtml(f.label||'')}</span>
         <span class="badges">
+          ${dirBadges(dirs)}
           ${f.required==='Yes'?'<span class="badge req">REQ</span>':''}
           ${f.component==='FormRelationshipInput'?'<span class="badge rel">REL</span>':''}
           ${f.component==='FormRelationshipReferenceDataInput'?'<span class="badge ref">REF</span>':''}
@@ -542,7 +571,43 @@ function renderFieldList(formName){
       </div>
       ${isExp ? `<div class="field-detail">${fieldDetailHTML(formName, f.name)}</div>` : ''}
     </div>`;
-  }).join('');
+  }
+
+  // Group visible fields by section > page > 'General' in order of first
+  // appearance, which is already platform visual order (sorted in the parser).
+  // When a field has both page and section, the header shows "Page › Section".
+  const groups = [];
+  const groupMap = {};
+  for (const f of visible){
+    // Unique key per (page, section) combination.
+    const gkey = f.section
+      ? (f.page || '') + '\x00' + f.section
+      : (f.page ? '\x01' + f.page : '\x02');
+    if (!groupMap[gkey]){
+      const label = f.section
+        ? (f.page ? f.page + ' › ' + f.section : f.section)
+        : (f.page || 'General');
+      const g = {label, fields: []};
+      groups.push(g);
+      groupMap[gkey] = g;
+    }
+    groupMap[gkey].fields.push(f);
+  }
+
+  // If the only group is the 'General' fallback the form has no page/section
+  // structure — render flat with no header (identical to pre-feature behavior).
+  const onlyGeneral = groups.length === 1 && groups[0].label === 'General';
+
+  if (onlyGeneral){
+    list.innerHTML = controls + groups[0].fields.map(renderFieldRow).join('');
+  } else {
+    list.innerHTML = controls + `<div class="field-groups">${
+      groups.map(g => `<div class="field-group">
+        <div class="field-group-header">${escapeHtml(g.label)}<span class="field-group-count">${g.fields.length}</span></div>
+        ${g.fields.map(renderFieldRow).join('')}
+      </div>`).join('')
+    }</div>`;
+  }
 }
 
 function updateExpandCount(){

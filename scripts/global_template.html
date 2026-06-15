@@ -81,7 +81,7 @@
   <div class="item"><div class="dot" style="background:var(--lookup)"></div>Lookup</div>
   <div class="item"><div class="dot" style="background:var(--subform)"></div>Subform</div>
   <div class="item"><div class="dot" style="background:var(--wf-legacy)"></div>Legacy WF (Prod)</div>
-  <div class="item"><div class="dot" style="background:var(--wf-engine)"></div>WFEngine WF (Staging)</div>
+  <div class="item"><div class="dot" style="background:var(--wf-engine)"></div>WF Engine</div>
   <div class="item" style="color:var(--muted)">solid = relationship · red dash = workflow · teal dash = same form name across workspaces · dimmed = disabled</div>
 </div>
 
@@ -128,7 +128,7 @@ DATA.workflows.forEach(w => {
 DATA.relationships.forEach(r => elements.push({data:{
   source:r.source, target:r.target, label:r.label, kind:'relationship'}}));
 DATA.wfEdges.forEach(e => elements.push({data:{
-  source:e.source, target:e.target, label:e.label, kind:'wf-edge'}}));
+  source:e.source, target:e.target, label:e.label, kind:'wf-edge', workflowType:e.workflowType}}));
 DATA.dupForms.forEach(d => {
   for (let i = 0; i < d.ids.length - 1; i++) {
     elements.push({data:{source:d.ids[i], target:d.ids[i+1], label:'same name', kind:'dup-edge'}});
@@ -191,8 +191,10 @@ const cy = cytoscape({
     {selector:'edge.parallel', style:{
       'curve-style':'bezier', 'control-point-step-size':38,
     }},
-    {selector:'edge[kind = "wf-edge"]', style:{
-      'line-style':'dashed', 'line-color':'#f87171', 'target-arrow-color':'#f87171'}},
+    {selector:'edge[kind="wf-edge"][workflowType="Legacy"]', style:{
+      'line-style':'dashed', 'line-color':ROLE_COLOR.WfLegacy, 'target-arrow-color':ROLE_COLOR.WfLegacy}},
+    {selector:'edge[kind="wf-edge"][workflowType="WFEngine"]', style:{
+      'line-style':'dashed', 'line-color':ROLE_COLOR.WfEngine, 'target-arrow-color':ROLE_COLOR.WfEngine}},
     {selector:'edge[kind = "dup-edge"]', style:{
       'line-style':'dashed', 'line-color':'#5eead4', 'target-arrow-shape':'none',
       'width':2, 'curve-style':'unbundled-bezier', 'control-point-distances':[40],

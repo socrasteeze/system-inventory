@@ -13,7 +13,7 @@ follow-up if the stacked case still reads poorly.
 Toggle for displaying/sorting fields by Name vs Label. Both are extracted
 already; just a UI choice on which is primary.
 
-## Backlog — sorted roughly by impact
+## Backlog
 
 Group fields by section/page in the field list. Form JSONs preserve this
 structure under FormSection/FormPage components. Reduces visual load on

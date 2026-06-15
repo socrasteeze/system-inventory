@@ -686,6 +686,19 @@ function restoreRoving(refocus){
   if (refocus) target.focus();
 }
 
+function scrollToWfAction(targetForm){
+  const cards = document.querySelectorAll('.wf-card[data-action-form]');
+  for (const card of cards){
+    if (card.dataset.actionForm === targetForm){
+      card.scrollIntoView({block:'nearest'});
+      const prev = card.style.borderColor;
+      card.style.borderColor = 'var(--accent)';
+      setTimeout(() => { card.style.borderColor = prev; }, 1500);
+      break;
+    }
+  }
+}
+
 function exportFormMarkdown(){
   if (!currentFormName) return;
   const f = DATA.forms.find(x => x.name === currentFormName);
@@ -1038,7 +1051,7 @@ function renderWorkflow(callsign){
     </div>
 
     <div class="section"><h3>Actions</h3>
-      ${w.actions.map(a => `<div class="wf-card">
+      ${w.actions.map(a => `<div class="wf-card" data-action-form="${escapeAttr(a.targetForm)}">
         <div class="nm">${escapeHtml(a.name)}</div>
         <div class="cs">${escapeHtml(a.type)}</div>
         <div class="desc">target: ${escapeHtml(a.targetForm)}<br>
@@ -1134,11 +1147,26 @@ cy.on('tap', 'node', evt => {
 
 cy.on('tap', 'edge', evt => {
   const e = evt.target;
-  // Workflow edges (trigger/action arrows) stay non-interactive: the workflow
-  // node already opens full workflow detail, so its arrows carry only direction.
-  // Edge-detail is for relationship edges, where the aggregate label hides the
-  // individual relationships a click should reveal.
-  if (e.data('kind') !== 'relationship') return;
+  const kind = e.data('kind');
+
+  if (kind === 'wf-edge'){
+    const src = e.data('source'), tgt = e.data('target');
+    const wfId = src.startsWith('WF:') ? src : tgt;
+    const callsign = wfId.slice(3);
+    const isAction = src.startsWith('WF:');
+    const actionTarget = isAction ? tgt : null;
+    activeNodeId = null;
+    const w = DATA.workflows.find(x => x.callsign === callsign);
+    if (w) highlightWorkflow(w);
+    if (!pinnedForm){
+      renderWorkflow(callsign);
+      if (isAction && actionTarget) setTimeout(() => scrollToWfAction(actionTarget), 0);
+    }
+    return;
+  }
+
+  // Relationship edges: show edge-detail panel with every individual relationship.
+  if (kind !== 'relationship') return;
   activeNodeId = null;
   selectEdgeVisual(e);
   if (!pinnedForm) renderEdge(e);

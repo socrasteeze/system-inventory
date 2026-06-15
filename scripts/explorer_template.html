@@ -689,7 +689,13 @@ function renderFieldList(formName, refocus){
   </div>`;
 
   if (!visible.length) {
-    list.innerHTML = controls + `<div class="empty-state">no fields match the filter</div>`;
+    const noResultMsg = activeFieldFilter
+      ? `No fields match <b style="color:var(--text)">${escapeHtml(activeFieldFilter)}</b>`
+      : 'No fields';
+    const clearBtn = activeFieldFilter
+      ? `<br><button class="mini-btn" style="margin-top:8px" onclick="clearFieldFilter()">Clear filter</button>`
+      : '';
+    list.innerHTML = controls + `<div class="empty-state" style="font-style:normal">${noResultMsg}${clearBtn}</div>`;
     restoreRoving(false);
     return;
   }
@@ -764,6 +770,13 @@ function renderFieldList(formName, refocus){
     }</div>`;
   }
   restoreRoving(!!refocus);
+}
+
+function clearFieldFilter(){
+  activeFieldFilter = '';
+  const searchEl = document.getElementById('field-search');
+  if (searchEl) { searchEl.value = ''; searchEl.focus(); }
+  if (currentFormName) renderFieldList(currentFormName);
 }
 
 function updateExpandCount(){
@@ -1306,6 +1319,7 @@ window.renderEmpty = renderEmpty;
 window.toggleField = toggleField;
 window.expandAllFields = expandAllFields;
 window.collapseAllFields = collapseAllFields;
+window.clearFieldFilter = clearFieldFilter;
 window.toggleFilterMenu = toggleFilterMenu;
 window.toggleFilterLock = toggleFilterLock;
 window.setRovingRow = setRovingRow;

@@ -13,6 +13,7 @@ from openpyxl import Workbook
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parser import discover_all, OUTPUT_DIR
 from build_inventory import sheet, TFONT, NFONT, SFONT, BFONT, WRAP
+import build_registry
 
 GLOBAL_DIR = OUTPUT_DIR / "global"
 TEMPLATE = (Path(__file__).resolve().parent / "global_template.html").read_text(encoding="utf-8")
@@ -91,7 +92,7 @@ def aggregate():
     }
 
 
-def _build_excel(agg):
+def _build_excel(agg, reg):
     wb = Workbook()
 
     ws = wb.active; ws.title = "README"
@@ -109,6 +110,9 @@ def _build_excel(agg):
         ("  AllWorkflows · every workflow across all workspaces", BFONT),
         ("  FormNameCollisions · form names shared by 2+ workspaces (rename-impact targets)", BFONT),
         ("  DuplicateFlows · workflows with the same trigger/target signature (consolidation targets)", BFONT),
+        ("  WorkflowReuse · workflows keyed by pattern (trigger form + action + recipient roles)", BFONT),
+        ("  FormFamilies · forms sharing a field-design fingerprint (reuse vs divergence)", BFONT),
+        ("  FieldTemplates · (name, type) field spread across forms", BFONT),
     ]
     r = 2
     for text, font in blocks:
@@ -173,14 +177,36 @@ def _build_excel(agg):
            ("Workspaces",30,"Workspaces involved"), ("Workflows",46,"slug/callsign")],
           dup_rows)
 
+    build_registry.add_sheets(wb, reg)
+
     GLOBAL_DIR.mkdir(parents=True, exist_ok=True)
     out = GLOBAL_DIR / "cross-workspace-inventory.xlsx"
     wb.save(out)
     print(f"  Saved -> {out.relative_to(OUTPUT_DIR.parent)}")
 
 
-def _build_html(agg):
+def _build_html(agg, reg):
     def fid(slug, name): return f"{slug}::{name}"
+
+    # Step-4 anti-spaghetti filter: a collision link between same-named forms is
+    # suppressed when the collision is reference-replication rather than
+    # divergence. A collision qualifies when EITHER every instance is role=Lookup
+    # (a shared reference table — Climate Zones et al., whose designs may differ
+    # slightly across utilities) OR every instance shares one design fingerprint
+    # (a design-identical replicated grid). Divergence collisions — same name,
+    # differing designs (Invoice; the 24 divergent subform grids) — keep their
+    # links and stay visible.
+    #
+    # Acceptance: suppression drops 21 of 47 collision links (4 all-Lookup + 17
+    # design-identical subform grids), not "most." The 24 divergent subform
+    # grids, Invoice, and any other non-reference-replication collisions remain.
+    fingerprints = reg["formFingerprints"]   # (slug, name) -> design fingerprint
+
+    def _is_reference_replication(name, instances):
+        if all(i["role"] == "Lookup" for i in instances):
+            return True
+        fps = {fingerprints.get((i["slug"], name)) for i in instances}
+        return len(fps) == 1 and None not in fps
 
     forms, workflows, relationships, wf_edges = [], [], [], []
     for slug, data in agg["discovered"].items():
@@ -219,9 +245,14 @@ def _build_html(agg):
     by_name = {}
     for f in forms:
         by_name.setdefault(f["name"], []).append(f)
+    suppressed = 0
     for name, instances in by_name.items():
-        if len({i["slug"] for i in instances}) >= 2:
-            dup_forms.append({"name": name, "ids": [i["id"] for i in sorted(instances, key=lambda x: x["slug"])]})
+        if len({i["slug"] for i in instances}) < 2:
+            continue
+        if _is_reference_replication(name, instances):
+            suppressed += 1   # reference-replication: don't wire clusters together
+            continue
+        dup_forms.append({"name": name, "ids": [i["id"] for i in sorted(instances, key=lambda x: x["slug"])]})
 
     viz = {
         "workspaces": [{"slug": w["slug"], "name": w["name"]} for w in agg["workspaces"]],
@@ -247,15 +278,20 @@ def _build_html(agg):
     out = GLOBAL_DIR / "global-explorer.html"
     out.write_text(html, encoding="utf-8")
     print(f"  Saved -> {out.relative_to(OUTPUT_DIR.parent)}  ({out.stat().st_size/1024:.1f} KB)")
+    print(f"  Collision links: {len(dup_forms)} kept, {suppressed} suppressed (reference-replication)")
 
 
 def build():
     agg = aggregate()
+    reg = build_registry.compute_registries(agg)
     print(f"  Workspaces: {len(agg['workspaces'])}  Forms: {len(agg['allForms'])}  "
           f"Workflows: {len(agg['allWorkflows'])}  "
           f"Collisions: {len(agg['collisions'])}  DuplicateFlows: {len(agg['duplicateFlows'])}")
-    _build_excel(agg)
-    _build_html(agg)
+    print(f"  Registry: {len(reg['workflowReuse'])} workflow patterns  "
+          f"{len(reg['formFamilies'])} form families  "
+          f"{len(reg['fieldTemplates'])} field templates")
+    _build_excel(agg, reg)
+    _build_html(agg, reg)
 
 
 if __name__ == "__main__":

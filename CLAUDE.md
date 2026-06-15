@@ -141,6 +141,7 @@ scripts/
   build_explorer.py     per-workspace HTML builder
   explorer_template.html    per-workspace HTML template (title + preset injected)
   build_global.py       cross-workspace aggregator (Excel + HTML)
+  build_registry.py     reuse/sameness views (WorkflowReuse, FormFamilies, FieldTemplates) + step-4 suppression
   global_template.html      global HTML template
   regenerate.py         rebuild orchestrator (CLI) + docs/ publish
 ```
@@ -203,7 +204,10 @@ data/<slug>/workflows/*.json    ─┼─► Workspace.discover() ─┬─► b
 data/<slug>/manual/*.json      ──┘   (baseline + override   └─► build_explorer.build(ws)  ─► output/<slug>/*.html
                                       merge happens here)
 
-all workspaces ─► parser.discover_all() ─► build_global.build() ─► output/global/*.xlsx + *.html
+all workspaces ─► parser.discover_all() ─► build_global.build() ─┬─► build_registry.compute_registries(agg)
+                                                                │     (WorkflowReuse, FormFamilies, FieldTemplates,
+                                                                │      formFingerprints for step-4 suppression)
+                                                                └─► output/global/*.xlsx + *.html
 ```
 
 ### parser.py internals
@@ -232,6 +236,22 @@ Pure parsing helpers (`_walk`, `_expr_to_text`, `_summarize_*`, `_parse_field_as
 
 - **Form-name collisions** — display names carried by 2+ workspaces. These are the rename-impact targets (the `FormNameCollisions` sheet, teal dashed links in the global graph).
 - **Duplicate flows** — workflows sharing a signature `"<trigger action> -> <sorted target forms>"`. Two workflows in different workspaces with the same signature are likely the same flow replicated (the `DuplicateFlows` sheet).
+
+`build()` also calls `build_registry.compute_registries(agg)` (see below). The three registry sheets are appended to the workbook by `build_registry.add_sheets(wb, reg)` inside `_build_excel`, and `_build_html` consumes `reg["formFingerprints"]` for the collision-link suppression filter (view 4).
+
+### build_registry.py internals (reuse / sameness views)
+
+`scripts/build_registry.py` adds three **flat, classifying** views to the global build. Governing rule: **sameness is metadata, not topology** — no view creates instance→instance or form→shared-field edges. The only graph effect is the suppression filter in view 4, which *removes* links, never adds them.
+
+**Field substrate.** The per-field arrays come from `agg["discovered"][slug]["fields"]` (the same source `regenerate.emit_field_index()` reshapes into `docs/field-index.json`), read **in-memory, not from the published JSON**. `build_global` runs *before* `publish_docs()` rewrites that file, so the on-disk copy is one run stale; the in-memory source is current and identical in content. `compute_registries(agg)` is the entry point; `add_sheets(wb, reg)` writes the sheets.
+
+- **`WorkflowReuse`** — workflows keyed by **pattern**, not by `_flow_signature` (which degenerates: all Legacy actions are Notifications with empty `targetForm`, collapsing ~65 workflows into one bucket). Pattern key = `(trigger.form, trigger.databaseAction, recipient_roles)`, where `recipient_roles` = sorted `{...Email}` tokens pulled from each `action.matchOn` via `re.findall(r'\{(\w*[Ee]mail\w*)\}', …)`; empty → `("(static/other)",)`. An **exact-hash** per workflow (`sha1` over `databaseAction`, `timing`, `condition`, sorted action tuples, sorted `Write` field usages — deliberately **excluding the trigger form**) detects literal twins. `ExactTwinGroups`/`DriftFlag` measure drift *within* a pattern (`Single` = 1 instance; `Twin` = ≥2 instances, 1 hash; `Drift` = ≥2 instances, >1 hash). The `LiteralTwin` column surfaces **cross-pattern** twins — because the hash excludes the trigger form, two workflows that fire on differently-named forms in each utility (e.g. Customer Interest Receipt on `Account Management (400)` vs `300 - Account Management`) share a hash but land in different pattern keys, which the per-pattern columns structurally cannot see.
+- **`FormFamilies`** — forms grouped by design **fingerprint** = `sha1` over the deduped, **case-folded-name + type** set from the field substrate. Case-folding collapses case-variant duplicates (`Zipcode`/`ZipCode`/`ZIPCode`); type is **kept**, so a field re-typed in one workspace (socal-whp's ZIP as `Integer` vs `Text` elsewhere) splits the fingerprint — that is real design drift and isn't hidden. Sheet shows families with `MemberCount ≥ 2` only. `IntentTag` is **role-based per spec**: all members `role==Lookup` → `reference-replication (intentional)`, else `divergence-candidate`. (Consequence of the type-sensitive fingerprint: Climate Zones resolves as a **3-member** Lookup family `liwp`/`sce-be`/`sdge-whp`, with `socal-whp` a separate singleton, because socal types ZIP as `Integer`.)
+- **`FieldTemplates`** — every field keyed by `(name, type)` (literal, not case-folded), recording **spread** across forms (`FormCount`, capped `Forms` list with overflow count). Records spread; never unifies.
+
+**View 4 — explorer anti-spaghetti filter** (`build_global._build_html`). A form-name collision link is suppressed when the collision is reference-replication rather than divergence: suppress when **either** every instance is `role=Lookup` **or** every instance shares one design fingerprint (`reg["formFingerprints"]`). Divergence collisions (same name, differing designs — Invoice, and the divergent subform grids) keep their links. This is **broader than the view-2 role-based `IntentTag`**: the role branch covers Lookup tables whose designs differ slightly across utilities (Climate Zones — suppressed via role since its fingerprints differ), the fingerprint branch covers design-identical replicated grids. Acceptance: suppression drops **21 of 47** collision links (4 all-Lookup + 17 design-identical subform grids), not "most"; the 24 divergent subform grids, Invoice, and any other non-reference-replication collisions remain.
+
+All three sheets are **additive**; nothing here changes the `docs/field-index.json` structure (it's a downstream contract).
 
 ---
 

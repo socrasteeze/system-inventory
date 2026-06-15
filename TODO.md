@@ -2,11 +2,11 @@
 
 ## Active
 
-1. "No results" message with clear-filter action when field filter excludes everything.
+1. Copy-to-clipboard on field names. Small copy icon next to each.
 
 ## Backlog — ranked by impact
 
-2. Copy-to-clipboard on field names. Small copy icon next to each.
+2. Pin a form to the side panel. Keep detail visible while clicking around.
 
 4. Pin a form to the side panel. Keep detail visible while clicking around.
 
@@ -19,6 +19,10 @@ the workflow node is clickable now. Granular but risks duplicating intent — ev
 relationship-edge clicks are in active use.
 
 ## Done
+
+No results message with clear-filter action. Empty state names the query ("No fields
+match 'zip'") and offers a 'Clear filter' button that resets the input, refocuses
+#field-search, and re-renders the list. All 5 workspaces regenerated.
 
 Persist field-list state across node clicks. formFieldState map keyed by form name;
 save on every panel transition (renderForm/renderWorkflow/renderEdge/renderEmpty);

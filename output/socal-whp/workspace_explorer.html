@@ -102,6 +102,12 @@
          padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit}
   .mini-btn:hover{border-color:var(--accent)}
   .mini-btn.active{border-color:var(--accent);color:var(--accent)}
+  .copy-btn{display:inline-flex;align-items:center;vertical-align:middle;
+    width:15px;height:15px;border:0;background:transparent;color:var(--muted);
+    cursor:pointer;padding:0;border-radius:3px;opacity:0;transition:opacity 0.1s;
+    margin-left:3px;font-size:11px;line-height:1;flex-shrink:0}
+  .field:hover .copy-btn,.copy-btn:focus{opacity:1}
+  .copy-btn:hover,.copy-btn.copied{color:var(--accent)}
   .field-detail{margin:2px 0 8px 12px;padding:6px 10px;border-left:2px solid var(--border);
          background:var(--bg);border-radius:0 5px 5px 0}
   .field-detail h3{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
@@ -717,7 +723,7 @@ function renderFieldList(formName, refocus){
       <div class="field ${dirs?'touched':''} ${isExp?'expanded':''}"
            onclick="toggleField(this,'${escapeAttr(formName)}','${escapeAttr(f.name)}')">
         <span class="chev"></span>
-        <span class="fname">${escapeHtml(primary)}</span>
+        <span class="fname">${escapeHtml(primary)}</span><button class="copy-btn" title="Copy API name: ${escapeAttr(f.name)}" onclick="copyFieldName(event,'${escapeAttr(f.name)}')">⧉</button>
         <span class="ftype">${escapeHtml(f.type||'')}</span>
         <span class="flbl">${escapeHtml(secondary)}</span>
         <span class="badges">
@@ -770,6 +776,28 @@ function renderFieldList(formName, refocus){
     }</div>`;
   }
   restoreRoving(!!refocus);
+}
+
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
+function copyFieldName(evt, fieldName){
+  evt.stopPropagation();
+  const btn = evt.currentTarget;
+  const done = () => {
+    btn.textContent = '✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '⧉'; btn.classList.remove('copied'); }, 1500);
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(fieldName).then(done).catch(() => { fallbackCopy(fieldName); done(); });
+  } else {
+    fallbackCopy(fieldName); done();
+  }
 }
 
 function clearFieldFilter(){
@@ -1320,6 +1348,7 @@ window.toggleField = toggleField;
 window.expandAllFields = expandAllFields;
 window.collapseAllFields = collapseAllFields;
 window.clearFieldFilter = clearFieldFilter;
+window.copyFieldName = copyFieldName;
 window.toggleFilterMenu = toggleFilterMenu;
 window.toggleFilterLock = toggleFilterLock;
 window.setRovingRow = setRovingRow;

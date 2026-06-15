@@ -176,6 +176,10 @@
     <option value="grid">Layout: Grid</option>
     <option value="breadthfirst">Layout: Hierarchy</option>
   </select>
+  <select id="field-display">
+    <option value="name">Fields: Name</option>
+    <option value="label">Fields: Label</option>
+  </select>
   <button id="fit">Fit</button>
   <button id="reset">Reset</button>
   <button id="theme-toggle" title="Toggle light / dark">Light mode</button>
@@ -585,13 +589,15 @@ function renderFieldList(formName){
   function renderFieldRow(f){
     const dirs = touchedDirs.get(f.name);
     const isExp = expandedFields.has(f.name);
+    const primary   = fieldDisplayMode === 'label' ? (f.label || f.name) : f.name;
+    const secondary = fieldDisplayMode === 'label' ? f.name : (f.label || '');
     return `<div class="field-row" data-field="${escapeAttr(f.name)}">
       <div class="field ${dirs?'touched':''} ${isExp?'expanded':''}"
            onclick="toggleField(this,'${escapeAttr(formName)}','${escapeAttr(f.name)}')">
         <span class="chev"></span>
-        <span class="fname">${escapeHtml(f.name)}</span>
+        <span class="fname">${escapeHtml(primary)}</span>
         <span class="ftype">${escapeHtml(f.type||'')}</span>
-        <span class="flbl">${escapeHtml(f.label||'')}</span>
+        <span class="flbl">${escapeHtml(secondary)}</span>
         <span class="badges">
           ${dirBadges(dirs)}
           ${f.required==='Yes'?'<span class="badge req">REQ</span>':''}
@@ -1098,6 +1104,22 @@ document.querySelectorAll('#filter-menu input[type=checkbox]').forEach(cb => {
 });
 
 applyFilters();
+
+// Field display mode (name vs label). Persisted per-browser (not per-slug — it's a
+// global preference, not workspace-specific). Re-renders the field list if a form is open.
+const FIELD_DISPLAY_KEY = 'explorer-field-display';
+let fieldDisplayMode = 'name';
+try { fieldDisplayMode = localStorage.getItem(FIELD_DISPLAY_KEY) || 'name'; } catch(e) {}
+
+(function(){
+  const sel = document.getElementById('field-display');
+  sel.value = fieldDisplayMode;
+  sel.addEventListener('change', () => {
+    fieldDisplayMode = sel.value;
+    try { localStorage.setItem(FIELD_DISPLAY_KEY, fieldDisplayMode); } catch(e) {}
+    if (currentFormName) renderFieldList(currentFormName);
+  });
+})();
 
 // Helpers
 function escapeHtml(s){return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}

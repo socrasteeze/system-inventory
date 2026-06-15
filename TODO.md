@@ -2,29 +2,30 @@
 
 ## Active
 
-1. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
-layered DAG, rank separation, cleaner edge routing. Conditional on round-taxi still crowding.
+1. Persist field-list state across node clicks. Optional toggle to keep filter applied
+while switching forms.
 
 ## Backlog — ranked by impact
 
-2. Persist field-list state across node clicks. Optional toggle to keep filter applied
-while switching forms.
+2. "No results" message with clear-filter action when field filter excludes everything.
 
-3. "No results" message with clear-filter action when field filter excludes everything.
+3. Copy-to-clipboard on field names. Small copy icon next to each.
 
-4. Copy-to-clipboard on field names. Small copy icon next to each.
+4. Pin a form to the side panel. Keep detail visible while clicking around.
 
-5. Pin a form to the side panel. Keep detail visible while clicking around.
+5. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
 
-6. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
+6. Export current view. Copy field info as text or markdown for tickets.
 
-7. Export current view. Copy field info as text or markdown for tickets.
-
-8. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
+7. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
 the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
 relationship-edge clicks are in active use.
 
 ## Done
+
+Dagre hierarchical layout. Added cytoscape-dagre plugin (rankDir:TB, nodeSep:50,
+rankSep:100). New "Layout: Dagre" option in the toolbar dropdown alongside existing
+layouts. All 5 workspaces regenerated.
 
 Keyboard navigation for field list. Roving-tabindex: Tab from #field-search enters the
 list (one tab stop), Tab again leaves. ArrowDown/Up move across group boundaries, clamping

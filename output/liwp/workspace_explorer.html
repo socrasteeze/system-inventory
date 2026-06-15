@@ -101,6 +101,7 @@
   .mini-btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);
          padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit}
   .mini-btn:hover{border-color:var(--accent)}
+  .mini-btn.active{border-color:var(--accent);color:var(--accent)}
   .field-detail{margin:2px 0 8px 12px;padding:6px 10px;border-left:2px solid var(--border);
          background:var(--bg);border-radius:0 5px 5px 0}
   .field-detail h3{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
@@ -482,12 +483,18 @@ let activeFieldFilter = '';
 let currentFormName = null;
 let expandedFields = new Set();  // field names expanded inline; reset when the form changes
 let keyboardActiveField = null;  // roving-tabindex anchor; null = use first row
+const formFieldState = {};       // saved per-form: {filter, expanded, keyboardField}
+const FILTER_LOCK_KEY = 'explorer-filter-lock';
+let lockFieldFilter = false;
+try { lockFieldFilter = localStorage.getItem(FILTER_LOCK_KEY) === 'true'; } catch(e) {}
 
 function clearHighlights(){
   cy.elements().removeClass('dim highlight m-match m-hop1 m-hop2 m-dim m-edge1 m-edge2 sel');
 }
 
 function renderEmpty(){
+  saveFormFieldState(currentFormName);
+  currentFormName = null;
   panel.className = 'panel empty';
   panel.innerHTML = 'Click a node to inspect.<br>Scroll to zoom · drag to pan.';
   activeNodeId = null;
@@ -497,10 +504,18 @@ function renderEmpty(){
 function renderForm(formName){
   const f = DATA.forms.find(x => x.name === formName);
   if (!f) return;
-  // Switching forms auto-collapses any inline detail from the previous form.
+  saveFormFieldState(currentFormName);
   currentFormName = formName;
-  expandedFields = new Set();
-  keyboardActiveField = null;
+  const _saved = formFieldState[formName];
+  if (_saved) {
+    expandedFields = new Set(_saved.expanded);
+    keyboardActiveField = _saved.keyboardField;
+    activeFieldFilter = _saved.filter;
+  } else {
+    expandedFields = new Set();
+    keyboardActiveField = null;
+    if (!lockFieldFilter) activeFieldFilter = '';
+  }
   const fields = DATA.fields[formName] || [];
   const incomingRels = DATA.relationships.filter(r => r.target === formName);
   const outgoingRels = DATA.relationships.filter(r => r.source === formName);
@@ -542,8 +557,12 @@ function renderForm(formName){
 
     <div class="section">
       <h3>Fields (${fields.length})</h3>
-      <input class="field-search" id="field-search" placeholder="filter fields..."
-             value="${escapeHtml(activeFieldFilter)}">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input class="field-search" id="field-search" placeholder="filter fields..."
+               value="${escapeHtml(activeFieldFilter)}" style="flex:1;margin-bottom:0">
+        <button id="filter-lock" class="mini-btn${lockFieldFilter?' active':''}"
+                title="Keep this filter when switching forms" onclick="toggleFilterLock()">Lock</button>
+      </div>
       <div class="field-list" id="field-list" role="listbox"></div>
     </div>
   `;
@@ -629,6 +648,22 @@ function restoreRoving(refocus){
   if (!target) { target = rows[0]; keyboardActiveField = target.dataset.field; }
   target.setAttribute('tabindex', '0');
   if (refocus) target.focus();
+}
+
+function saveFormFieldState(formName){
+  if (!formName) return;
+  formFieldState[formName] = {
+    filter: activeFieldFilter,
+    expanded: new Set(expandedFields),
+    keyboardField: keyboardActiveField,
+  };
+}
+
+function toggleFilterLock(){
+  lockFieldFilter = !lockFieldFilter;
+  try { localStorage.setItem(FILTER_LOCK_KEY, lockFieldFilter); } catch(e) {}
+  const btn = document.getElementById('filter-lock');
+  if (btn) btn.classList.toggle('active', lockFieldFilter);
 }
 
 function buildUsedBySet(formName){
@@ -870,6 +905,8 @@ function fieldDetailHTML(formName, fieldName){
 }
 
 function renderWorkflow(callsign){
+  saveFormFieldState(currentFormName);
+  currentFormName = null;
   const w = DATA.workflows.find(x => x.callsign === callsign);
   if (!w) return;
   panel.className = 'panel';
@@ -927,6 +964,8 @@ function highlightWorkflow(w){
 // field-detail. Renders every individual relationship carried by the edge even
 // when its graph label is an aggregate count.
 function renderEdge(e){
+  saveFormFieldState(currentFormName);
+  currentFormName = null;
   const src = e.data('source'), tgt = e.data('target');
   const rels = e.data('rels') || [];
   const pulls = e.data('pulls') || 0;
@@ -965,7 +1004,6 @@ function selectEdgeVisual(e){
 cy.on('tap', 'node', evt => {
   const n = evt.target;
   activeNodeId = n.id();
-  activeFieldFilter = '';
   if (n.data('kind') === 'workflow') {
     renderWorkflow(n.data('wfRef'));
   } else {
@@ -988,7 +1026,6 @@ cy.on('tap', 'edge', evt => {
   // individual relationships a click should reveal.
   if (e.data('kind') !== 'relationship') return;
   activeNodeId = null;
-  activeFieldFilter = '';
   selectEdgeVisual(e);
   renderEdge(e);
 });
@@ -1270,6 +1307,7 @@ window.toggleField = toggleField;
 window.expandAllFields = expandAllFields;
 window.collapseAllFields = collapseAllFields;
 window.toggleFilterMenu = toggleFilterMenu;
+window.toggleFilterLock = toggleFilterLock;
 window.setRovingRow = setRovingRow;
 window.cy = cy;
 </script>

@@ -144,6 +144,11 @@
   .close-btn{float:right;background:transparent;border:0;color:var(--muted);cursor:pointer;
              font-size:18px;line-height:1}
   .close-btn:hover{color:var(--text)}
+  .pin-btn{float:right;background:transparent;border:1px solid var(--border);color:var(--muted);
+           cursor:pointer;font-size:11px;line-height:1;padding:2px 7px;border-radius:3px;
+           margin-right:6px;margin-top:1px;font-family:inherit;transition:all 0.12s}
+  .pin-btn:hover{border-color:var(--accent);color:var(--text)}
+  .pin-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(94,234,212,0.08)}
   .empty-state{color:var(--muted);font-size:11px;font-style:italic;padding:6px 0}
   /* field section/page group headers */
   .field-group-header{font-size:10px;text-transform:uppercase;letter-spacing:0.8px;
@@ -489,6 +494,7 @@ let activeFieldFilter = '';
 let currentFormName = null;
 let expandedFields = new Set();  // field names expanded inline; reset when the form changes
 let keyboardActiveField = null;  // roving-tabindex anchor; null = use first row
+let pinnedForm = null;           // form name locked in the panel; null = unpinned
 const formFieldState = {};       // saved per-form: {filter, expanded, keyboardField}
 const FILTER_LOCK_KEY = 'explorer-filter-lock';
 let lockFieldFilter = false;
@@ -499,6 +505,7 @@ function clearHighlights(){
 }
 
 function renderEmpty(){
+  pinnedForm = null;
   saveFormFieldState(currentFormName);
   currentFormName = null;
   panel.className = 'panel empty';
@@ -533,6 +540,7 @@ function renderForm(formName){
   panel.className = 'panel';
   panel.innerHTML = `
     <button class="close-btn" onclick="renderEmpty()">×</button>
+    <button class="pin-btn${pinnedForm===formName?' active':''}" onclick="togglePin('${escapeAttr(formName)}')">${pinnedForm===formName?'Pinned':'Pin'}</button>
     <h2>${escapeHtml(f.name)}</h2>
     <span class="role ${f.role}">${f.role}</span>
     <div class="meta">
@@ -654,6 +662,11 @@ function restoreRoving(refocus){
   if (!target) { target = rows[0]; keyboardActiveField = target.dataset.field; }
   target.setAttribute('tabindex', '0');
   if (refocus) target.focus();
+}
+
+function togglePin(formName){
+  pinnedForm = pinnedForm === formName ? null : formName;
+  renderForm(formName);
 }
 
 function saveFormFieldState(formName){
@@ -1046,7 +1059,7 @@ cy.on('tap', 'node', evt => {
   const n = evt.target;
   activeNodeId = n.id();
   if (n.data('kind') === 'workflow') {
-    renderWorkflow(n.data('wfRef'));
+    if (!pinnedForm) renderWorkflow(n.data('wfRef'));
   } else {
     clearHighlights();
     cy.elements().addClass('dim');
@@ -1055,7 +1068,7 @@ cy.on('tap', 'node', evt => {
       e.removeClass('dim').addClass('highlight');
       e.connectedNodes().removeClass('dim');
     });
-    renderForm(n.id());
+    if (!pinnedForm) renderForm(n.id());
   }
 });
 
@@ -1068,11 +1081,14 @@ cy.on('tap', 'edge', evt => {
   if (e.data('kind') !== 'relationship') return;
   activeNodeId = null;
   selectEdgeVisual(e);
-  renderEdge(e);
+  if (!pinnedForm) renderEdge(e);
 });
 
 cy.on('tap', evt => {
-  if (evt.target === cy) { renderEmpty(); }
+  if (evt.target === cy) {
+    if (pinnedForm) clearHighlights();
+    else renderEmpty();
+  }
 });
 
 cy.on('mouseover', 'edge', e => e.target.addClass('hovered'));
@@ -1349,6 +1365,7 @@ window.expandAllFields = expandAllFields;
 window.collapseAllFields = collapseAllFields;
 window.clearFieldFilter = clearFieldFilter;
 window.copyFieldName = copyFieldName;
+window.togglePin = togglePin;
 window.toggleFilterMenu = toggleFilterMenu;
 window.toggleFilterLock = toggleFilterLock;
 window.setRovingRow = setRovingRow;

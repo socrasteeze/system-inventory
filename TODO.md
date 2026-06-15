@@ -2,11 +2,11 @@
 
 ## Active
 
-1. Copy-to-clipboard on field names. Small copy icon next to each.
+1. Pin a form to the side panel. Keep detail visible while clicking around.
 
 ## Backlog — ranked by impact
 
-2. Pin a form to the side panel. Keep detail visible while clicking around.
+2. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
 
 4. Pin a form to the side panel. Keep detail visible while clicking around.
 
@@ -19,6 +19,11 @@ the workflow node is clickable now. Granular but risks duplicating intent — ev
 relationship-edge clicks are in active use.
 
 ## Done
+
+Copy-to-clipboard on field names. Hover any field row to reveal a ⧉ button next to the
+name; click copies the API name and flashes ✓ for 1.5s. Always copies API name regardless
+of Name/Label display toggle. navigator.clipboard with execCommand fallback. All 5
+workspaces regenerated.
 
 No results message with clear-filter action. Empty state names the query ("No fields
 match 'zip'") and offers a 'Clear filter' button that resets the input, refocuses

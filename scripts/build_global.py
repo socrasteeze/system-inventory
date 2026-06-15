@@ -232,13 +232,15 @@ def _build_html(agg, reg):
             workflows.append({"id": wid, "callsign": w["callsign"], "name": w["name"],
                               "slug": slug, "enabled": w.get("enabled", True),
                               "workflowType": w.get("workflowType", "WFEngine")})
+            wtype = w.get("workflowType", "WFEngine")
             if w["trigger"]["form"] in form_names:
                 wf_edges.append({"source": fid(slug, w["trigger"]["form"]), "target": wid,
-                                 "label": "trigger"})
+                                 "label": "trigger", "workflowType": wtype})
             for a in w["actions"]:
                 if a["targetForm"] in form_names:
                     wf_edges.append({"source": wid, "target": fid(slug, a["targetForm"]),
-                                     "label": a["type"].replace("BuiltIn.", "")})
+                                     "label": a["type"].replace("BuiltIn.", ""),
+                                     "workflowType": wtype})
 
     # Duplicate-form links chain each instance of a shared name across workspaces.
     dup_forms = []

@@ -150,14 +150,58 @@ def _node_to_field(node, ctype):
         except Exception: pass
     return meta
 
-def _walk(node, out):
+def _ancestor_page_section(comp_id, by_id):
+    """Walk the ParentId chain from comp_id to find the nearest FormPage and
+    FormSection ancestors.  Returns (page_title, section_title, page_sort,
+    section_sort); any value may be None / 0 if no ancestor of that type
+    exists.  Used only by _ws_parse_form (workspace-export flat list)."""
+    page_title = section_title = None
+    page_sort = section_sort = 0
+    cur = by_id.get(comp_id, {}).get("ParentId")
+    while cur and cur in by_id:
+        c = by_id[cur]
+        ctype = c.get("FormDesignComponentType", "")
+        ep = c.get("ExtraProperties") or {}
+        title = ep.get("Label") or ep.get("Name") or None
+        if ctype == "FormPage" and page_title is None:
+            page_title = title
+            page_sort = c.get("SortOrder", 0) or 0
+        elif ctype == "FormSection" and section_title is None:
+            section_title = title
+            section_sort = c.get("SortOrder", 0) or 0
+        if page_title is not None and section_title is not None:
+            break
+        cur = c.get("ParentId")
+    return page_title, section_title, page_sort, section_sort
+
+
+def _walk(node, out, page=None, section=None):
+    """Recursively walk the individual-export nested design tree.
+
+    page / section track the nearest FormPage / FormSection ancestor titles
+    so every field meta carries them without a separate ParentId walk.
+    """
     ep = node.get("ExtraProperties", {}) or {}
     name = ep.get("Name")
     ctype = node.get("ComponentType")
+
+    # Compute context for this node's children before recursing.
+    child_page = page
+    child_section = section
+    if ctype == "FormPage":
+        child_page = ep.get("Label") or ep.get("Name") or page
+        child_section = None          # entering a new page resets section
+    elif ctype == "FormSection":
+        child_section = ep.get("Label") or ep.get("Name") or section
+
     if name and ctype not in LAYOUT_TYPES:
-        out.append(_node_to_field(node, ctype))
+        meta = _node_to_field(node, ctype)
+        meta["page"] = page
+        meta["section"] = section
+        meta["sort_order"] = node.get("SortOrder", 0) or 0
+        out.append(meta)
     for c in node.get("Children", []):
-        _walk(c, out)
+        _walk(c, out, child_page, child_section)
 
 def _as_expr(expr):
     """Condition expressions arrive as JSON strings (individual exports) or as
@@ -310,7 +354,8 @@ def _minimal_field(name, label, dtype):
             "validator": "", "formula": "", "filter": "", "visibility": "",
             "defaultValue": "",
             "dependsOn": {"validation": [], "formula": [], "filter": [], "visibility": []},
-            "dependsOnAll": []}
+            "dependsOnAll": [],
+            "page": None, "section": None, "sort_order": 0}
 
 def _ws_display_names(raw_forms):
     """Resolve each form entry to a unique display name.
@@ -345,12 +390,23 @@ def _ws_parse_form(raw, display, form_name_by_id, field_index, subform_of):
     fields, relationships, ref_pulls = [], [], []
     components = (raw.get("FormDesign") or {}).get("Components") or []
 
+    # GUID->component map for the ParentId ancestry walk (page/section grouping).
+    by_id = {c["Id"]: c for c in components if c.get("Id")}
+
     for node in components:
         ctype = node.get("FormDesignComponentType")
         ep = node.get("ExtraProperties") or {}
         if not ep.get("Name") or ctype in LAYOUT_TYPES:
             continue
         meta = _node_to_field(node, ctype)
+
+        # Attach page / section from the nearest FormPage / FormSection ancestor.
+        pg, sec, pg_sort, sec_sort = _ancestor_page_section(node.get("Id"), by_id)
+        meta["page"] = pg
+        meta["section"] = sec
+        meta["sort_order"] = node.get("SortOrder", 0) or 0
+        meta["_pg_sort"] = pg_sort
+        meta["_sec_sort"] = sec_sort
 
         if ctype == "FormRelationshipInput":
             rel = _loads_maybe(ep.get("RelatedForm")) or {}
@@ -371,6 +427,13 @@ def _ws_parse_form(raw, display, form_name_by_id, field_index, subform_of):
             meta["dependsOn"]["filter"] = sorted(set(own))
             meta["dependsOnAll"] = sorted({f for lst in meta["dependsOn"].values() for f in lst})
         fields.append(meta)
+
+    # Sort design-tree fields into platform visual order before the minimal-field
+    # backfill, then strip the internal sort keys used only here.
+    fields.sort(key=lambda f: (f.get("_pg_sort", 0), f.get("_sec_sort", 0), f.get("sort_order", 0)))
+    for f in fields:
+        f.pop("_pg_sort", None)
+        f.pop("_sec_sort", None)
 
     # Fields present in the flattened Fields array but absent from the design
     # (subforms have no design at all; a few fields live off-design).

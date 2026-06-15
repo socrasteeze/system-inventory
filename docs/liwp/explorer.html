@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Low-Income Weatherization Program · Interactive Map</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
 <style>
   :root {
     --bg:#0f1115; --bg2:#1a1d24; --bg3:#252932; --border:#2e3340;
@@ -179,6 +181,7 @@
     <option value="circle">Layout: Circle</option>
     <option value="grid">Layout: Grid</option>
     <option value="breadthfirst">Layout: Hierarchy</option>
+    <option value="dagre">Layout: Dagre</option>
   </select>
   <select id="field-display">
     <option value="name">Fields: Name</option>
@@ -1004,6 +1007,9 @@ document.getElementById('layout').addEventListener('change', e => {
     cy.layout(hasPreset ? {name:'preset', positions: PRESET, fit:true, padding:60} : FORCE).run();
   } else if (name === 'cose') {
     cy.layout(FORCE).run();
+  } else if (name === 'dagre') {
+    cy.layout({name:'dagre', rankDir:'TB', nodeSep:50, rankSep:100,
+               edgeSep:20, fit:true, padding:60, animate:true}).run();
   } else {
     cy.layout({name, fit:true, padding:60, animate:true}).run();
   }

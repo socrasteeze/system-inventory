@@ -1,34 +1,37 @@
 # TODO
-# Numbered by priority (1 = next). Active = open/in-flight; Backlog = ranked, unscheduled.
 
 ## Active
 
-1. Keyboard navigation. Arrows through field list, Enter expand, Esc collapse, Tab between
-search and list.
+1. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
+layered DAG, rank separation, cleaner edge routing. Conditional on round-taxi still crowding.
 
 ## Backlog — ranked by impact
 
-2. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
-layered DAG, rank separation, cleaner edge routing. Conditional on round-taxi still crowding.
-
-3. Persist field-list state across node clicks. Optional toggle to keep filter applied
+2. Persist field-list state across node clicks. Optional toggle to keep filter applied
 while switching forms.
 
-4. "No results" message with clear-filter action when field filter excludes everything.
+3. "No results" message with clear-filter action when field filter excludes everything.
 
-5. Copy-to-clipboard on field names. Small copy icon next to each.
+4. Copy-to-clipboard on field names. Small copy icon next to each.
 
-6. Pin a form to the side panel. Keep detail visible while clicking around.
+5. Pin a form to the side panel. Keep detail visible while clicking around.
 
-7. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
+6. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
 
-8. Export current view. Copy field info as text or markdown for tickets.
+7. Export current view. Copy field info as text or markdown for tickets.
 
-9. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
+8. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
 the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
 relationship-edge clicks are in active use.
 
 ## Done
+
+Keyboard navigation for field list. Roving-tabindex: Tab from #field-search enters the
+list (one tab stop), Tab again leaves. ArrowDown/Up move across group boundaries, clamping
+at ends; Home/End jump to first/last. Enter/Space toggle inline detail; Esc collapses
+expanded row or returns focus to search. restoreRoving() silently updates tabindexes after
+every re-render without stealing focus during filtering. a11y: role=listbox / role=option.
+All 5 workspaces regenerated.
 
 Visual marker for intra-form field dependencies. Two badges on field rows: DEP (teal, this
 field's formula/visibility/validation references other fields) and REF'D (lime, other fields

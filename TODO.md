@@ -3,56 +3,53 @@
 
 ## Active
 
-1. Node filter toolbar (scripts/explorer_template.html). BUILT — pending in-browser
-verify + push. Filters button after #theme-toggle, checkbox dropdown: Workflows·Legacy,
-Workflows·WFEngine, Workflows·Disabled, Forms·Subforms, Forms·Lookups, Orphaned.
-applyFilters() = 4 ordered passes: category → dangling-edge → filter-hygiene (always-on,
-hides nodes left with zero visible edges by other filters) → Orphaned (degree-0 / orphaned
-flag, toggle only). Per-slug localStorage, default all visible, no re-layout (Fit to
-recenter). Verify: uncheck Subforms drops ~60 no dangling; uncheck Orphaned clears the 39
-degree-0 ghosts (incl. WaterHeaterInformationPre1, ReviewTable, WxMHRGrid) while Program
-stays; reload restores. Then commit + push.
-
-2. Circuit-board edge routing. Bezier → round-taxi (orthogonal right-angle) so connectors
-read like a circuit board and the field label sits on a horizontal jog. Both
-explorer_template.html and global_template.html. Layout resolved: Hierarchy (breadthfirst)
-is the working layout — route against it. Must coexist with the existing pair-fan logic
-(shared node-pairs get bundled-bezier arcs). Dagre only if Hierarchy still crowds.
-
-3. Toggle for displaying/sorting fields by Name vs Label. Both extracted; UI choice on
-which is primary. Quick win — same code area as #4.
+1. Sort options beyond Name/Label. Dropdown: Required-first, Hidden-last,
+ComponentType-grouped, Original-order. Extends the now-shipped Name/Label toggle (same code
+area).
 
 ## Backlog — ranked by impact
 
-4. Sort options beyond Name/Label. Dropdown: Required-first, Hidden-last,
-ComponentType-grouped, Original-order. Extends #3.
+2. Visual marker on fields with intra-form dependencies (formulas/validation referencing).
 
-5. Visual marker on fields with intra-form dependencies (formulas/validation referencing).
+3. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
+layered DAG, rank separation, cleaner edge routing. Conditional on round-taxi still crowding.
 
-6. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
-layered DAG, rank separation, cleaner edge routing. Pairs with #2. Conditional.
-
-7. Keyboard navigation. Arrows through field list, Enter expand, Esc collapse, Tab between
+4. Keyboard navigation. Arrows through field list, Enter expand, Esc collapse, Tab between
 search and list.
 
-8. Persist field-list state across node clicks. Optional toggle to keep filter applied
+5. Persist field-list state across node clicks. Optional toggle to keep filter applied
 while switching forms.
 
-9. "No results" message with clear-filter action when field filter excludes everything.
+6. "No results" message with clear-filter action when field filter excludes everything.
 
-10. Copy-to-clipboard on field names. Small copy icon next to each.
+7. Copy-to-clipboard on field names. Small copy icon next to each.
 
-11. Pin a form to the side panel. Keep detail visible while clicking around.
+8. Pin a form to the side panel. Keep detail visible while clicking around.
 
-12. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
+9. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
 
-13. Export current view. Copy field info as text or markdown for tickets.
+10. Export current view. Copy field info as text or markdown for tickets.
 
-14. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
+11. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
 the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
 relationship-edge clicks are in active use.
 
 ## Done
+
+Node filter toolbar (scripts/explorer_template.html). Filters button after #theme-toggle,
+checkbox dropdown: Workflows·Legacy, Workflows·WFEngine, Workflows·Disabled, Forms·Subforms,
+Forms·Lookups, Orphaned. applyFilters() = 4 ordered passes: category → dangling-edge →
+filter-hygiene (always-on, hides nodes left with zero visible edges) → Orphaned (degree-0 /
+orphaned flag, toggle only). Per-slug localStorage, default all visible, no re-layout.
+Regenerated + published across all 5 workspaces.
+
+Circuit-board edge routing. Bezier → round-taxi (orthogonal right-angle) in both
+explorer_template.html and global_template.html; field label sits on a horizontal jog.
+Coexists with pair-fan logic — shared node-pairs fall back to bundled-bezier arcs so their
+labels don't garble. Routes against the Hierarchy (breadthfirst) layout.
+
+Name/Label toggle for field list display. Both name and label extracted; UI toggle picks
+which is primary. Persisted per-browser.
 
 Workflow-type colors. Legacy = red, WF Engine = olive (#9fae5a); nodes and trace edges
 colored by type from shared --wf-legacy / --wf-engine vars; legend reads "WF Engine".

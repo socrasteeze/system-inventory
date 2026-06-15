@@ -2,14 +2,11 @@
 
 ## Active
 
-1. Persist field-list state across node clicks. Optional toggle to keep filter applied
-while switching forms.
+1. "No results" message with clear-filter action when field filter excludes everything.
 
 ## Backlog — ranked by impact
 
-2. "No results" message with clear-filter action when field filter excludes everything.
-
-3. Copy-to-clipboard on field names. Small copy icon next to each.
+2. Copy-to-clipboard on field names. Small copy icon next to each.
 
 4. Pin a form to the side panel. Keep detail visible while clicking around.
 
@@ -22,6 +19,11 @@ the workflow node is clickable now. Granular but risks duplicating intent — ev
 relationship-edge clicks are in active use.
 
 ## Done
+
+Persist field-list state across node clicks. formFieldState map keyed by form name;
+save on every panel transition (renderForm/renderWorkflow/renderEdge/renderEmpty);
+restore on form open. "Lock" button next to #field-search carries the active filter
+into unvisited forms. Lock persists in localStorage. All 5 workspaces regenerated.
 
 Dagre hierarchical layout. Added cytoscape-dagre plugin (rankDir:TB, nodeSep:50,
 rankSep:100). New "Layout: Dagre" option in the toolbar dropdown alongside existing

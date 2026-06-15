@@ -3,34 +3,37 @@
 
 ## Active
 
-1. Visual marker on fields with intra-form dependencies (formulas/validation referencing).
+1. Keyboard navigation. Arrows through field list, Enter expand, Esc collapse, Tab between
+search and list.
 
 ## Backlog — ranked by impact
 
 2. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
 layered DAG, rank separation, cleaner edge routing. Conditional on round-taxi still crowding.
 
-3. Keyboard navigation. Arrows through field list, Enter expand, Esc collapse, Tab between
-search and list.
-
-4. Persist field-list state across node clicks. Optional toggle to keep filter applied
+3. Persist field-list state across node clicks. Optional toggle to keep filter applied
 while switching forms.
 
-5. "No results" message with clear-filter action when field filter excludes everything.
+4. "No results" message with clear-filter action when field filter excludes everything.
 
-6. Copy-to-clipboard on field names. Small copy icon next to each.
+5. Copy-to-clipboard on field names. Small copy icon next to each.
 
-7. Pin a form to the side panel. Keep detail visible while clicking around.
+6. Pin a form to the side panel. Keep detail visible while clicking around.
 
-8. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
+7. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
 
-9. Export current view. Copy field info as text or markdown for tickets.
+8. Export current view. Copy field info as text or markdown for tickets.
 
-10. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
+9. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
 the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
 relationship-edge clicks are in active use.
 
 ## Done
+
+Visual marker for intra-form field dependencies. Two badges on field rows: DEP (teal, this
+field's formula/visibility/validation references other fields) and REF'D (lime, other fields
+on this form reference this one). Precomputed per form render via buildUsedBySet(). Tooltip
+text clarifies the direction. All 5 workspaces regenerated.
 
 Sort options for field list. Second dropdown "Sort: Original / Required first / Hidden last /
 By type" in the toolbar alongside the Name/Label display toggle. Sorts within each

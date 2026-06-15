@@ -109,6 +109,8 @@
   .badge.rel{background:#3b2d63;color:#d9c9ff}
   .badge.ref{background:#1e3a5f;color:#bcdbff}
   .badge.req{background:#5f2424;color:#ffc4c4}
+  .badge.dep-uses{background:#1e3d2f;color:#6ee7b7;cursor:default}
+  .badge.dep-used{background:#2d3a1e;color:#bef264;cursor:default}
   .wf-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;
            padding:10px 12px;margin-bottom:8px;font-size:12px;cursor:pointer}
   .wf-card:hover{border-color:var(--accent)}
@@ -585,10 +587,19 @@ function sortFields(fields){
   return copy;
 }
 
+function buildUsedBySet(formName){
+  const s = new Set();
+  (DATA.fields[formName] || []).forEach(f => {
+    (f.dependsOnAll || []).forEach(dep => s.add(dep));
+  });
+  return s;
+}
+
 function renderFieldList(formName){
   const list = document.getElementById('field-list');
   if (!list) return;
   const touchedDirs = buildTouchedDirs(formName);
+  const usedBySet = buildUsedBySet(formName);
   const visible = visibleFields(formName);
 
   const controls = `<div class="field-controls">
@@ -628,6 +639,8 @@ function renderFieldList(formName){
           ${f.required==='Yes'?'<span class="badge req">REQ</span>':''}
           ${f.component==='FormRelationshipInput'?'<span class="badge rel">REL</span>':''}
           ${f.component==='FormRelationshipReferenceDataInput'?'<span class="badge ref">REF</span>':''}
+          ${(f.dependsOnAll||[]).length?'<span class="badge dep-uses" title="This field\'s formula, visibility, or validation references other fields on this form">DEP</span>':''}
+          ${usedBySet.has(f.name)?'<span class="badge dep-used" title="Other fields on this form reference this field in their formula, visibility, or validation">REF\'D</span>':''}
         </span>
       </div>
       ${isExp ? `<div class="field-detail">${fieldDetailHTML(formName, f.name)}</div>` : ''}

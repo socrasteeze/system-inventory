@@ -2,11 +2,13 @@
 
 ## Active
 
-1. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
+1. Export current view. Copy field info as text or markdown for tickets.
 
 ## Backlog — ranked by impact
 
-2. Export current view. Copy field info as text or markdown for tickets.
+2. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
+the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
+relationship-edge clicks are in active use.
 
 4. Pin a form to the side panel. Keep detail visible while clicking around.
 
@@ -19,6 +21,10 @@ the workflow node is clickable now. Granular but risks duplicating intent — ev
 relationship-edge clicks are in active use.
 
 ## Done
+
+Field-detail breadcrumb. Navigation trail above the form heading once two+ forms visited
+(A › B › Current). Clicking ancestor back-navigates and truncates forward history. Capped
+at 5 entries; clears on panel close. All 5 workspaces regenerated.
 
 Pin a form to the side panel. 'Pin' button in form header locks the panel while clicking
 nodes/edges/background updates graph highlights normally. Background tap while pinned

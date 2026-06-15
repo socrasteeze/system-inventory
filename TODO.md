@@ -2,13 +2,8 @@
 
 ## Active
 
-1. Export current view. Copy field info as text or markdown for tickets.
-
-## Backlog — ranked by impact
-
-2. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
-the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
-relationship-edge clicks are in active use.
+1. Workflow trigger/action edges clickable. Only the workflow node is clickable now;
+edges should open the workflow panel and scroll to the specific action/trigger.
 
 4. Pin a form to the side panel. Keep detail visible while clicking around.
 
@@ -21,6 +16,10 @@ the workflow node is clickable now. Granular but risks duplicating intent — ev
 relationship-edge clicks are in active use.
 
 ## Done
+
+Export button copies form fields as markdown table to clipboard. Columns: API Name,
+Label, Type, Required, WF (R/W/C). Respects active filter and sort. All 5 workspaces
+regenerated.
 
 Field-detail breadcrumb. Navigation trail above the form heading once two+ forms visited
 (A › B › Current). Clicking ancestor back-navigates and truncates forward history. Capped

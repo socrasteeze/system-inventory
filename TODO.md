@@ -2,11 +2,11 @@
 
 ## Active
 
-1. Pin a form to the side panel. Keep detail visible while clicking around.
+1. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
 
 ## Backlog — ranked by impact
 
-2. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
+2. Export current view. Copy field info as text or markdown for tickets.
 
 4. Pin a form to the side panel. Keep detail visible while clicking around.
 
@@ -19,6 +19,10 @@ the workflow node is clickable now. Granular but risks duplicating intent — ev
 relationship-edge clicks are in active use.
 
 ## Done
+
+Pin a form to the side panel. 'Pin' button in form header locks the panel while clicking
+nodes/edges/background updates graph highlights normally. Background tap while pinned
+clears highlights only. × or 'Pinned' releases it. All 5 workspaces regenerated.
 
 Copy-to-clipboard on field names. Hover any field row to reveal a ⧉ button next to the
 name; click copies the API name and flashes ✓ for 1.5s. Always copies API name regardless

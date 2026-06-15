@@ -556,6 +556,7 @@ function renderForm(formName){
   panel.innerHTML = `
     <button class="close-btn" onclick="renderEmpty()">×</button>
     <button class="pin-btn${pinnedForm===formName?' active':''}" onclick="togglePin('${escapeAttr(formName)}')">${pinnedForm===formName?'Pinned':'Pin'}</button>
+    <button id="export-btn" class="pin-btn" onclick="exportFormMarkdown()" title="Copy field list as markdown">Export</button>
     ${formHistory.length > 1 ? `<div class="breadcrumb">${formHistory.map((n,i) => {
       const last = i === formHistory.length - 1;
       return last
@@ -683,6 +684,44 @@ function restoreRoving(refocus){
   if (!target) { target = rows[0]; keyboardActiveField = target.dataset.field; }
   target.setAttribute('tabindex', '0');
   if (refocus) target.focus();
+}
+
+function exportFormMarkdown(){
+  if (!currentFormName) return;
+  const f = DATA.forms.find(x => x.name === currentFormName);
+  if (!f) return;
+  const allFields = DATA.fields[currentFormName] || [];
+  const visible = visibleFields(currentFormName);
+  const incomingRels = DATA.relationships.filter(r => r.target === currentFormName);
+  const outgoingRels = DATA.relationships.filter(r => r.source === currentFormName);
+  const wfsTouching = DATA.workflows.filter(w =>
+    w.fieldUsage.some(u => u.form === currentFormName) ||
+    (w.trigger && w.trigger.form === currentFormName) ||
+    w.actions.some(a => a.targetForm === currentFormName));
+  const touchedDirs = buildTouchedDirs(currentFormName);
+
+  const lines = [
+    `## ${f.name} (${f.role})`,
+    '',
+    `${allFields.length} fields · ${incomingRels.length} incoming links · ${outgoingRels.length} outgoing links · ${wfsTouching.length} workflow(s)`,
+  ];
+  if (activeFieldFilter)
+    lines.push(`*(showing ${visible.length} of ${allFields.length} matching "${activeFieldFilter}")*`);
+  lines.push('', '| API Name | Label | Type | Required | WF |', '|---|---|---|---|---|');
+  visible.forEach(field => {
+    const dirs = touchedDirs.get(field.name);
+    const wf = dirs ? ['Read','Write','Condition'].filter(d => dirs.has(d)).map(d=>d[0]).join('') : '';
+    lines.push(`| \`${field.name}\` | ${field.label||''} | ${field.type||''} | ${field.required==='Yes'?'Yes':''} | ${wf} |`);
+  });
+
+  const md = lines.join('\n');
+  const btn = document.getElementById('export-btn');
+  const done = () => {
+    if (btn) { const orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(()=>{btn.textContent=orig;},1500); }
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(md).then(done).catch(()=>{ fallbackCopy(md); done(); });
+  } else { fallbackCopy(md); done(); }
 }
 
 function togglePin(formName){
@@ -1387,6 +1426,7 @@ window.collapseAllFields = collapseAllFields;
 window.clearFieldFilter = clearFieldFilter;
 window.copyFieldName = copyFieldName;
 window.togglePin = togglePin;
+window.exportFormMarkdown = exportFormMarkdown;
 window.toggleFilterMenu = toggleFilterMenu;
 window.toggleFilterLock = toggleFilterLock;
 window.setRovingRow = setRovingRow;

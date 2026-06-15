@@ -3,38 +3,38 @@
 
 ## Active
 
-1. Sort options beyond Name/Label. Dropdown: Required-first, Hidden-last,
-ComponentType-grouped, Original-order. Extends the now-shipped Name/Label toggle (same code
-area).
+1. Visual marker on fields with intra-form dependencies (formulas/validation referencing).
 
 ## Backlog — ranked by impact
 
-2. Visual marker on fields with intra-form dependencies (formulas/validation referencing).
-
-3. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
+2. Dagre hierarchical layout. Upgrade from breadthfirst if dense views still crowd —
 layered DAG, rank separation, cleaner edge routing. Conditional on round-taxi still crowding.
 
-4. Keyboard navigation. Arrows through field list, Enter expand, Esc collapse, Tab between
+3. Keyboard navigation. Arrows through field list, Enter expand, Esc collapse, Tab between
 search and list.
 
-5. Persist field-list state across node clicks. Optional toggle to keep filter applied
+4. Persist field-list state across node clicks. Optional toggle to keep filter applied
 while switching forms.
 
-6. "No results" message with clear-filter action when field filter excludes everything.
+5. "No results" message with clear-filter action when field filter excludes everything.
 
-7. Copy-to-clipboard on field names. Small copy icon next to each.
+6. Copy-to-clipboard on field names. Small copy icon next to each.
 
-8. Pin a form to the side panel. Keep detail visible while clicking around.
+7. Pin a form to the side panel. Keep detail visible while clicking around.
 
-9. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
+8. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
 
-10. Export current view. Copy field info as text or markdown for tickets.
+9. Export current view. Copy field info as text or markdown for tickets.
 
-11. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
+10. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
 the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
 relationship-edge clicks are in active use.
 
 ## Done
+
+Sort options for field list. Second dropdown "Sort: Original / Required first / Hidden last /
+By type" in the toolbar alongside the Name/Label display toggle. Sorts within each
+section/page group; persisted per-browser via localStorage.
 
 Node filter toolbar (scripts/explorer_template.html). Filters button after #theme-toggle,
 checkbox dropdown: Workflows·Legacy, Workflows·WFEngine, Workflows·Disabled, Forms·Subforms,

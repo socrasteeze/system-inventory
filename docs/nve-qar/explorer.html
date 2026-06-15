@@ -180,6 +180,12 @@
     <option value="name">Fields: Name</option>
     <option value="label">Fields: Label</option>
   </select>
+  <select id="field-sort">
+    <option value="original">Sort: Original</option>
+    <option value="required-first">Sort: Required first</option>
+    <option value="hidden-last">Sort: Hidden last</option>
+    <option value="type-grouped">Sort: By type</option>
+  </select>
   <button id="fit">Fit</button>
   <button id="reset">Reset</button>
   <button id="theme-toggle" title="Toggle light / dark">Light mode</button>
@@ -560,6 +566,25 @@ function buildTouchedDirs(formName){
   return dirs;
 }
 
+function sortFields(fields){
+  if (fieldSortMode === 'original') return fields;
+  const copy = fields.slice();
+  if (fieldSortMode === 'required-first'){
+    copy.sort((a, b) => {
+      const ra = a.required === 'Yes' ? 0 : 1, rb = b.required === 'Yes' ? 0 : 1;
+      return ra - rb;
+    });
+  } else if (fieldSortMode === 'hidden-last'){
+    copy.sort((a, b) => {
+      const ha = a.hidden === 'Yes' ? 1 : 0, hb = b.hidden === 'Yes' ? 1 : 0;
+      return ha - hb;
+    });
+  } else if (fieldSortMode === 'type-grouped'){
+    copy.sort((a, b) => (a.type||'').localeCompare(b.type||'') || (a.name||'').localeCompare(b.name||''));
+  }
+  return copy;
+}
+
 function renderFieldList(formName){
   const list = document.getElementById('field-list');
   if (!list) return;
@@ -629,6 +654,7 @@ function renderFieldList(formName){
     }
     groupMap[gkey].fields.push(f);
   }
+  groups.forEach(g => { g.fields = sortFields(g.fields); });
 
   // If the only group is the 'General' fallback the form has no page/section
   // structure — render flat with no header (identical to pre-feature behavior).
@@ -1105,8 +1131,7 @@ document.querySelectorAll('#filter-menu input[type=checkbox]').forEach(cb => {
 
 applyFilters();
 
-// Field display mode (name vs label). Persisted per-browser (not per-slug — it's a
-// global preference, not workspace-specific). Re-renders the field list if a form is open.
+// Field display mode (name vs label) and sort mode. Both persisted per-browser.
 const FIELD_DISPLAY_KEY = 'explorer-field-display';
 let fieldDisplayMode = 'name';
 try { fieldDisplayMode = localStorage.getItem(FIELD_DISPLAY_KEY) || 'name'; } catch(e) {}
@@ -1117,6 +1142,20 @@ try { fieldDisplayMode = localStorage.getItem(FIELD_DISPLAY_KEY) || 'name'; } ca
   sel.addEventListener('change', () => {
     fieldDisplayMode = sel.value;
     try { localStorage.setItem(FIELD_DISPLAY_KEY, fieldDisplayMode); } catch(e) {}
+    if (currentFormName) renderFieldList(currentFormName);
+  });
+})();
+
+const FIELD_SORT_KEY = 'explorer-field-sort';
+let fieldSortMode = 'original';
+try { fieldSortMode = localStorage.getItem(FIELD_SORT_KEY) || 'original'; } catch(e) {}
+
+(function(){
+  const sel = document.getElementById('field-sort');
+  sel.value = fieldSortMode;
+  sel.addEventListener('change', () => {
+    fieldSortMode = sel.value;
+    try { localStorage.setItem(FIELD_SORT_KEY, fieldSortMode); } catch(e) {}
     if (currentFormName) renderFieldList(currentFormName);
   });
 })();

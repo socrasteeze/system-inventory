@@ -111,6 +111,8 @@
   .badge.req{background:#5f2424;color:#ffc4c4}
   .badge.dep-uses{background:#1e3d2f;color:#6ee7b7;cursor:default}
   .badge.dep-used{background:#2d3a1e;color:#bef264;cursor:default}
+  .field-row:focus{outline:none}
+  .field-row:focus>.field{border-left-color:var(--accent);background:rgba(94,234,212,0.12)}
   .wf-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;
            padding:10px 12px;margin-bottom:8px;font-size:12px;cursor:pointer}
   .wf-card:hover{border-color:var(--accent)}
@@ -476,6 +478,7 @@ let activeNodeId = null;
 let activeFieldFilter = '';
 let currentFormName = null;
 let expandedFields = new Set();  // field names expanded inline; reset when the form changes
+let keyboardActiveField = null;  // roving-tabindex anchor; null = use first row
 
 function clearHighlights(){
   cy.elements().removeClass('dim highlight m-match m-hop1 m-hop2 m-dim m-edge1 m-edge2 sel');
@@ -494,6 +497,7 @@ function renderForm(formName){
   // Switching forms auto-collapses any inline detail from the previous form.
   currentFormName = formName;
   expandedFields = new Set();
+  keyboardActiveField = null;
   const fields = DATA.fields[formName] || [];
   const incomingRels = DATA.relationships.filter(r => r.target === formName);
   const outgoingRels = DATA.relationships.filter(r => r.source === formName);
@@ -537,13 +541,21 @@ function renderForm(formName){
       <h3>Fields (${fields.length})</h3>
       <input class="field-search" id="field-search" placeholder="filter fields..."
              value="${escapeHtml(activeFieldFilter)}">
-      <div class="field-list" id="field-list"></div>
+      <div class="field-list" id="field-list" role="listbox"></div>
     </div>
   `;
 
   const searchEl = document.getElementById('field-search');
   if (searchEl) {
     searchEl.addEventListener('input', e => { activeFieldFilter = e.target.value; renderFieldList(formName); });
+    searchEl.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const list = document.getElementById('field-list');
+        const first = list && list.querySelector('.field-row');
+        if (first) setRovingRow(first);
+      }
+    });
   }
   renderFieldList(formName);
 }
@@ -587,6 +599,35 @@ function sortFields(fields){
   return copy;
 }
 
+// Move the roving tabindex to a specific row and focus it (used by arrow-key navigation).
+function setRovingRow(row){
+  if (!row) return;
+  const list = document.getElementById('field-list');
+  if (!list) return;
+  list.querySelectorAll('.field-row').forEach(r => r.setAttribute('tabindex', '-1'));
+  row.setAttribute('tabindex', '0');
+  keyboardActiveField = row.dataset.field;
+  row.focus();
+  row.scrollIntoView({block:'nearest'});
+}
+
+// After every renderFieldList, re-establish the roving tabindex without stealing focus.
+// If refocus is true (sort/expand-all/collapse-all re-renders), also move focus to the row.
+function restoreRoving(refocus){
+  const list = document.getElementById('field-list');
+  if (!list) return;
+  const rows = list.querySelectorAll('.field-row');
+  if (!rows.length) return;
+  let target = null;
+  rows.forEach(r => {
+    r.setAttribute('tabindex', '-1');
+    if (r.dataset.field === keyboardActiveField) target = r;
+  });
+  if (!target) { target = rows[0]; keyboardActiveField = target.dataset.field; }
+  target.setAttribute('tabindex', '0');
+  if (refocus) target.focus();
+}
+
 function buildUsedBySet(formName){
   const s = new Set();
   (DATA.fields[formName] || []).forEach(f => {
@@ -595,7 +636,7 @@ function buildUsedBySet(formName){
   return s;
 }
 
-function renderFieldList(formName){
+function renderFieldList(formName, refocus){
   const list = document.getElementById('field-list');
   if (!list) return;
   const touchedDirs = buildTouchedDirs(formName);
@@ -611,6 +652,7 @@ function renderFieldList(formName){
 
   if (!visible.length) {
     list.innerHTML = controls + `<div class="empty-state">no fields match the filter</div>`;
+    restoreRoving(false);
     return;
   }
 
@@ -627,7 +669,7 @@ function renderFieldList(formName){
     const isExp = expandedFields.has(f.name);
     const primary   = fieldDisplayMode === 'label' ? (f.label || f.name) : f.name;
     const secondary = fieldDisplayMode === 'label' ? f.name : (f.label || '');
-    return `<div class="field-row" data-field="${escapeAttr(f.name)}">
+    return `<div class="field-row" data-field="${escapeAttr(f.name)}" tabindex="-1" role="option">
       <div class="field ${dirs?'touched':''} ${isExp?'expanded':''}"
            onclick="toggleField(this,'${escapeAttr(formName)}','${escapeAttr(f.name)}')">
         <span class="chev"></span>
@@ -683,6 +725,7 @@ function renderFieldList(formName){
       </div>`).join('')
     }</div>`;
   }
+  restoreRoving(!!refocus);
 }
 
 function updateExpandCount(){
@@ -721,12 +764,12 @@ function expandAllFields(){
     return;
   }
   visible.forEach(f => expandedFields.add(f.name));
-  renderFieldList(currentFormName);
+  renderFieldList(currentFormName, true);
 }
 
 function collapseAllFields(){
   expandedFields.clear();
-  if (currentFormName) renderFieldList(currentFormName);
+  if (currentFormName) renderFieldList(currentFormName, true);
 }
 
 // Flash the connected form when a relationship field is expanded.
@@ -1173,6 +1216,46 @@ try { fieldSortMode = localStorage.getItem(FIELD_SORT_KEY) || 'original'; } catc
   });
 })();
 
+// Keyboard navigation for the field list. Delegates on panel (static) since #field-list
+// is rebuilt on every renderFieldList call. Roving-tabindex pattern: exactly one
+// .field-row carries tabindex="0" at any time; arrows move within the list.
+panel.addEventListener('keydown', e => {
+  if (!e.target.classList.contains('field-row')) return;
+  const list = document.getElementById('field-list');
+  if (!list) return;
+  const rows = Array.from(list.querySelectorAll('.field-row'));
+  const idx = rows.indexOf(e.target);
+  if (idx === -1) return;
+  const fieldName = e.target.dataset.field;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (idx < rows.length - 1) setRovingRow(rows[idx + 1]);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (idx > 0) setRovingRow(rows[idx - 1]);
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    setRovingRow(rows[0]);
+  } else if (e.key === 'End') {
+    e.preventDefault();
+    setRovingRow(rows[rows.length - 1]);
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    const fieldEl = e.target.querySelector('.field');
+    if (fieldEl && currentFormName) toggleField(fieldEl, currentFormName, fieldName);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    if (expandedFields.has(fieldName)) {
+      const fieldEl = e.target.querySelector('.field');
+      if (fieldEl && currentFormName) toggleField(fieldEl, currentFormName, fieldName);
+    } else {
+      const searchEl = document.getElementById('field-search');
+      if (searchEl) searchEl.focus();
+    }
+  }
+});
+
 // Helpers
 function escapeHtml(s){return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function escapeAttr(s){return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');}
@@ -1181,6 +1264,7 @@ window.toggleField = toggleField;
 window.expandAllFields = expandAllFields;
 window.collapseAllFields = collapseAllFields;
 window.toggleFilterMenu = toggleFilterMenu;
+window.setRovingRow = setRovingRow;
 window.cy = cy;
 </script>
 </body>

@@ -18,7 +18,15 @@ A global aggregator combines every workspace into one view under `output/global/
 
 No output file is hand-edited. All are regenerated from the JSON exports in `data/`.
 
-Current workspaces: `socal-whp` — **SCE - ESA Whole Home (PP/D)** (individual-file format) and `sce-be` — **SCE - Building Electrification** (whole-workspace export format). `data/liwp/` is an empty stub for a future workspace.
+Current workspaces (all whole-workspace export format):
+
+- `socal-whp` — **SCE - ESA Whole Home (PP/D)** (Southern California Edison; 97 forms / 54 workflows)
+- `sdge-whp` — **SDGE - ESA Whole Home (PP/D)** (San Diego Gas & Electric; 46 forms / 25 workflows)
+- `sce-be` — **SCE - Building Electrification** (36 forms / 22 workflows)
+- `liwp` — **Low-Income Weatherization Program** (125 forms / 33 workflows)
+- `nve-qar` — **Qualified Appliance Replacement** (10 forms / 1 workflow)
+
+`socal-whp` and `sdge-whp` are the same ESA Whole Home (PP/D) program run by two different utilities — largely parallel forms/workflows with real divergence, so they drive most of the cross-workspace name collisions in the global view. `socal-whp` was originally ingested via the individual-file route, then **re-baselined** to a whole-workspace export (its `forms/`/`workflows/` individual files were deleted as the reset; only `manual/` overrides remain — `manual/workspace.json` keeps its display name as "SCE - ESA Whole Home (PP/D)" even though the export's own `DisplayName` is "SoCal - ESA Whole Home (PP/D)").
 
 **Slug naming convention: hyphens**, not underscores (`sce-be`, `socal-whp`).
 
@@ -265,7 +273,7 @@ Optional preset node positions for the explorer graph: `{ "<form or WF:callsign>
 
 ## Known quirks / past fixes
 
-**"395X - Inspections" mismatch** — `socal-whp`'s `create_inspection_workflow.json` references the inspection form as `"395X - Inspections"` (old platform name); the form JSON maps to `"395 - Inspection Work Order"`. Without canonicalization this leaves a dangling edge that breaks the HTML renderer. Fix: `name_aliases` entry in the workspace's `form_aliases.json` + `Workspace.canonicalize_name()` normalizes the name before GUID→name lookups are built.
+**"395X - Inspections" mismatch** (now historical — `socal-whp` was re-baselined to a workspace export, so `create_inspection_workflow.json` no longer exists and this path isn't triggered; kept as a reference example of the `name_aliases` mechanism) — `socal-whp`'s `create_inspection_workflow.json` referenced the inspection form as `"395X - Inspections"` (old platform name); the form JSON mapped to `"395 - Inspection Work Order"`. Without canonicalization this left a dangling edge that broke the HTML renderer. Fix: `name_aliases` entry in the workspace's `form_aliases.json` + `Workspace.canonicalize_name()` normalizes the name before GUID→name lookups are built.
 
 **Windows console encoding** — Print statements use `->` (ASCII) not `→` (U+2192) to avoid cp1252 encode errors on Windows. Unicode arrows in Excel cell text are fine (written via openpyxl, not printed).
 

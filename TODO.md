@@ -2,20 +2,28 @@
 
 ## Active
 
-1. Workflow trigger/action edges clickable. Only the workflow node is clickable now;
-edges should open the workflow panel and scroll to the specific action/trigger.
+(none — backlog cleared 2026-06-16; the four items previously listed here were all
+already shipped. Candidates for the next round below.)
 
-4. Pin a form to the side panel. Keep detail visible while clicking around.
+## Candidates
 
-5. Field-detail breadcrumb. "Where you've been" trail at the top of the panel.
-
-6. Export current view. Copy field info as text or markdown for tickets.
-
-7. Workflow trigger/action edges clickable to jump to the specific action/trigger. Only
-the workflow node is clickable now. Granular but risks duplicating intent — evaluate after
-relationship-edge clicks are in active use.
+- Workflow deep-linking (`#wf=<callsign>`). Forms get `#form=` deep links from the global
+  view via `selectFromHash()`; workflows have no equivalent. Add a `wf` hash param so a
+  workflow can be linked/centered the same way a form is.
+- Global graph search box. A search input on the per-workspace explorer to find and jump to
+  a form/field by name — useful on large graphs (socal-whp is 97 forms / 54 workflows).
+- Action-index precision on workflow edges. `scrollToWfAction()` matches on target form, so
+  a workflow with two actions to the same target form always scrolls to the first. Carry an
+  action index on `wf-edge` data to scroll to the exact action card.
 
 ## Done
+
+Workflow trigger/action edges clickable. The edge tap handler's `wf-edge` branch resolves
+the workflow from the edge's `WF:<callsign>` endpoint, highlights it, and renders the
+workflow-detail panel; action edges then call `scrollToWfAction(targetForm)` to scroll the
+matching action card into view and flash its border. Trigger edges open the panel without
+scrolling. (Known limitation: scroll matches by target form, not action index — tracked
+under Candidates.)
 
 Export button copies form fields as markdown table to clipboard. Columns: API Name,
 Label, Type, Required, WF (R/W/C). Respects active filter and sort. All 5 workspaces

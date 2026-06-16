@@ -7,7 +7,7 @@ Two export formats are supported, and they can coexist in one workspace:
 - **Whole-workspace export** — one JSON carrying the entire workspace (all forms, embedded workflows, relationships). Dropped at `data/<slug>/*.json`, it becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself.
 - **Individual form / workflow exports** — one JSON per form or workflow, under `data/<slug>/forms/` and `data/<slug>/workflows/`. When an individual export covers something also present in the workspace baseline, the **individual file always wins** — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.
 
-The project is **multi-workspace**: each workspace lives under `data/<slug>/` (slugs use hyphens, e.g. `sce-be`) and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. Current workspaces: `socal-whp` (SCE - ESA Whole Home (PP/D), individual-file format) and `sce-be` (SCE - Building Electrification, workspace-export format).
+The project is **multi-workspace**: each workspace lives under `data/<slug>/` (slugs use hyphens, e.g. `sce-be`) and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. Current workspaces (all whole-workspace export format): `socal-whp` (SCE - ESA Whole Home (PP/D)), `sdge-whp` (SDGE - ESA Whole Home (PP/D)), `sce-be` (SCE - Building Electrification), `liwp` (Low-Income Weatherization Program), and `nve-qar` (Qualified Appliance Replacement).
 
 ## Live explorer
 
@@ -112,6 +112,20 @@ If something is missing it prints plain-English instructions instead of failing 
 └── README.md
 ```
 
+### Where each export goes
+
+Placement is by **export type**, into the workspace's slug directory (`data/<slug>/`, hyphenated — e.g. `data/sce-be/`):
+
+| You exported… | Drop the JSON at… | Role |
+|---|---|---|
+| The **whole workspace** (one JSON, all forms + workflows) | `data/<slug>/` — the slug root, **not** a subfolder | Baseline. Sets the workspace name, all forms, embedded workflows, and relationships. |
+| A **single form** design | `data/<slug>/forms/` | Surgical override — replaces that form's fields/relationships in the baseline. **Always wins** over the baseline. |
+| A **single workflow** | `data/<slug>/workflows/` | Surgical override, matched by `(trigger form, name)`. **Always wins** over the baseline. |
+
+A non-workspace JSON dropped at the slug root (e.g. a single form export left in the wrong place) is **skipped with a warning** — individual exports must live in `forms/` or `workflows/`. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a `!` warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the now-stale individual files.
+
+For a brand-new workspace there's nothing to pre-create with the whole-workspace route — just make `data/<slug>/`, drop the export at its root, and regenerate. See **Adding a new workspace** below.
+
 ## Rebuild command
 
 ```
@@ -141,8 +155,11 @@ When new JSONs come from the platform:
 1. Export from the platform UI — either the whole workspace (one JSON) or an individual form/workflow.
 2. Drop it in place: a workspace export goes at `data/<slug>/` (root); individual exports go into `data/<slug>/forms/` or `data/<slug>/workflows/`.
 3. Run the rebuild: `python scripts/regenerate.py` (or `--workspace <slug>` for just that one). Watch for `!` warnings — each one names an individual file that is shadowing the workspace baseline.
-4. Open `output/<slug>/workspace_explorer.html` to confirm the new node/edge appears.
-5. Commit + push.
+4. Read the per-workspace **`Orphans:`** line in the rebuild output (see below).
+5. Open `output/<slug>/workspace_explorer.html` to confirm the new node/edge appears.
+6. Commit + push.
+
+**Orphan check.** After each workspace builds, the rebuild prints an `Orphans:` line listing any form or grid that renders with **no graph edge** — either an embedded grid whose parent form wasn't in the workspace export (`unparented grid`), or a form with no relationship or workflow link (`isolated …`). These show up as floating, disconnected nodes in the explorer (toggle the **Orphaned** filter to see them). The usual remedy is to export that form individually and drop its JSON into `data/<slug>/forms/`, which supplies the relationships the whole-workspace export left out; re-run and the node connects. `Orphans: none` means every form is reachable in the graph. The check is read-only — it never changes the output, just surfaces what to look at.
 
 Typical workspace-export lifecycle: baseline the workspace with one full export → update individual forms surgically as they change (each shows a shadow warning, which is expected) → when drift accumulates, re-export the whole workspace and delete the stale individual files.
 

@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parser import Workspace, list_workspaces, discover_all, OUTPUT_DIR
+from parser import Workspace, list_workspaces, discover_all, find_orphans, OUTPUT_DIR
 import build_inventory
 import build_explorer
 import build_global
@@ -34,6 +34,18 @@ def rebuild_workspace(slug):
     build_inventory.build(ws)
     print("  HTML explorer")
     build_explorer.build(ws)
+
+    # Orphan check: forms/grids that render with no graph edge. A workspace export
+    # can leave a subform's parent out, or a form unlinked; dropping that form's
+    # individual JSON into data/<slug>/forms/ usually supplies the missing links.
+    orphans = find_orphans(ws.discover())   # cached; no re-parse, no duplicate prints
+    if orphans:
+        print(f"  Orphans: {len(orphans)} form(s) with no graph edge "
+              f"(import the individual form JSON to connect):")
+        for o in orphans:
+            print(f"    - {o['name']} [{o['role']}] -- {o['reason']}")
+    else:
+        print("  Orphans: none")
 
 
 def _html_escape(s):

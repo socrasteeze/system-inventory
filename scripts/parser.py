@@ -642,6 +642,7 @@ class Workspace:
         self.manual_dir = self.dir / "manual"
         self._overrides = None
         self._ws_exports = None   # cached parsed workspace exports
+        self._discovered = None   # cached discover() result (files don't change mid-run)
         self._warned = set()      # shadow warnings already printed (once per instance)
 
     def _read_json(self, path, default):
@@ -868,7 +869,14 @@ class Workspace:
           ALWAYS take precedence over the baseline for the same form/workflow
           (treated as surgical updates). Each shadowing is warned about at
           rebuild time so a stale override stays visible.
+
+        Result is memoized per instance: build_inventory and build_explorer each
+        call this on the same Workspace, and the orphan report calls it once more.
+        Files don't change within a single rebuild, so the parse runs once and the
+        one-time prints (reclassification, role pins) aren't repeated.
         """
+        if self._discovered is not None:
+            return self._discovered
         # 1. Baseline from workspace export(s); later files merge over earlier.
         merged = {}        # form display name -> parsed form dict (+sourceFile)
         order = []
@@ -1030,7 +1038,7 @@ class Workspace:
             wf["callsign"] = cs
             used.add(cs)
 
-        return {
+        self._discovered = {
             "slug": self.slug,
             "workspaceName": self.name,
             "forms": forms,
@@ -1039,8 +1047,50 @@ class Workspace:
             "refPulls": ref_pulls,
             "workflows": workflows,
         }
+        return self._discovered
 
 
 def discover_all():
     """Discover every workspace. Returns {slug: discovered_dict}."""
     return {slug: Workspace(slug).discover() for slug in list_workspaces()}
+
+
+def find_orphans(discovered):
+    """Forms that render with zero edges in the explorer graph — true orphans.
+
+    Matches the explorer's degree-0 reality (explorer_template.html): an edge is
+    drawn for a relationship whose target form exists, and for each workflow
+    trigger form / action target form. refPulls are NOT separate edges (they fold
+    into relationship pull counts), so they don't connect a node on their own.
+
+    A parented subform stays connected via its parent's "(embedded grid)"
+    containment relationship; only a subform whose parent isn't in the export
+    (subformOf == "") loses that edge. Returns a list of
+    {"name", "role", "reason"} dicts, ordered as forms appear in discovery.
+    """
+    forms = discovered["forms"]
+    names = {f["name"] for f in forms}
+    connected = set()
+    for r in discovered["relationships"]:
+        if r["target"] in names:          # explorer skips edges to a missing target
+            connected.add(r["source"])
+            connected.add(r["target"])
+    for w in discovered["workflows"]:
+        trig = w.get("trigger") or {}
+        if trig.get("form") in names:
+            connected.add(trig["form"])
+        for a in w.get("actions") or []:
+            if a.get("targetForm") in names:
+                connected.add(a["targetForm"])
+
+    orphans = []
+    for f in forms:
+        if f["name"] in connected:
+            continue
+        if f.get("role") == "Subform" and not f.get("subformOf"):
+            reason = "unparented grid (parent form not in export)"
+        else:
+            reason = "isolated %s (no relationship or workflow edge)" % (
+                (f.get("role") or "form").lower())
+        orphans.append({"name": f["name"], "role": f.get("role"), "reason": reason})
+    return orphans

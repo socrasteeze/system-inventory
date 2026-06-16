@@ -162,6 +162,12 @@ Run from the project root after adding or changing any JSON in `data/`. Open the
 
 `--workspace X` intentionally does not rebuild the global view; run with no args (or `--global`) to refresh it.
 
+### Orphan report
+
+After each workspace's two builders run, `regenerate.rebuild_workspace()` prints an `Orphans:` line via `parser.find_orphans(discovered)` — a read-only diagnostic, no output-file effect. It lists forms that render with **zero graph edges**, computed to match the explorer's degree-0 reality exactly: an edge exists for a relationship whose target form is present, and for each workflow trigger-form / action-target-form. **`refPulls` are not counted** — they fold into relationship pull totals and don't connect a node on their own. Two reasons are distinguished: `unparented grid` (a `Subform` with empty `subformOf` — its parent wasn't in the workspace export, so no `"(embedded grid)"` containment edge was drawn) and `isolated <role>` (a form with no relationship or workflow link). The remedy is the precedence mechanism: drop the form's individual JSON into `data/<slug>/forms/` to supply the missing links. `Orphans: none` = fully connected. (Acceptance baseline as of this writing: `sdge-whp` 0, `sce-be` 1, `socal-whp`/`liwp` ~39 each — mostly unparented grids those exports don't resolve a parent for.)
+
+`discover()` is **memoized per `Workspace` instance** (`self._discovered`) so the inventory build, explorer build, and orphan report share one parse and the one-time prints (reclassification, role pins) aren't repeated. `discover_all()` constructs fresh instances, so the global build is unaffected.
+
 ### Publishing to docs/ (GitHub Pages)
 
 Every `regenerate.py` run ends with `publish_docs()`, which mirrors the built HTML explorers into `docs/` — the GitHub Pages source folder (Pages serves `main` branch `/docs`). This is part of the standing regenerate behavior, not a separate step: a push after regeneration publishes the current views.

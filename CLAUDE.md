@@ -9,11 +9,11 @@ A documentation system for platform forms and workflows. It ingests JSON exports
 The project is **multi-workspace**. Each workspace lives under `data/<slug>/` and gets its own output under `output/<slug>/`:
 
 - `output/<slug>/workflow_master_inventory.xlsx` — filterable Excel inventory (forms, fields, relationships, workflows, actions, field usage)
-- `output/<slug>/workspace_explorer.html` — interactive browser graph (forms as nodes, relationships as edges, workflow node shows what it touches)
+- `output/<slug>/workspace_explorer.html` — interactive browser graph (forms as nodes, relationships as edges, workflow node shows what it touches). Fields are grouped by section/page and badged R/W/C where a workflow reads/writes/branches on them. A node filter toolbar toggles workflow types, subforms, lookups, and orphans; a layout dropdown switches between Hierarchy, Dagre, and force-directed.
 
 A global aggregator combines every workspace into one view under `output/global/`:
 
-- `output/global/cross-workspace-inventory.xlsx` — all workspaces in one workbook, plus collision and duplicate-flow analysis
+- `output/global/cross-workspace-inventory.xlsx` — all workspaces in one workbook, plus collision and duplicate-flow analysis, and a cross-workspace reuse registry (WorkflowReuse, FormFamilies, FieldTemplates)
 - `output/global/global-explorer.html` — single graph with each workspace as a cluster, duplicate form names linked across clusters
 
 No output file is hand-edited. All are regenerated from the JSON exports in `data/`.
@@ -279,6 +279,13 @@ Add an entry whenever you add a new *individual* form JSON — otherwise the heu
 { "name_aliases": { "395X - Inspections": "395 - Inspection Work Order" } }
 ```
 Use this when a workflow JSON's `ExternalReferences` uses a form name that doesn't match the form's canonical display name. `Workspace.canonicalize_name()` consults this section for every workflow export.
+
+### `form_roles.json`
+Explicit role pins (form display name → role string), applied as the **final step** of `Workspace.discover()` after the Lookup→Spoke reclassification pass. Keyed by form display name; the file is optional and absent = no-op. Pinned roles override the inferred role in both directions (promote or demote). This is the escape hatch for reference tables the role heuristic can't detect structurally (e.g., `Program`, `Income Thresholds`, which have zero structural connections yet should remain Lookup).
+
+```json
+{ "Program": "Lookup", "Income Thresholds": "Lookup", "Project Breakdown Backup": "Lookup" }
+```
 
 ### `workflow_metadata.json`
 Provides `callsign` (PK in the Excel Workflows sheet), `criticality` (High/Med/Low), `businessProcess` (FK into `business_processes.json`), `owner` (name and email). Keying: **filename stem** (no `.json`) for individual workflow exports; **workflow display name** for workflows embedded in a workspace export (they have no file of their own).

@@ -935,6 +935,70 @@ class Workspace:
                           "sourceFile": None})
             fields_by_form.setdefault(name, [])
 
+        # Reclassification: _infer_role tags any form with no outgoing relationships
+        # as Lookup, but real leaf forms (surveys, inspections, inventory records) are
+        # structurally identical to reference tables — no outgoing relationships. Two
+        # structural signals distinguish genuine reference/lookup tables:
+        #
+        #   (a) Pull targets — forms that other forms draw field data FROM via
+        #       FormRelationshipReferenceDataInput. Join: refPull["via"] is the
+        #       relationship-field name on the consumer; the matching relationship entry
+        #       (source=consumer, via=field) resolves the target form name. Both formats
+        #       store via as a display name so the join works without extra GUID resolution.
+        #
+        #   (b) Incoming-relationship targets — forms that other forms have a
+        #       FormRelationshipInput *pointing to* (FK-like links). Some reference tables
+        #       (e.g. Climate Zones) are linked-to but never explicitly pulled from;
+        #       they show up here, not in pull_targets.
+        #
+        # Subform containment edges (via == "(embedded grid)") are excluded from (b)
+        # because subforms are already tagged Subform and must not influence Lookup
+        # reclassification.
+        #
+        # A Lookup form stays Lookup if it is in either set, or if it is an
+        # auto-stub (sourceFile=None, referenced-but-not-in-export). Anything else —
+        # including 0-field workspace-export forms that have their own source file but
+        # no design yet — promotes to Spoke as a real (if empty) form.
+        _rel_by_src_via = {}
+        for r in relationships:
+            _rel_by_src_via[(r["source"], r["via"])] = r["target"]
+        pull_targets = set()
+        for rp in ref_pulls:
+            t = _rel_by_src_via.get((rp["destForm"], rp["via"]))
+            if t:
+                pull_targets.add(t)
+        incoming_rel_targets = {r["target"] for r in relationships
+                                if r.get("via") != "(embedded grid)"}
+        reference_forms = pull_targets | incoming_rel_targets
+        reclassified = 0
+        for f in forms:
+            if f["role"] != "Lookup":
+                continue
+            is_auto_stub = f.get("sourceFile") is None
+            if not is_auto_stub and f["name"] not in reference_forms:
+                f["role"] = "Spoke"
+                reclassified += 1
+        if reclassified:
+            print(f"  [{self.slug}] {reclassified} form(s) reclassified Lookup->Spoke "
+                  f"(not a reference target or pull target)")
+
+        # Manual role pins — data/<slug>/manual/form_roles.json is the final word.
+        # Keyed by form display name → role string. Applied after all heuristics so
+        # manual/ remains the authoritative override layer (consistent with precedence
+        # rules elsewhere in discover()). Both directions work: pin Lookup→Spoke or
+        # Spoke→Lookup (or any role). Missing file = no-op.
+        form_role_pins = self._read_json(self.manual_dir / "form_roles.json", {})
+        if form_role_pins:
+            forms_by_name = {f["name"]: f for f in forms}
+            for form_name, pinned_role in form_role_pins.items():
+                f = forms_by_name.get(form_name)
+                if f is None:
+                    print(f"  [{self.slug}] form_roles.json: '{form_name}' not found, skipping")
+                    continue
+                if f["role"] != pinned_role:
+                    print(f"  [{self.slug}] pinned '{form_name}' role {f['role']} -> {pinned_role}")
+                    f["role"] = pinned_role
+
         # 3. Workflows: embedded baseline already loaded; individual exports
         # override by workflow name. Manual metadata keys by filename stem for
         # individual exports and by workflow name for embedded ones.

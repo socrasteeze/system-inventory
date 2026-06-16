@@ -84,7 +84,7 @@ Every workflow carries a `workflowType` field derived from its export format —
 - **`Legacy`** — embedded in a workspace export (`WorkflowConfigs` format). This is the older form-notification system.
 - **`WFEngine`** — individual workflow export (`Triggers`/`Steps` format). This is the newer workflow engine.
 
-`WorkflowType` appears as a colored column in the Workflows and AllWorkflows sheets (amber = Legacy, teal = WFEngine). In both explorers, workflow nodes are amber for Legacy and red for WFEngine so the two systems are visually distinct.
+`WorkflowType` appears as a colored column in the Workflows and AllWorkflows sheets (amber = Legacy, teal = WFEngine). In both explorers, workflow nodes — and their dashed trace edges — are red for Legacy and olive (`#9fae5a`) for WFEngine, colored from shared `--wf-legacy`/`--wf-engine` CSS vars; the legend reads "WF Engine". (Note: the graph palette (red/olive) and the Excel-column palette (amber/teal, set in `build_inventory.py`) are not aligned — same `WorkflowType`, two color schemes.)
 
 ---
 
@@ -230,7 +230,7 @@ Pure parsing helpers (`_walk`, `_expr_to_text`, `_summarize_*`, `_parse_field_as
 
 **Workspace-export parsing** (`parse_workspace_export`, module-level): builds the GUID→name index, resolves display names (with subform parent-qualification for duplicates), parses each form's flat component list through the shared `_node_to_field()` (the same per-node extraction `_walk` uses for nested trees), backfills design-less subforms from the flattened `Fields` arrays, and maps embedded `WorkflowConfigs` onto the internal workflow model. The expression helpers (`_expr_to_text`, `_extract_condition_fields`) accept both JSON-string and dict conditions and match type names by prefix (`Grouping` vs `GroupingDto`).
 
-**`Workspace.discover()`** loads the workspace-export baseline (cached on the instance), overlays individual `forms/` and `workflows/` exports per the precedence rule (warning on each shadow), auto-stubs any referenced-but-unprovisioned form as role `"Lookup"`, and de-dupes workflow callsigns. Returns a dict that also carries `slug` and `workspaceName`.
+**`Workspace.discover()`** loads the workspace-export baseline (cached on the instance), overlays individual `forms/` and `workflows/` exports per the precedence rule (warning on each shadow), auto-stubs any referenced-but-unprovisioned form as role `"Lookup"`, and de-dupes workflow callsigns. It then runs two role passes. (1) **Lookup→Spoke reclassification** — `_infer_role` alone tags any form with *no relationship fields* as `Lookup`, which wrongly catches real leaf forms (surveys, inspections, inventory) that simply don't link out. The pass promotes a `Lookup`-tagged form to `Spoke` unless it shows a reference signal: it is a **pull-target** (a `FormRelationshipReferenceDataInput` destination), an **incoming-relationship target** (some form has an FK-like `FormRelationshipInput` edge into it; `"(embedded grid)"` containment edges excluded), or a **0-field auto-stub** (referenced-but-not-exported). Forms with none of those signals are structurally indistinguishable from real standalone forms, so they are promoted. (2) **`form_roles.json` manual override** (see below) runs last and wins in both directions — the escape hatch for irreducibly-ambiguous reference tables the heuristic can't detect (`Program`, `Income Thresholds`, `Project Breakdown Backup`), which have no structural connection of any kind in the export and would otherwise be promoted. Returns a dict that also carries `slug` and `workspaceName`.
 
 ### build_global.py internals
 
@@ -289,6 +289,11 @@ Real-world process definitions (`ProcessID`, `ProcessName`, `OwnerArea`, `Descri
 ### `explorer_layout.json`
 Optional preset node positions for the explorer graph: `{ "<form or WF:callsign>": {"x": N, "y": N} }`. When present the graph opens in this hub-and-spoke layout; when absent it falls back to force-directed (`cose`).
 
+### `form_roles.json`
+Optional explicit role pins, keyed by form display name → role. Consulted as the **final step** in `Workspace.discover()`, after the Lookup→Spoke reclassification pass, so manual always wins (consistent with `manual/` being the override layer). Works in both directions (force `Lookup`→ or →`Lookup`). Use it for the irreducibly-ambiguous cases the role heuristic can't resolve — reference tables with no structural connection in the export, which would otherwise be promoted to `Spoke`. Missing file = no-op; unrecognized form names warn and skip; each applied pin prints `[<slug>] pinned '<form>' role <from> -> <to>`.
+```json
+{ "Program": "Lookup", "Project Breakdown Backup": "Lookup" }
+```
 ---
 
 ## Known quirks / past fixes

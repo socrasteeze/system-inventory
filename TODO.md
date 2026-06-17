@@ -9,14 +9,27 @@ already shipped. Candidates for the next round below.)
 
 - Workflow deep-linking (`#wf=<callsign>`). Forms get `#form=` deep links from the global
   view via `selectFromHash()`; workflows have no equivalent. Add a `wf` hash param so a
-  workflow can be linked/centered the same way a form is.
-- Global graph search box. A search input on the per-workspace explorer to find and jump to
-  a form/field by name — useful on large graphs (socal-whp is 97 forms / 54 workflows).
+  workflow can be linked/centered the same way a form is. Note: value is reduced now that
+  the global graph is forms-only — nothing links *out* to a workflow node anymore, so the
+  remaining use is bookmarking/sharing a workflow URL by hand, not cross-view navigation.
 - Action-index precision on workflow edges. `scrollToWfAction()` matches on target form, so
   a workflow with two actions to the same target form always scrolls to the first. Carry an
   action index on `wf-edge` data to scroll to the exact action card.
+- Global sidebar: cross-workspace workflow-reuse panel. List workflows duplicated across
+  workspaces from the registry's `workflowReuse` (`InstanceCount` / `Workspaces` /
+  `DriftFlag` / `LiteralTwin`), not the coarse `dupFlows` signature. Data is already
+  computed by `build_registry.compute_registries()`; it just isn't wired in — `_build_html()`
+  in `build_global.py` never passes `reg` into the global `viz` dict. Pure sidebar metadata
+  (no graph edges, so it honors "sameness is metadata, not topology"); fills the gap left
+  when the global graph went forms-only.
 
 ## Done
+
+Graph search box — both explorers. Per-workspace: `runSearch()` (#search input) matches
+forms, fields, and workflows by name, prints a match count, tiers results by hop distance
+from the match set, and fits to the matches. Global: a `#search` box matches forms and
+workspaces and fits to hits. Covers the "find and jump to a form/field on a large graph"
+need (socal-whp is 97 forms / 54 workflows).
 
 Workflow trigger/action edges clickable. The edge tap handler's `wf-edge` branch resolves
 the workflow from the edge's `WF:<callsign>` endpoint, highlights it, and renders the

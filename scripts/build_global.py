@@ -208,44 +208,25 @@ def _build_html(agg, reg):
         fps = {fingerprints.get((i["slug"], name)) for i in instances}
         return len(fps) == 1 and None not in fps
 
-    forms, workflows, relationships, wf_edges = [], [], [], []
+    # all_forms: every form across workspaces (for stats, collision analysis, dup suppression).
+    # node_forms: Hub / Spoke / Lookup only — the atlas graph nodes; Subforms excluded.
+    _ATLAS_ROLES = {"Hub", "Spoke", "Lookup"}
+    all_forms = []
+    node_forms = []
+    total_workflows = 0
     for slug, data in agg["discovered"].items():
-        form_names = {f["name"] for f in data["forms"]}
+        total_workflows += len(data["workflows"])
         for f in data["forms"]:
-            forms.append({"id": fid(slug, f["name"]), "name": f["name"], "slug": slug,
-                          "role": f["role"], "fieldCount": f["fieldCount"]})
-        # One edge per direction; a direction carrying many relationship fields
-        # (e.g. 325 -> 399 through 32 measure-code fields) collapses to a single
-        # labeled edge instead of stacking 32 identical arcs.
-        rel_by_dir = {}
-        for r in data["relationships"]:
-            if r["target"] in form_names and r["source"] in form_names:
-                rel_by_dir.setdefault((r["source"], r["target"]), []).append(r["via"])
-        for (src, tgt), vias in rel_by_dir.items():
-            label = vias[0] if len(vias) == 1 else f"{len(vias)} relationships"
-            relationships.append({"source": fid(slug, src),
-                                  "target": fid(slug, tgt), "label": label})
-        for w in data["workflows"]:
-            if not w["trigger"]:
-                continue
-            wid = f"WF::{slug}::{w['callsign']}"
-            workflows.append({"id": wid, "callsign": w["callsign"], "name": w["name"],
-                              "slug": slug, "enabled": w.get("enabled", True),
-                              "workflowType": w.get("workflowType", "WFEngine")})
-            wtype = w.get("workflowType", "WFEngine")
-            if w["trigger"]["form"] in form_names:
-                wf_edges.append({"source": fid(slug, w["trigger"]["form"]), "target": wid,
-                                 "label": "trigger", "workflowType": wtype})
-            for a in w["actions"]:
-                if a["targetForm"] in form_names:
-                    wf_edges.append({"source": wid, "target": fid(slug, a["targetForm"]),
-                                     "label": a["type"].replace("BuiltIn.", ""),
-                                     "workflowType": wtype})
+            entry = {"id": fid(slug, f["name"]), "name": f["name"], "slug": slug,
+                     "role": f["role"], "fieldCount": f["fieldCount"]}
+            all_forms.append(entry)
+            if f["role"] in _ATLAS_ROLES:
+                node_forms.append(entry)
 
-    # Duplicate-form links chain each instance of a shared name across workspaces.
+    # Duplicate-form links (computed over all_forms so suppression counts stay correct).
     dup_forms = []
     by_name = {}
-    for f in forms:
+    for f in all_forms:
         by_name.setdefault(f["name"], []).append(f)
     suppressed = 0
     for name, instances in by_name.items():
@@ -258,19 +239,15 @@ def _build_html(agg, reg):
 
     viz = {
         "workspaces": [{"slug": w["slug"], "name": w["name"]} for w in agg["workspaces"]],
-        "forms": forms,
-        "workflows": workflows,
-        "relationships": relationships,
-        "wfEdges": wf_edges,
+        "forms": node_forms,
         "dupForms": dup_forms,
         "dupFlows": [{"signature": d["signature"], "members": d["members"]}
                      for d in agg["duplicateFlows"]],
         "stats": {
             "workspaces": len(agg["workspaces"]),
-            "forms": len(forms),
-            "workflows": len(workflows),
+            "forms": len(all_forms),
+            "workflows": total_workflows,
             "dupForms": len(dup_forms),
-            "dupFlows": len(agg["duplicateFlows"]),
         },
     }
     data_json = json.dumps(viz, separators=(",", ":")).replace("</", "<\\/")

@@ -22688,8 +22688,565 @@
       "type": "Decimal"
     }
   ],
-  "nve-qar/QAR Survey": [],
-  "nve-qar/Vehicle Inspection": [],
+  "nve-qar/QAR Survey": [
+    {
+      "name": "CustomerName",
+      "label": "Customer Name",
+      "type": "Text"
+    },
+    {
+      "name": "Notes",
+      "label": "Notes",
+      "type": "Text"
+    },
+    {
+      "name": "CompletedBy",
+      "label": "Completed By",
+      "type": "Text"
+    },
+    {
+      "name": "EnrollmentNumber",
+      "label": "Enrollment Number",
+      "type": "Text"
+    },
+    {
+      "name": "TelephoneNumber",
+      "label": "Telephone Number",
+      "type": "Text"
+    },
+    {
+      "name": "EmailAddress",
+      "label": "Email Address",
+      "type": "Text"
+    },
+    {
+      "name": "ServicesReceived",
+      "label": "Services Received",
+      "type": "List"
+    },
+    {
+      "name": "DateContacted",
+      "label": "Date Contacted",
+      "type": "Date"
+    },
+    {
+      "name": "TimeContacted",
+      "label": "Time Contacted",
+      "type": "Time"
+    },
+    {
+      "name": "ContactResults",
+      "label": "Contact Results",
+      "type": "List"
+    },
+    {
+      "name": "AreYouSatisfiedWithTheSchedulingAndDelivery",
+      "label": "Are you satisfied with the scheduling and delivery?",
+      "type": "Text"
+    },
+    {
+      "name": "DidYouReceiveAllTheProductsThatWereOrdered",
+      "label": "Did you receive all the products that were ordered?",
+      "type": "Text"
+    },
+    {
+      "name": "AreYouSatisfiedWithTheProductsYouReceived",
+      "label": "Are you satisfied with the products you received?",
+      "type": "Text"
+    },
+    {
+      "name": "WouldYouLikeToBeContactedAboutYourExperience",
+      "label": "Would you like to be contacted about your experience?",
+      "type": "Text"
+    },
+    {
+      "name": "DidTheRepresentativeInstallOrOfferToInstallTheLightBulbs",
+      "label": "Did the representative install or offer to install the light bulbs?",
+      "type": "Text"
+    },
+    {
+      "name": "WasItEasyForYouToApplyForTheQualifiedApplianceReplacementOffer",
+      "label": "Was it easy for you to apply for the Qualified Appliance Replacement offer?",
+      "type": "Text"
+    },
+    {
+      "name": "DidTheRepresentativeInstallOrOfferToInstallTheAdvancedPowerStrip",
+      "label": "Did the representative install or offer to install the advanced power strip?",
+      "type": "Text"
+    },
+    {
+      "name": "SpokeTo",
+      "label": "Spoke To",
+      "type": "Guid"
+    },
+    {
+      "name": "NotSatisfiedWithTheProductsExplain",
+      "label": "If No, Please Explain",
+      "type": "Text"
+    },
+    {
+      "name": "WhatDevicesDoYouHavePluggedIntoTheNewAdvancedPowerStrip",
+      "label": "What devices do you have plugged into the new advanced power strip?",
+      "type": "List"
+    },
+    {
+      "name": "AdditionalComments",
+      "label": "Additional Comments",
+      "type": "Text"
+    },
+    {
+      "name": "IfNoWhichItemsWereNotReceived",
+      "label": "If No, which items were not received?",
+      "type": "List"
+    },
+    {
+      "name": "WasItEasyForYoutToApplyIfNoPleaseExplain",
+      "label": "If No, Please Explain",
+      "type": "Text"
+    },
+    {
+      "name": "HowManyLedLightBulbsDidTheRepresentativeInstall",
+      "label": "How many LED light bulbs did the representative install?",
+      "type": "Integer"
+    },
+    {
+      "name": "AreYouSatisfiedWithTheSchedulingAndDeliveryIfNoPleaseExplain",
+      "label": "If No, Please Explain",
+      "type": "Text"
+    },
+    {
+      "name": "WhatKindOfLedOfBulbsWereReplaced",
+      "label": "What kind of LED of bulbs were replaced?",
+      "type": "List"
+    },
+    {
+      "name": "OtherDevices",
+      "label": "Other (Specify)",
+      "type": "Text"
+    },
+    {
+      "name": "WhichProductsDidYouOrder",
+      "label": "Which products did you order?",
+      "type": "List"
+    },
+    {
+      "name": "HowWouldYouRateTheLevelOfserviceYouReceivedFromOurOfficeStaff",
+      "label": "How would you rate the level of service you received from our office staff?",
+      "type": "Integer"
+    },
+    {
+      "name": "HowWouldYouRateThePhoneRepresentativesWillingnessToExplainOurServices",
+      "label": "How would you rate the phone representative's willingness to explain our services?",
+      "type": "Integer"
+    },
+    {
+      "name": "HowWouldyouRateThePresentationOfTheFieldRepresentativeSGreetingPolitenessAppearanceEtc",
+      "label": "How would you rate the presentation of the Field Representative(s): Greeting, Politeness, appearance, etc?",
+      "type": "Integer"
+    },
+    {
+      "name": "HowWouldYouRateTheQualityOfServicesAndProductsReceivedEquipmentMaterialsAppliancesEtc",
+      "label": "How would you rate the quality of services and products received (equipment, materials, appliances, etc)?",
+      "type": "Integer"
+    },
+    {
+      "name": "HowWouldYouRateTheFieldRepresentativesExplanation",
+      "label": "How would you rate the Field Representative's explanation of how to operate the new equipment (i.e. advanced power strip, appliance, thermostat)?",
+      "type": "Integer"
+    },
+    {
+      "name": "HowWouldYouRateTheFieldRepresentativesExplanationOfTheWarranty",
+      "label": "How would you rate the Field Representative's explanation of the warranty?",
+      "type": "Integer"
+    },
+    {
+      "name": "HowWouldYouRateHowCleanTheFieldRepresentativesmaintainedTheWorksite",
+      "label": "How would you rate how clean the Field Representative(s) maintained the worksite?",
+      "type": "Integer"
+    },
+    {
+      "name": "HowWouldYouRateYourOverallExperienceWithPowerShiftByNvEnergy",
+      "label": "How would you rate your overall experience with PowerShift by NV Energy?",
+      "type": "Integer"
+    },
+    {
+      "name": "DidTheRepresentativeInstallOrOfferToInstallTheDuskToDawnLightingControlPhotocellLedSensor",
+      "label": "Did the representative install or offer to install the dusk to dawn lighting control (photocell LED sensor)?",
+      "type": "Text"
+    },
+    {
+      "name": "DidTheRepresentativeAskYouForAnyFormOfPayment",
+      "label": "Did the representative ask you for any form of payment?",
+      "type": "Text"
+    },
+    {
+      "name": "WhatOtherNoCostServicesWouldYouFindUseful",
+      "label": "What other no-cost services would you find useful?",
+      "type": "Text"
+    },
+    {
+      "name": "HowLikelyAreYouToReferUsToAFriend",
+      "label": "How likely are you to refer us to a friend?",
+      "type": "Text"
+    },
+    {
+      "name": "WhatFuelDoesYourMainWaterHeaterUse",
+      "label": "What fuel does your main water heater use?",
+      "type": "Text"
+    },
+    {
+      "name": "WhichOfTheFollowingBestDescribesYourHome",
+      "label": "Which of the following best describes your home?",
+      "type": "Text"
+    },
+    {
+      "name": "WhatIsTheMainFuelUsedToHeatYourHome",
+      "label": "What is the main fuel used to heat your home?",
+      "type": "Text"
+    },
+    {
+      "name": "OtherWaterHeater",
+      "label": "Other - Water Heater",
+      "type": "Text"
+    },
+    {
+      "name": "OtherHomeHeat",
+      "label": "Other - Home Heat",
+      "type": "Text"
+    },
+    {
+      "name": "DwellingTypeOther",
+      "label": "Dwelling Type - Other",
+      "type": "Text"
+    },
+    {
+      "name": "WhenWasYourHomeBuilt",
+      "label": "When was your home built?",
+      "type": "Text"
+    },
+    {
+      "name": "HowLargeIsYourHome",
+      "label": "How large is your home?",
+      "type": "Text"
+    },
+    {
+      "name": "HowOldAreYou",
+      "label": "How old are you?",
+      "type": "Text"
+    },
+    {
+      "name": "IncludingYourselfHowManyPeopleAreLivingInYourHousehold",
+      "label": "Including yourself, how many people are living in your household?",
+      "type": "Integer"
+    },
+    {
+      "name": "IncomeAmountBasedonHouseholdSize",
+      "label": "Income Amount Based on Household Size",
+      "type": "Calculation"
+    },
+    {
+      "name": "IsYourAnnualHouseholdIncomeOverOrUnderBasedOnTheHouseholdSize",
+      "label": "Is your annual household income over or under based on the household size?",
+      "type": "Text"
+    }
+  ],
+  "nve-qar/Vehicle Inspection": [
+    {
+      "name": "EmployeeName",
+      "label": "Employee Name",
+      "type": "Text"
+    },
+    {
+      "name": "EmployeeName2",
+      "label": "Partner Name",
+      "type": "Text"
+    },
+    {
+      "name": "EmployeeEmail",
+      "label": "Email",
+      "type": "Calculation"
+    },
+    {
+      "name": "EmployeeEmail2",
+      "label": "Partner Email",
+      "type": "Calculation"
+    },
+    {
+      "name": "Date",
+      "label": "Date",
+      "type": "Date"
+    },
+    {
+      "name": "VehicleNumber",
+      "label": "Vehicle Number",
+      "type": "Text"
+    },
+    {
+      "name": "OdometerReading",
+      "label": "Odometer Reading",
+      "type": "Integer"
+    },
+    {
+      "name": "IsFireExtinguisherCharged",
+      "label": "Is fire extinguisher charged?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheVehicleExteriorFreeOfVisibleDamage",
+      "label": "Is the vehicle exterior free of visible damage?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheVehicleCleanInAppearance",
+      "label": "Is the vehicle clean in appearance?",
+      "type": "Text"
+    },
+    {
+      "name": "AreThereAnySignsOfFluidLeakageUnderneathVehicle",
+      "label": "Are there any signs of fluid leakage underneath vehicle?",
+      "type": "Text"
+    },
+    {
+      "name": "AreAllTiresInGoodCondition",
+      "label": "Are all tires in good condition?",
+      "type": "Text"
+    },
+    {
+      "name": "LeakageUnderneathVehiclePhoto",
+      "label": "Leakage Underneath Vehicle Photo",
+      "type": "File"
+    },
+    {
+      "name": "TirePhotos",
+      "label": "Tire Photos",
+      "type": "File"
+    },
+    {
+      "name": "VisibleDamageNotes",
+      "label": "Visible Damage Notes",
+      "type": "Text"
+    },
+    {
+      "name": "FireExtinguisherPhoto",
+      "label": "Fire Extinguisher Photo",
+      "type": "File"
+    },
+    {
+      "name": "VehicleAppearancePhoto",
+      "label": "Vehicle Appearance Photo",
+      "type": "File"
+    },
+    {
+      "name": "VisibleExteriorDamagePhoto",
+      "label": "Visible Exterior Damage Photo",
+      "type": "File"
+    },
+    {
+      "name": "AreAllTiresProperlyInflated",
+      "label": "Are all tires properly inflated?",
+      "type": "Text"
+    },
+    {
+      "name": "TirePressureVerifiedBy",
+      "label": "Tire Pressure Verified By?",
+      "type": "Text"
+    },
+    {
+      "name": "ExteriorNotes",
+      "label": "Notes",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheInteriorOfVehicleFreeOfVisibleDamage",
+      "label": "Is the interior of vehicle free of visible damage?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheVehicleSInteriorClean",
+      "label": "Is the vehicle's interior clean?",
+      "type": "Text"
+    },
+    {
+      "name": "VehicleInteriorDebrisPhoto",
+      "label": "Vehicle Interior Debris Photo",
+      "type": "File"
+    },
+    {
+      "name": "InteriorNotes",
+      "label": "Notes",
+      "type": "Text"
+    },
+    {
+      "name": "VehicleInteriorDamagePhoto",
+      "label": "Vehicle Interior Damage Photo",
+      "type": "File"
+    },
+    {
+      "name": "AreSafetyBeltsWorkingProperly",
+      "label": "Are safety belts working properly?",
+      "type": "Text"
+    },
+    {
+      "name": "IsAFirstAidKitAvailable",
+      "label": "Is a first aid kit available?",
+      "type": "Text"
+    },
+    {
+      "name": "IsAnEmergencyKitAvailable",
+      "label": "Is an emergency kit available?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheVehicleRegistrationAndInsuranceCardEasilyAccessible",
+      "label": "Is the vehicle registration and insurance card easily accessible?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheVehicleSManualAvailable",
+      "label": "Is the vehicle's manual available?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTruckBinderAvailableIncludeHiipCodeOfSafePracticesInjuryIncidentFormAccidentReportingForm",
+      "label": "Is truck binder available & include HIIP, Code of Safe Practices, Injury/Incident Form, Accident Reporting Form?",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheHeadlightsWorking",
+      "label": "Are the headlights working?",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheTaillightsWorking",
+      "label": "Are the taillights working?",
+      "type": "Text"
+    },
+    {
+      "name": "OperationNotes",
+      "label": "Notes",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheBrakeLightsWorking",
+      "label": "Are the brake lights working?",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheBackUpLightsWorking",
+      "label": "Are the back-up lights working?",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheInteriorLightsWorking",
+      "label": "Are the interior lights working?",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheWindshieldWipersWorkingProperly",
+      "label": "Are the windshield wipers working properly? ",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheWindshieldWiperBladesInGoodCondition",
+      "label": "Are the windshield wiper blades in good condition?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheHornWorking",
+      "label": "Is the horn working?",
+      "type": "Text"
+    },
+    {
+      "name": "AreTheProperMirrorsAvailableRearViewDriverPassenger",
+      "label": "Are the proper mirrors available? (Rear-view, Driver, Passenger)",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheParkingBrakeWorking",
+      "label": "Is the parking brake working?",
+      "type": "Text"
+    },
+    {
+      "name": "DoTheTurnSignalsWork",
+      "label": "Do the turn signals work?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheSunVisorOperable",
+      "label": "Is the sun visor operable?",
+      "type": "Text"
+    },
+    {
+      "name": "DoYouHaveYourSafetyCones",
+      "label": "Do you have your safety cones?",
+      "type": "Text"
+    },
+    {
+      "name": "DoesTheHeatingCoolingSystemWorkProperly",
+      "label": "Does the heating/cooling system work properly?",
+      "type": "Text"
+    },
+    {
+      "name": "IsTheCheckEngineLightOn",
+      "label": "Is the check engine light on?",
+      "type": "Text"
+    },
+    {
+      "name": "DoYouHaveSufficientGasInTheTankToCompleteYourRoute",
+      "label": "Do you have sufficient gas in the tank to complete your route?",
+      "type": "Text"
+    },
+    {
+      "name": "PhotoOfFuelLevel",
+      "label": "Photo of Fuel Level",
+      "type": "File"
+    },
+    {
+      "name": "FuelUpNote",
+      "label": "",
+      "type": ""
+    },
+    {
+      "name": "IsYourPhoneConnectedToBluetooth",
+      "label": "Is your phone connected to bluetooth?",
+      "type": "Text"
+    },
+    {
+      "name": "PhotosOfAnyDefectiveItemsDamageOrAreasOfConcern",
+      "label": "Photos of Any Defective Items, Damage, or Areas of Concern",
+      "type": "Files"
+    },
+    {
+      "name": "AcknowledgementNote",
+      "label": "",
+      "type": ""
+    },
+    {
+      "name": "EmployeeNameText",
+      "label": "Employee Name",
+      "type": "Calculation"
+    },
+    {
+      "name": "Coordinates",
+      "label": "Coordinates",
+      "type": "Location"
+    },
+    {
+      "name": "EmployeeSignature",
+      "label": "Employee Signature",
+      "type": "Files"
+    },
+    {
+      "name": "SignatureDate",
+      "label": "Signature Date",
+      "type": "Date"
+    },
+    {
+      "name": "Location",
+      "label": "Location",
+      "type": "Location"
+    }
+  ],
   "nve-qar/Post Service Survey": [],
   "nve-qar/Pilot Weatherization Program": [],
   "sce-be/200 - Account": [

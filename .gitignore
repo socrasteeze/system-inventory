@@ -25,3 +25,6 @@ Thumbs.db
 # Sensitive working files
 *.private.json
 scratch/
+
+# Workspace data (JSON exports — may contain embedded PII in notification configs)
+data/

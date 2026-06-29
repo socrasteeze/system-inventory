@@ -7,13 +7,13 @@ Two export formats are supported, and they can coexist in one workspace:
 - **Whole-workspace export** — one JSON carrying the entire workspace (all forms, embedded workflows, relationships). Dropped at `data/<slug>/*.json`, it becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself.
 - **Individual form / workflow exports** — one JSON per form or workflow, under `data/<slug>/forms/` and `data/<slug>/workflows/`. When an individual export covers something also present in the workspace baseline, the **individual file always wins** — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.
 
-The project is **multi-workspace**: each workspace lives under `data/<slug>/` (slugs use hyphens, e.g. `sce-be`) and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. Current workspaces (all whole-workspace export format): `socal-whp` (SCE - ESA Whole Home (PP/D)), `sdge-whp` (SDGE - ESA Whole Home (PP/D)), `sce-be` (SCE - Building Electrification), `liwp` (Low-Income Weatherization Program), and `nve-qar` (Qualified Appliance Replacement).
+The project is **multi-workspace**: each workspace lives under `data/<slug>/` (slugs use hyphens, e.g. `sce-be`) and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. Add workspaces by placing JSON exports under `data/<slug>/` and running the rebuild.
 
 ## Live explorer
 
 The browsable explorers are published via GitHub Pages, served from the `docs/` folder:
 
-**https://maroma-it.github.io/system-inventory/**
+**https://&lt;your-org&gt;.github.io/system-inventory/**
 
 The landing page lists every view — the global cross-workspace explorer and each workspace's explorer. The published views are regenerated into `docs/` on every rebuild, so each push updates the live site. Spreadsheets are not published; pull the `.xlsx` files from `output/` in the repo directly.
 
@@ -205,7 +205,7 @@ Edit these in any editor, then re-run `regenerate.py`.
 
 ## Data sensitivity
 
-This repository contains no customer data, PII, or credentials — only form and field schema.
+The `data/` directory (workspace JSON exports) is excluded from this repository via `.gitignore`. Do not commit export files — they may contain embedded notification configurations with email addresses.
 
 ## License
 

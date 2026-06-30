@@ -21,6 +21,11 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 LAYOUT_TYPES = {"TwoWideLayout","ThreeWideLayout","FourWideLayout","StackedLayout",
                 "FormSection","FormGrid","FormPage","Header","FormComponent"}
 
+# Default "main" forms surfaced first in the explorer and on the docs landing page
+# when a workspace has no manual/featured_forms.json. Matched as case-insensitive
+# substrings against each form's display name. Override per workspace via that file.
+FEATURED_KEYWORDS = ("account", "enrollment", "assessment", "installation", "invoice")
+
 # ── field-level configuration extraction ────────────────────────────
 # Form designs carry per-field logic that references other fields on the same
 # form: computed formulas, conditional visibility/required rules, picklist
@@ -859,6 +864,26 @@ class Workspace:
         """Optional preset node positions for the explorer graph (form name -> {x,y})."""
         return self._read_json(self.manual_dir / "explorer_layout.json", {})
 
+    def featured_forms(self, form_names):
+        """Resolve the set of 'main' forms to feature (highlight first).
+
+        Resolution order:
+        - data/<slug>/manual/featured_forms.json {"featured": [names]} — explicit
+          per-workspace list (exact display-name match); only names that actually
+          exist in this workspace are kept.
+        - otherwise the keyword default: any form whose display name contains
+          (case-insensitive) one of FEATURED_KEYWORDS.
+
+        Returns the featured names in discovery order (the order of form_names).
+        """
+        cfg = self._read_json(self.manual_dir / "featured_forms.json", {})
+        explicit = cfg.get("featured") if isinstance(cfg, dict) else None
+        if explicit:
+            wanted = set(explicit)
+            return [n for n in form_names if n in wanted]
+        return [n for n in form_names
+                if any(kw in n.lower() for kw in FEATURED_KEYWORDS)]
+
     def discover(self):
         """Parse every form and workflow in this workspace into a unified dict.
 
@@ -1046,6 +1071,7 @@ class Workspace:
             "relationships": relationships,
             "refPulls": ref_pulls,
             "workflows": workflows,
+            "featured": self.featured_forms([f["name"] for f in forms]),
         }
         return self._discovered
 

@@ -7,19 +7,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parser import Workspace, list_workspaces, OUTPUT_DIR
+import narrate
 
 TEMPLATE = (Path(__file__).resolve().parent / "explorer_template.html").read_text(encoding="utf-8")
 
 def build(ws):
     data = ws.discover()
+    featured = set(data.get("featured", []))
 
     # Reshape for the viewer (it expects a specific shape)
     viz_data = {
         "forms": [{"name": f["name"], "role": f["role"], "fieldCount": f["fieldCount"],
                    "description": f.get("description", ""),
-                   "subformOf": f.get("subformOf", "")}
+                   "subformOf": f.get("subformOf", ""),
+                   "featured": f["name"] in featured}
                   for f in data["forms"]],
         "fields": data["fields"],
+        "narrative": narrate.build_all(data),
         "relationships": [{"source": r["source"], "target": r["target"],
                            "via": r["via"], "label": r["label"],
                            "targetMatchField": r.get("targetMatchField", "")}

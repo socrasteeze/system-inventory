@@ -132,16 +132,20 @@ data/
     manual/      ← human-maintained overrides and metadata (see below)
 output/
   <slug>/        ← per-workspace Excel + HTML
+    forms/       ← per-form printable briefs (generated; so the local explorer's "Open full brief" link resolves)
   global/        ← cross-workspace Excel + HTML
 docs/            ← GitHub Pages publish target (HTML only; generated, not hand-edited)
-  index.html       landing page listing every view
+  index.html       landing page listing every view (+ featured-form quick-link chips)
   <slug>/explorer.html
+  <slug>/forms/<form>.html   per-form plain-English briefs
   global/explorer.html
 scripts/
   parser.py             Workspace class + shared parsing helpers
+  narrate.py            deterministic plain-English narration (form summaries + forward field-trigger model)
   build_inventory.py    per-workspace Excel builder
   build_explorer.py     per-workspace HTML builder
   explorer_template.html    per-workspace HTML template (title + preset injected)
+  brief_template.html       per-form printable brief shell (title + body injected)
   build_global.py       cross-workspace aggregator (Excel + HTML)
   build_registry.py     reuse/sameness views (WorkflowReuse, FormFamilies, FieldTemplates) + step-4 suppression
   global_template.html      global HTML template
@@ -178,6 +182,17 @@ Every `regenerate.py` run ends with `publish_docs()`, which mirrors the built HT
 - **Filename rewrite:** the global explorer's cross-view deep links point at the per-workspace file by its `output/` name (`workspace_explorer.html`). Because the docs copy is renamed `explorer.html`, `publish_docs()` rewrites that string in the global copy so the deep links resolve under Pages. If the per-workspace docs filename ever changes, update that rewrite.
 - **Excel stays out of `docs/`.** Pages publishes only the browsable HTML; spreadsheets are pulled from `output/` in the repo. Don't copy `.xlsx` into `docs/`.
 - **`docs/field-index.json`** — machine-readable field index published alongside the explorers. See *Field index* below.
+- **Per-form briefs** — `emit_form_briefs()` writes a printable plain-English brief per form into **both** `output/<slug>/forms/<form>.html` (so the local explorer's "Open full brief" link resolves when opened from `output/`) and `docs/<slug>/forms/<form>.html` (for Pages). Filenames are `encodeURIComponent`-encoded form names (`_brief_filename()` mirrors the JS encoder so the explorer link resolves to the file). Briefs are presentation-only — they never touch `field-index.json`. See *Plain-English narration* below.
+
+---
+
+## Plain-English narration (form briefs + "what triggers what")
+
+`scripts/narrate.py` is a **pure, deterministic, filesystem-free** module (no LLM) that turns the discovered data into plain English. `build_explorer.build()` injects `narrate.build_all(data)` into the explorer as `DATA.narrative`; `regenerate.emit_form_briefs()` renders the same output into standalone brief pages. Output shape per form: `{"summary": {role_line, connects, workflows, fields, interactions}, "forward": {<field>: {fields:[{target,kind}], wfCondition:[callsign], writtenBy:[callsign]}}}`.
+
+- **Forward inversion is the core idea.** `dependsOn` is stored on the *dependent* field (B records "I depend on A for my visibility"). `build_forward_index()` inverts this once per form to answer "what does changing field A activate" — the exact inverse of the read-side loop in `fieldDetailHTML()` (`explorer_template.html`), reusing the same four kinds (`visibility/formula/validation/filter`). Workflow consequences come from `fieldUsage`: `direction==Condition` ⇒ "changing this can change what the workflow does"; `direction==Write` ⇒ "set automatically by the workflow". `FORWARD_PHRASE`/`KIND_BADGE` are the phrasing catalog; the explorer template keeps a small JS mirror of them in sync.
+- **Where it shows in the explorer:** a "What this form does" prose section + a "Featured" badge in `renderForm()`; a "Changing this field affects" forward block in `fieldDetailHTML()` (capped at 6 + overflow); a collapsed-by-default "Field interactions" rollup listing only fields that actually trigger something; and an opt-in, lazily-mounted **interaction mini-diagram** (a second Cytoscape instance, ≤25 nodes, destroyed on panel switch via `clearHighlights()`). Anti-clutter is deliberate: nothing appears for fields that trigger nothing, and the diagram is off-screen until toggled.
+- **Featured forms** are highlighted (gold node ring + "Featured" badge) and surfaced first as quick-link chips on `docs/index.html`. The set is resolved by `Workspace.featured_forms()`: `data/<slug>/manual/featured_forms.json` `{"featured": [names]}` if present, else the `FEATURED_KEYWORDS` default (name-substring match on account/enrollment/assessment/installation/invoice). Exposed as `data["featured"]`.
 
 ---
 
@@ -271,6 +286,12 @@ Each workspace owns its overrides. None are required; sensible defaults apply wh
 Workspace identity. `displayName` is used as the Excel title and the graph heading. Resolution order: this file → the workspace export's own `DisplayName` → the slug. Workspaces ingested via a whole-workspace export don't need this file; if present anyway, it wins (manual = override layer).
 ```json
 { "slug": "my-workspace", "displayName": "My Workspace Name" }
+```
+
+### `featured_forms.json`
+Optional. Names the "main" forms to feature — highlighted (gold node ring + "Featured" badge) in the explorer and surfaced first as quick-link chips on `docs/index.html`. Resolved by `Workspace.featured_forms()`. Absent = the keyword default (`FEATURED_KEYWORDS` in `parser.py`: any form whose display name contains account/enrollment/assessment/installation/invoice). Only names that exist in the workspace are kept.
+```json
+{ "featured": ["Customer Account", "Program Enrollment", "Site Assessment"] }
 ```
 
 ### `form_aliases.json`

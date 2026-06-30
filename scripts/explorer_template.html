@@ -120,6 +120,29 @@
   .badge.req{background:#5f2424;color:#ffc4c4}
   .badge.dep-uses{background:#1e3d2f;color:#6ee7b7;cursor:default}
   .badge.dep-used{background:#2d3a1e;color:#bef264;cursor:default}
+  .badge.featured{background:#4a3a12;color:#fcd34d}
+  /* Plain-English narrative: prose in the muted meta style, plus a quiet link out. */
+  .summary-prose{font-size:12px;line-height:1.55;color:var(--text)}
+  .summary-prose .lead{font-weight:600}
+  .summary-prose .muted{color:var(--muted)}
+  .brief-link{display:inline-block;margin-top:8px;font-size:11px;color:var(--accent);
+              text-decoration:none}
+  .brief-link:hover{text-decoration:underline}
+  /* "Field interactions" rollup — collapsed by default, zero clutter until opened. */
+  details.interactions{margin-top:6px}
+  details.interactions>summary{cursor:pointer;font-size:11px;color:var(--muted);
+              list-style:none;user-select:none}
+  details.interactions>summary::-webkit-details-marker{display:none}
+  details.interactions>summary::before{content:'▸ ';color:var(--accent)}
+  details.interactions[open]>summary::before{content:'▾ '}
+  details.interactions>summary:hover{color:var(--accent)}
+  details.interactions[open]>summary{color:var(--accent);margin-bottom:8px}
+  .ix-row{font-size:11px;padding:4px 0;border-bottom:1px solid var(--border);cursor:pointer}
+  .ix-row:hover{color:var(--accent)}
+  .ix-row .n{font-weight:500}
+  .ix-row .c{color:var(--muted);font-size:10px}
+  #mini-cy{width:100%;height:260px;margin-top:8px;border:1px solid var(--border);
+           border-radius:6px;background:var(--bg)}
   .field-row:focus{outline:none}
   .field-row:focus>.field{border-left-color:var(--accent);background:rgba(94,234,212,0.12)}
   .wf-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;
@@ -280,7 +303,8 @@ let ROLE_COLOR = roleColors();
 
 DATA.forms.forEach(f => {
   elements.push({data:{id:f.name, label:f.name, role:f.role, fieldCount:f.fieldCount,
-                       kind:'form'}});
+                       kind:'form', featured: f.featured ? 1 : 0},
+                 classes: f.featured ? 'featured' : undefined});
 });
 
 // Workflow nodes. Disabled workflows are dimmed/dashed. Legacy (prod WF system)
@@ -408,6 +432,8 @@ const cy = cytoscape({
       'opacity':0.45, 'border-style':'dashed', 'border-color':'#f87171',
     }},
     {selector:'node.highlight', style:{'border-color':'#5eead4','border-width':3}},
+    // Featured "main" forms get a gold ring so the key blobs stand out at a glance.
+    {selector:'node.featured', style:{'border-color':'#fbbf24','border-width':3}},
     {selector:'edge', style:{
       'width': ele => Math.min(8, 1 + Math.log(1 + (parseInt((ele.data('label')||'').split('·')[1]) || 1))),
       'line-color':'#3a4050', 'target-arrow-color':'#3a4050',
@@ -509,6 +535,7 @@ try { lockFieldFilter = localStorage.getItem(FILTER_LOCK_KEY) === 'true'; } catc
 
 function clearHighlights(){
   cy.elements().removeClass('dim highlight m-match m-hop1 m-hop2 m-dim m-edge1 m-edge2 sel');
+  destroyMiniMap();   // panel is switching; drop any open interaction map
 }
 
 function renderEmpty(){
@@ -545,6 +572,11 @@ function renderForm(formName){
     if (!lockFieldFilter) activeFieldFilter = '';
   }
   const fields = DATA.fields[formName] || [];
+  const nar = (DATA.narrative && DATA.narrative[formName]) || null;
+  // Only fields that actually trigger something elsewhere (forward fields or a
+  // workflow branch) appear in the interactions rollup — participants only.
+  const ixFields = nar ? Object.keys(nar.forward).filter(fn =>
+    nar.forward[fn].fields.length || nar.forward[fn].wfCondition.length) : [];
   const incomingRels = DATA.relationships.filter(r => r.target === formName);
   const outgoingRels = DATA.relationships.filter(r => r.source === formName);
   const wfsTouching = DATA.workflows.filter(w =>
@@ -564,7 +596,7 @@ function renderForm(formName){
         : `<span class="bc-link" onclick="cy.$id('${escapeAttr(n)}').emit('tap')">${escapeHtml(n)}</span>`;
     }).join('<span class="bc-sep">›</span>')}</div>` : ''}
     <h2>${escapeHtml(f.name)}</h2>
-    <span class="role ${f.role}">${f.role}</span>
+    <span class="role ${f.role}">${f.role}</span>${f.featured ? '<span class="badge featured">Featured</span>' : ''}
     <div class="meta">
       ${f.subformOf ? `Embedded grid of <b>${escapeHtml(f.subformOf)}</b><br>` : ''}
       ${f.description ? `${escapeHtml(f.description)}<br>` : ''}
@@ -573,6 +605,17 @@ function renderForm(formName){
       <b>${outgoingRels.length}</b> outgoing links<br>
       <b>${wfsTouching.length}</b> workflow(s) touch this form
     </div>
+
+    ${nar ? `<div class="section"><h3>What this form does</h3>
+      <div class="summary-prose">
+        <span class="lead">${escapeHtml(nar.summary.role_line)}</span>
+        ${nar.summary.connects ? ' ' + escapeHtml(nar.summary.connects) : ''}
+        ${nar.summary.workflows ? '<br>' + escapeHtml(nar.summary.workflows) : ''}
+        <br><span class="muted">${escapeHtml(nar.summary.fields)}${
+          nar.summary.interactions ? ' ' + escapeHtml(nar.summary.interactions) : ''}</span>
+      </div>
+      <a class="brief-link" href="forms/${encodeURIComponent(formName)}.html" target="_blank" rel="noopener">Open full brief &rarr;</a>
+    </div>` : ''}
 
     ${outgoingRels.length ? `<div class="section"><h3>Outgoing relationships</h3>
       ${outgoingRels.map(r => `<div class="usage" style="border-left-color:var(--accent)">
@@ -601,6 +644,21 @@ function renderForm(formName){
       </div>
       <div class="field-list" id="field-list" role="listbox"></div>
     </div>
+
+    ${ixFields.length ? `<div class="section"><h3>Field interactions (${ixFields.length})</h3>
+      <details class="interactions">
+        <summary>Show which fields trigger what on this form</summary>
+        ${ixFields.slice(0, 12).map(fn => {
+          const e = nar.forward[fn];
+          const n = e.fields.length + e.wfCondition.length;
+          return `<div class="ix-row" onclick="focusFieldDetail('${escapeAttr(formName)}','${escapeAttr(fn)}')">
+            <span class="n">${escapeHtml(fn)}</span> <span class="c">&rarr; ${n} effect(s)</span></div>`;
+        }).join('')}
+        ${ixFields.length > 12 ? `<div class="ix-row"><span class="c">+${ixFields.length - 12} more fields</span></div>` : ''}
+        <button class="mini-btn" style="margin-top:10px" onclick="toggleMiniMap('${escapeAttr(formName)}',this)">Show interaction map</button>
+        <div id="mini-cy-wrap"></div>
+      </details>
+    </div>` : ''}
   `;
 
   const searchEl = document.getElementById('field-search');
@@ -900,6 +958,99 @@ function updateExpandCount(){
 
 // Toggle one field's inline detail. Targeted DOM edit (not a full re-render) so the
 // scroll position is preserved and only the toggled field's detail is built.
+// Open one field's inline detail from the "Field interactions" rollup: clear any
+// active filter so the field is visible, expand it, and scroll it into view.
+function focusFieldDetail(formName, fieldName){
+  activeFieldFilter = '';
+  const se = document.getElementById('field-search');
+  if (se) se.value = '';
+  expandedFields.add(fieldName);
+  renderFieldList(currentFormName || formName, true);
+  document.querySelectorAll('#field-list .field-row').forEach(row => {
+    if (row.getAttribute('data-field') === fieldName) {
+      row.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+  });
+}
+
+// Small, focused, opt-in trigger diagram for the selected form. Reuses the
+// already-loaded Cytoscape + Dagre. Shows ONLY participating fields + their
+// targets + referenced workflow nodes, capped at MINI_MAX nodes — never the
+// whole form. Mounted lazily on toggle; destroyed on panel switch.
+let miniCy = null;
+const MINI_MAX = 25;
+const MINI_EDGE_COLOR = {visibility:'#fbbf24', formula:'#f87171', validation:'#a78bfa',
+                         filter:'#60a5fa', wf:'#9fae5a'};
+function destroyMiniMap(){
+  if (miniCy){ try { miniCy.destroy(); } catch(e){} miniCy = null; }
+}
+function toggleMiniMap(formName, btn){
+  const wrap = document.getElementById('mini-cy-wrap');
+  if (!wrap) return;
+  if (miniCy){
+    destroyMiniMap();
+    wrap.innerHTML = '';
+    btn.textContent = 'Show interaction map';
+    return;
+  }
+  wrap.innerHTML = '<div id="mini-cy"></div>';
+  btn.textContent = 'Hide interaction map';
+  mountMiniDiagram(formName);
+}
+function mountMiniDiagram(formName){
+  const nar = (DATA.narrative && DATA.narrative[formName]) || null;
+  const cont = document.getElementById('mini-cy');
+  if (!nar || !cont) return;
+  const els = [], seen = new Set();
+  let trimmed = 0;
+  const addNode = (id, label, cls) => {
+    if (seen.has(id)) return true;
+    if (seen.size >= MINI_MAX){ trimmed++; return false; }
+    seen.add(id); els.push({data:{id, label}, classes:cls}); return true;
+  };
+  const fieldKeys = Object.keys(nar.forward).filter(fn =>
+    nar.forward[fn].fields.length || nar.forward[fn].wfCondition.length);
+  for (const fn of fieldKeys){
+    if (!addNode('f:'+fn, fn, 'fld')) continue;
+    const e = nar.forward[fn];
+    e.fields.forEach(x => {
+      if (addNode('f:'+x.target, x.target, 'fld'))
+        els.push({data:{source:'f:'+fn, target:'f:'+x.target, kind:x.kind}});
+    });
+    e.wfCondition.forEach(cs => {
+      if (addNode('w:'+cs, cs, 'wf'))
+        els.push({data:{source:'f:'+fn, target:'w:'+cs, kind:'wf'}});
+    });
+  }
+  miniCy = cytoscape({
+    container: cont,
+    elements: els,
+    style: [
+      {selector:'node', style:{
+        'label':'data(label)', 'color':'#e8ebf0', 'font-size':9, 'font-weight':600,
+        'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap',
+        'text-max-width':90, 'width':'label', 'height':22, 'padding':'6px',
+        'shape':'round-rectangle', 'background-color':'#1e3a5f',
+        'border-width':1, 'border-color':'#0f1115'}},
+      {selector:'node.wf', style:{'background-color':'#5f2424'}},
+      {selector:'edge', style:{
+        'width':1.5, 'curve-style':'bezier', 'target-arrow-shape':'triangle',
+        'line-color': ele => MINI_EDGE_COLOR[ele.data('kind')] || '#888',
+        'target-arrow-color': ele => MINI_EDGE_COLOR[ele.data('kind')] || '#888'}},
+      {selector:'edge[kind="wf"]', style:{'line-style':'dashed'}},
+    ],
+    layout: {name:'dagre', rankDir:'LR', nodeSep:14, rankSep:46, fit:true, padding:12},
+    userZoomingEnabled:true, userPanningEnabled:true,
+  });
+  if (trimmed){
+    const note = document.createElement('div');
+    note.className = 'ctx';
+    note.style.marginTop = '4px';
+    note.textContent = `graph trimmed — ${trimmed} more interaction(s) not shown`;
+    cont.parentNode.appendChild(note);
+  }
+}
+
 function toggleField(headerEl, formName, fieldName){
   const row = headerEl.closest('.field-row');
   if (expandedFields.has(fieldName)) {
@@ -954,9 +1105,22 @@ function relationshipTarget(formName, via){
 }
 
 // Inner HTML for a field's inline detail block (no DOM side effects).
+// Forward phrasing — mirror of narrate.py FORWARD_PHRASE/KIND_BADGE (kept in sync).
+const FORWARD_PHRASE = {
+  visibility: t => `shows or hides ${t}`,
+  formula:    t => `recalculates ${t}`,
+  validation: t => `changes whether ${t} is required / valid`,
+  filter:     t => `re-filters the choices in ${t}`,
+};
+const FORWARD_BADGE = {visibility:'VISIBLE', formula:'FX', validation:'REQ', filter:'FILTER'};
+
 function fieldDetailHTML(formName, fieldName){
   const field = (DATA.fields[formName]||[]).find(f => f.name === fieldName);
   if (!field) return '';
+
+  // Forward triggers: what changing THIS field activates (fields + workflow branches).
+  const fwd = (DATA.narrative && DATA.narrative[formName]
+               && DATA.narrative[formName].forward[fieldName]) || null;
 
   const usages = [];
   DATA.workflows.forEach(w => w.fieldUsage.forEach(u => {
@@ -1004,6 +1168,20 @@ function fieldDetailHTML(formName, fieldName){
 
     ${field.formula?`<h3>Formula</h3>
       <div class="usage" style="font-family:monospace;white-space:pre-wrap;line-height:1.4">${escapeHtml(field.formula)}</div>`:''}
+
+    ${fwd && (fwd.fields.length || fwd.wfCondition.length) ? `<h3>Changing this field affects (${fwd.fields.length + fwd.wfCondition.length})</h3>
+      ${fwd.fields.slice(0,6).map(x => `<div class="usage Condition">
+        <span class="dir">${FORWARD_BADGE[x.kind]||'DEP'}</span>${escapeHtml(x.target)}
+        <div class="ctx">${escapeHtml((FORWARD_PHRASE[x.kind]||(t=>t))(x.target))}</div>
+      </div>`).join('')}
+      ${fwd.fields.length>6 ? `<div class="empty-state" style="font-style:normal">+${fwd.fields.length-6} more fields</div>`:''}
+      ${fwd.wfCondition.map(cs => `<div class="usage Condition">
+        <span class="dir">FLOW</span>${escapeHtml(cs)}
+        <div class="ctx">changing this can change what this workflow does</div>
+      </div>`).join('')}`
+      :''}
+
+    ${fwd && fwd.writtenBy.length ? `<div class="ctx" style="margin-top:4px">Set automatically by workflow: ${fwd.writtenBy.map(escapeHtml).join(', ')}</div>`:''}
 
     ${usages.length?
       `<h3>Workflow usage (${usages.length})</h3>

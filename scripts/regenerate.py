@@ -15,16 +15,25 @@ to docs/.
 import sys, argparse, json
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parser import Workspace, list_workspaces, discover_all, find_orphans, OUTPUT_DIR
 import build_inventory
 import build_explorer
 import build_global
+import narrate
 
 DOCS_DIR = OUTPUT_DIR.parent / "docs"
 WS_EXPLORER = "workspace_explorer.html"      # per-workspace source filename in output/
 GLOBAL_EXPLORER = "global-explorer.html"     # global source filename in output/
+BRIEF_TEMPLATE = (Path(__file__).resolve().parent / "brief_template.html").read_text(encoding="utf-8")
+
+
+def _brief_filename(form_name):
+    """URL-encode a form name to a brief filename, matching the explorer's
+    JS encodeURIComponent so the 'Open full brief' link resolves to this file."""
+    return quote(form_name, safe="!*'()") + ".html"
 
 
 def rebuild_workspace(slug):
@@ -53,15 +62,30 @@ def _html_escape(s):
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
-def _write_landing(views, stamp):
+def _write_landing(views, stamp, featured_links=None):
     """views: list of (title, description, href). Minimal dark landing page that
-    matches the explorer's palette and fonts."""
-    cards = "\n".join(
-        f'''    <a class="view" href="{_html_escape(href)}">
-      <div class="name">{_html_escape(title)} <span class="arrow">&rarr;</span></div>
-      <div class="desc">{_html_escape(desc)}</div>
-    </a>'''
-        for title, desc, href in views)
+    matches the explorer's palette and fonts. featured_links: optional
+    {slug: [(formName, brief_href)]} rendered as quick-link chips on each
+    workspace card so the main forms are one click from the landing page."""
+    featured_links = featured_links or {}
+
+    def card(title, desc, href):
+        slug = href.split("/")[0]
+        chips = featured_links.get(slug) or []
+        chip_html = ""
+        if chips:
+            links = "".join(
+                f'<a class="chip" href="{_html_escape(bhref)}">{_html_escape(fname)}</a>'
+                for fname, bhref in chips)
+            chip_html = f'\n      <div class="chips"><span class="chips-lbl">Featured:</span> {links}</div>'
+        return f'''    <div class="view">
+      <a class="view-main" href="{_html_escape(href)}">
+        <div class="name">{_html_escape(title)} <span class="arrow">&rarr;</span></div>
+        <div class="desc">{_html_escape(desc)}</div>
+      </a>{chip_html}
+    </div>'''
+
+    cards = "\n".join(card(title, desc, href) for title, desc, href in views)
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -78,13 +102,19 @@ def _write_landing(views, stamp):
   h1{{font-size:20px;font-weight:600;letter-spacing:0.3px}}
   .sub{{color:var(--muted);font-size:13px;margin-top:6px}}
   .views{{margin-top:32px;display:flex;flex-direction:column;gap:12px}}
-  a.view{{display:block;background:var(--bg2);border:1px solid var(--border);
-         border-radius:8px;padding:16px 18px;text-decoration:none;color:var(--text);
+  .view{{background:var(--bg2);border:1px solid var(--border);
+         border-radius:8px;padding:16px 18px;
          transition:border-color 120ms,background 120ms}}
-  a.view:hover{{border-color:var(--accent);background:var(--bg3)}}
-  a.view .name{{font-size:15px;font-weight:600}}
-  a.view .name .arrow{{color:var(--accent)}}
-  a.view .desc{{color:var(--muted);font-size:12px;margin-top:4px}}
+  .view:hover{{border-color:var(--accent);background:var(--bg3)}}
+  a.view-main{{display:block;text-decoration:none;color:var(--text)}}
+  .view .name{{font-size:15px;font-weight:600}}
+  .view .name .arrow{{color:var(--accent)}}
+  .view .desc{{color:var(--muted);font-size:12px;margin-top:4px}}
+  .chips{{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}}
+  .chips-lbl{{color:var(--muted);font-size:11px}}
+  a.chip{{font-size:11px;background:#4a3a12;color:#fcd34d;border-radius:4px;
+         padding:2px 9px;text-decoration:none}}
+  a.chip:hover{{background:#5c4715}}
   .ts{{color:var(--muted);font-size:12px;margin-top:36px;font-family:monospace}}
 </style>
 </head>
@@ -138,6 +168,110 @@ def emit_field_index():
     print(f"  docs/field-index.json -> {len(index)} forms, {total} fields")
 
 
+def _render_brief(slug, ws_name, form, nar_form, data, featured):
+    """Render one printable per-form brief (plain HTML, no JS)."""
+    esc = _html_escape
+    name = form["name"]
+    role = form.get("role", "")
+    s = nar_form["summary"]
+    fwd = nar_form["forward"]
+
+    parts = [(fn, e) for fn, e in fwd.items() if e["fields"] or e["wfCondition"]]
+    if parts:
+        rows = []
+        for fn, e in parts:
+            effects = []
+            for x in e["fields"]:
+                phrase = narrate.FORWARD_PHRASE.get(x["kind"], "{t}").format(t=esc(x["target"]))
+                badge = narrate.KIND_BADGE.get(x["kind"], "DEP")
+                effects.append(f'<div class="effect"><span class="chip {x["kind"]}">{badge}</span>{phrase}</div>')
+            for cs in e["wfCondition"]:
+                effects.append(f'<div class="effect"><span class="chip flow">FLOW</span>'
+                               f'can change what workflow <b>{esc(cs)}</b> does</div>')
+            rows.append(f'<tr><td class="field">{esc(fn)}</td><td>{"".join(effects)}</td></tr>')
+        changes = ('<table><thead><tr><th>When you change&hellip;</th>'
+                   '<th>&hellip;this happens</th></tr></thead><tbody>'
+                   + "".join(rows) + "</tbody></table>")
+    else:
+        changes = '<div class="empty">No fields on this form trigger changes elsewhere.</div>'
+
+    req = [f for f in data["fields"].get(name, []) if f.get("required") == "Yes"]
+    if req:
+        reqhtml = "<ul>" + "".join(
+            f'<li>{esc(f.get("label") or f["name"])} '
+            f'<span class="when">({esc(f["name"])})</span></li>' for f in req) + "</ul>"
+    else:
+        reqhtml = '<div class="empty">No required fields.</div>'
+
+    acting = narrate._workflows_on(name, data.get("workflows", []))
+    if acting:
+        items = []
+        for w in acting:
+            cond = (w.get("trigger") or {}).get("condition")
+            tail = f' &mdash; {esc(cond)}' if cond else ""
+            items.append(f'<li><b>{esc(w.get("name") or w.get("callsign"))}</b> '
+                         f'<span class="when">{esc(narrate._trigger_phrase(w))}{tail}</span></li>')
+        wfhtml = "<ul>" + "".join(items) + "</ul>"
+    else:
+        wfhtml = '<div class="empty">No workflows act on this form.</div>'
+
+    badges = f'<span class="badge {esc(role)}">{esc(role)}</span>'
+    if featured:
+        badges += '<span class="badge featured">Featured</span>'
+
+    body = [
+        f'  <a class="back" href="../explorer.html#form={quote(name)}">&larr; Back to {esc(ws_name)} explorer</a>',
+        f'  <div class="badges" style="margin-top:14px">{badges}</div>',
+        f'  <h1>{esc(name)}</h1>',
+        f'  <div class="ws">{esc(ws_name)}</div>',
+        f'  <p class="lead"><b>{esc(s["role_line"])}</b> {esc(s["connects"])}'
+        + (f'<br>{esc(s["workflows"])}' if s["workflows"] else "")
+        + f'<br><span class="muted">{esc(s["fields"])}'
+        + (" " + esc(s["interactions"]) if s["interactions"] else "")
+        + "</span></p>",
+        f"  <h2>What changes what</h2>{changes}",
+        f"  <h2>Required fields</h2>{reqhtml}",
+        f"  <h2>Workflows acting on this form</h2>{wfhtml}",
+        f'  <div class="foot">Generated by regenerate.py &middot; not hand-edited</div>',
+    ]
+    return (BRIEF_TEMPLATE
+            .replace("__TITLE__", esc(name) + " — " + esc(ws_name))
+            .replace("__BODY__", "\n".join(body)))
+
+
+def emit_form_briefs():
+    """Write a printable per-form brief for every form, into both
+    output/<slug>/forms/ (so the local explorer's 'Open full brief' link resolves)
+    and docs/<slug>/forms/ (for GitHub Pages). Returns {slug: [(name, docs_href)]}
+    of featured forms for the landing page.
+
+    Uses the same in-memory discover_all() source as emit_field_index(); the
+    narrative is presentation-only and never touches field-index.json.
+    """
+    discovered = discover_all()
+    featured_links = {}
+    total = 0
+    for slug, data in sorted(discovered.items()):
+        ws_name = data.get("workspaceName", slug)
+        nar = narrate.build_all(data)
+        featured = set(data.get("featured", []))
+        out_dir = OUTPUT_DIR / slug / "forms"
+        docs_dir = DOCS_DIR / slug / "forms"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        for form in data["forms"]:
+            name = form["name"]
+            html = _render_brief(slug, ws_name, form, nar[name], data, name in featured)
+            fn = _brief_filename(name)
+            (out_dir / fn).write_text(html, encoding="utf-8")
+            (docs_dir / fn).write_text(html, encoding="utf-8")
+            total += 1
+        featured_links[slug] = [(n, f"{slug}/forms/{_brief_filename(n)}")
+                                for n in data.get("featured", [])]
+    print(f"  form briefs -> {total} page(s) (output/ + docs/)")
+    return featured_links
+
+
 def publish_docs():
     """Mirror the built HTML explorers into docs/ and write the landing page.
 
@@ -178,9 +312,10 @@ def publish_docs():
         print("  docs/ not updated (no explorers found under output/).")
         return
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    _write_landing(views, stamp)
     emit_field_index()
-    print(f"  docs/ -> {len(views)} view(s) + index.html + field-index.json  ({stamp})")
+    featured_links = emit_form_briefs()
+    _write_landing(views, stamp, featured_links)
+    print(f"  docs/ -> {len(views)} view(s) + index.html + field-index.json + form briefs  ({stamp})")
 
 
 def main():

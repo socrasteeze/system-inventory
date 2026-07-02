@@ -622,7 +622,7 @@ function renderForm(formName){
         <br><span class="muted">${escapeHtml(nar.summary.fields)}${
           nar.summary.interactions ? ' ' + escapeHtml(nar.summary.interactions) : ''}</span>
       </div>
-      <a class="brief-link" href="forms/${encodeURIComponent(formName)}.html" target="_blank" rel="noopener">Open full brief &rarr;</a>
+      <a class="brief-link" href="forms/${escapeAttr(briefFilename(formName))}.html" target="_blank" rel="noopener">Open full brief &rarr;</a>
     </div>` : ''}
 
     ${outgoingRels.length ? `<div class="section"><h3>Outgoing relationships</h3>
@@ -1633,6 +1633,13 @@ panel.addEventListener('keydown', e => {
 // Helpers
 function escapeHtml(s){return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function escapeAttr(s){return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+// Mirrors regenerate.py's _brief_filename(): strip characters illegal in a
+// Windows filename, but leave everything else (spaces, parens, #, etc.)
+// unescaped so the href matches the literal filename on disk. Do NOT
+// encodeURIComponent this — the file was saved with the plain name, and a
+// browser resolving a percent-encoded href decodes it before the filesystem
+// lookup, so encoding here would look for a filename that doesn't exist.
+function briefFilename(formName){return String(formName).replace(/[<>:"/\\|?*]/g, '');}
 window.renderEmpty = renderEmpty;
 window.toggleField = toggleField;
 window.expandAllFields = expandAllFields;

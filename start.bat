@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 echo ============================================
-echo   SoCal WHP Inventory  -  Refresh ^& Open
+echo   System Inventory  -  Start
 echo ============================================
 echo.
 
@@ -34,7 +34,13 @@ if errorlevel 1 (
     echo        You will rebuild from the data already on this machine.
     echo        ^(Install Git from https://git-scm.com/download/win to enable auto-update.^)
 ) else (
-    echo [OK] Git found - fetching the latest data and code...
+    echo [OK] Git found - checking out main and fetching the latest data and code...
+    git checkout main
+    if errorlevel 1 (
+        echo.
+        echo [WARN] "git checkout main" did not finish cleanly ^(local changes or a conflict^).
+        echo        Continuing with whatever branch is currently checked out.
+    )
     git pull
     if errorlevel 1 (
         echo.

@@ -327,8 +327,9 @@ def main():
 
     slugs = list_workspaces()
     if not slugs:
-        print("No workspaces found under data/. Add data/<slug>/forms and /workflows.")
-        return
+        print("No workspaces found under data/. Add data/<slug>/forms and /workflows,")
+        print("or a whole-workspace export JSON at data/<slug>/*.json.")
+        sys.exit(1)
 
     if args.global_only:
         print("[global]")

@@ -72,13 +72,23 @@ if errorlevel 1 (
 echo [OK] Dependencies present.
 echo.
 
+REM --- Guard rail: data\ is the one folder nothing auto-creates (output\ and
+REM     docs\ are created by the build scripts themselves as needed). ---
+if not exist "data\" (
+    echo [SETUP] Creating missing data\ folder.
+    mkdir "data"
+)
+echo.
+
 REM --- Rebuild the artifacts ---
 echo Rebuilding the inventory and explorer...
 echo.
 %PY% scripts\regenerate.py
 if errorlevel 1 (
     echo.
-    echo [ERROR] The rebuild failed. The most likely causes:
+    echo [ERROR] The rebuild failed or found nothing to build. The most likely causes:
+    echo     - data\ has no workspace folders yet ^(add data\^<slug^>\ with an export JSON,
+    echo       or data\^<slug^>\forms\ and \workflows\^).
     echo     - A file in the data\ folder is not valid JSON.
     echo     - A required package is missing  ^(run: %PY% -m pip install -r requirements.txt^).
     echo     - Your Python is too old; version 3.9 or newer is required.

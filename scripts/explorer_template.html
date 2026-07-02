@@ -30,7 +30,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
             background:var(--bg);color:var(--text);overflow:hidden}
-  body{display:grid;grid-template-rows:auto 1fr;grid-template-columns:1fr 6px 380px;
+  body{display:grid;grid-template-rows:auto 1fr;grid-template-columns:minmax(0, 1fr) 6px 380px;
        grid-template-areas:"toolbar toolbar toolbar" "graph resizer panel"}
   body.resizing{cursor:col-resize;user-select:none}
   body.resizing #cy{pointer-events:none}
@@ -64,7 +64,8 @@
   .resizer:hover,.resizer.active{background:var(--accent)}
   /* side panel */
   .panel{grid-area:panel;background:var(--bg2);border-left:1px solid var(--border);
-         overflow-y:auto;overflow-x:hidden;padding:18px;min-width:0}
+         overflow-y:auto;overflow-x:hidden;padding:18px;min-width:0;
+         overflow-wrap:break-word;word-break:break-word}
   .panel.empty{display:flex;align-items:center;justify-content:center;color:var(--muted);
                font-size:13px;text-align:center;padding:40px}
   .panel h2{font-size:16px;font-weight:600;margin-bottom:4px}
@@ -1664,36 +1665,53 @@ window.cy = cy;
     const maxPanel = Math.max(MIN_PANEL, window.innerWidth - MAX_MARGIN);
     return Math.min(Math.max(px, MIN_PANEL), maxPanel);
   }
-  function setWidth(px){
-    document.body.style.gridTemplateColumns = '1fr 6px ' + clamp(px) + 'px';
-  }
-  const saved = parseInt(localStorage.getItem(STORAGE_KEY), 10);
-  if (!isNaN(saved)) setWidth(saved);
-
+  // targetWidth is the single source of truth for the panel's intended size.
+  // The resize handler re-clamps THIS, never the rendered DOM box — measuring
+  // getBoundingClientRect() and feeding it back into setWidth on every resize
+  // event creates a feedback loop (toggling DevTools repeatedly ratchets the
+  // panel down to nothing via compounding rounding/timing drift).
+  let targetWidth = 380;
   let dragging = false;
-  resizer.addEventListener('mousedown', e => {
+  function setWidth(px){
+    targetWidth = clamp(px);
+    // Graph column is minmax(0, 1fr) so it can shrink below its content's
+    // intrinsic width (the Cytoscape canvas) without overflowing/clipping;
+    // the panel is a bare fixed length so it's honored exactly. Putting the
+    // minmax on the panel instead lets the greedy 1fr graph swallow the space
+    // and the panel never actually grows.
+    document.body.style.gridTemplateColumns = 'minmax(0, 1fr) 6px ' + targetWidth + 'px';
+  }
+  // Tracking-prevention browsers (Edge/Chrome on file:// pages) can block
+  // localStorage entirely and throw — if that happens on this first call, it
+  // would abort the whole IIFE below it, silently killing every drag listener.
+  let saved = NaN;
+  try { saved = parseInt(localStorage.getItem(STORAGE_KEY), 10); } catch(e) {}
+  setWidth(!isNaN(saved) ? saved : targetWidth);
+
+  resizer.addEventListener('pointerdown', e => {
     dragging = true;
     resizer.classList.add('active');
     document.body.classList.add('resizing');
     e.preventDefault();
   });
-  window.addEventListener('mousemove', e => {
+  window.addEventListener('pointermove', e => {
     if (!dragging) return;
     setWidth(window.innerWidth - e.clientX);
   });
-  window.addEventListener('mouseup', () => {
+  function endDrag(){
     if (!dragging) return;
     dragging = false;
     resizer.classList.remove('active');
     document.body.classList.remove('resizing');
-    const panelWidth = document.querySelector('.panel').getBoundingClientRect().width;
-    localStorage.setItem(STORAGE_KEY, Math.round(panelWidth));
+    try { localStorage.setItem(STORAGE_KEY, Math.round(targetWidth)); } catch(e) {}
     if (window.cy) window.cy.resize();
-  });
-  // Re-clamp on window resize so the panel never gets pushed off-screen.
+  }
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+  // Re-clamp the intended width on window resize so the panel never gets
+  // pushed off-screen — but never re-derive it from the rendered box.
   window.addEventListener('resize', () => {
-    const current = document.querySelector('.panel').getBoundingClientRect().width;
-    setWidth(current);
+    setWidth(targetWidth);
     if (window.cy) window.cy.resize();
   });
 })();

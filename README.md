@@ -69,12 +69,12 @@ Across all workspaces:
 
 If you just want to see the latest inventory and have never touched Python or git, use the launcher for your platform — no terminal required.
 
-- **Windows:** double-click **`refresh-and-open.bat`**
+- **Windows:** double-click **`start.bat`**
 - **macOS / Linux:** double-click **`refresh-and-open.command`** (first time on macOS, right-click → **Open** to clear the security prompt)
 
 The launcher:
 
-1. Pulls the latest data and code (`git pull`) if git is available — and continues with the local copy if not.
+1. Checks out `main` and pulls the latest data and code (`git checkout main` + `git pull`) if git is available — and continues with the local copy if not.
 2. Rebuilds the Excel and HTML artifacts.
 3. Asks which view to open — a workspace by number, or the combined cross-workspace view (the default) — and opens it in your browser.
 
@@ -106,7 +106,7 @@ If something is missing it prints plain-English instructions instead of failing 
 │   ├── explorer_template.html   (per-workspace HTML template)
 │   ├── global_template.html     (global HTML template)
 │   └── regenerate.py            (rebuild orchestrator)
-├── refresh-and-open.bat         (Windows read-only launcher)
+├── start.bat                    (Windows read-only launcher)
 ├── refresh-and-open.command     (macOS/Linux read-only launcher)
 ├── requirements.txt
 └── README.md

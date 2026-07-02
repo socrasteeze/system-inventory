@@ -73,20 +73,32 @@ echo [OK] Dependencies present.
 echo.
 
 REM --- Guard rail: data\ is the one folder nothing auto-creates (output\ and
-REM     docs\ are created by the build scripts themselves as needed). Also seed
-REM     each known workspace's forms\/workflows\/manual\ subfolders so JSON
-REM     exports can be dropped straight in without hand-creating folders first. ---
+REM     docs\ are created by the build scripts themselves as needed). We only
+REM     create the bare data\ folder here — NOT per-workspace subfolders —
+REM     because an empty forms\/workflows\ folder is enough for the rebuild
+REM     to think a workspace exists there and choke on it having no content. ---
 if not exist "data\" (
     echo [SETUP] Creating missing data\ folder.
     mkdir "data"
 )
-for %%W in (liwp nve-qar sce-be sdge-whp socal-whp) do (
-    if not exist "data\%%W\" (
-        echo [SETUP] Creating missing data\%%W\ folder ^(forms\, workflows\, manual\^).
-        mkdir "data\%%W\forms"
-        mkdir "data\%%W\workflows"
-        mkdir "data\%%W\manual"
-    )
+if not exist "data\README.txt" (
+    (
+        echo Drop workspace data here to build the inventory / explorer.
+        echo.
+        echo Whole-workspace export ^(preferred^):
+        echo   data\^<slug^>\^<any-name^>.json      e.g. data\liwp\low-income_weatherization_program.json
+        echo.
+        echo Individual form/workflow export ^(surgical override or no export available^):
+        echo   data\^<slug^>\forms\^<form^>.json
+        echo   data\^<slug^>\workflows\^<workflow^>.json
+        echo   data\^<slug^>\manual\workspace.json   ^(sets displayName; only needed for this route^)
+        echo.
+        echo Known slugs already published from this repo: liwp, nve-qar, sce-be, sdge-whp, socal-whp
+        echo Slugs use hyphens, not underscores.
+        echo.
+        echo Full details: see "Adding a new workspace" in CLAUDE.md.
+    ) > "data\README.txt"
+    echo [SETUP] Wrote data\README.txt with drop-in instructions.
 )
 echo.
 
@@ -97,8 +109,7 @@ echo.
 if errorlevel 1 (
     echo.
     echo [ERROR] The rebuild failed or found nothing to build. The most likely causes:
-    echo     - data\ has no workspace folders yet ^(add data\^<slug^>\ with an export JSON,
-    echo       or data\^<slug^>\forms\ and \workflows\^).
+    echo     - data\ has no workspace JSON yet ^(see data\README.txt for exactly where to drop it^).
     echo     - A file in the data\ folder is not valid JSON.
     echo     - A required package is missing  ^(run: %PY% -m pip install -r requirements.txt^).
     echo     - Your Python is too old; version 3.9 or newer is required.

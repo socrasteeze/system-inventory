@@ -73,10 +73,20 @@ echo [OK] Dependencies present.
 echo.
 
 REM --- Guard rail: data\ is the one folder nothing auto-creates (output\ and
-REM     docs\ are created by the build scripts themselves as needed). ---
+REM     docs\ are created by the build scripts themselves as needed). Also seed
+REM     each known workspace's forms\/workflows\/manual\ subfolders so JSON
+REM     exports can be dropped straight in without hand-creating folders first. ---
 if not exist "data\" (
     echo [SETUP] Creating missing data\ folder.
     mkdir "data"
+)
+for %%W in (liwp nve-qar sce-be sdge-whp socal-whp) do (
+    if not exist "data\%%W\" (
+        echo [SETUP] Creating missing data\%%W\ folder ^(forms\, workflows\, manual\^).
+        mkdir "data\%%W\forms"
+        mkdir "data\%%W\workflows"
+        mkdir "data\%%W\manual"
+    )
 )
 echo.
 

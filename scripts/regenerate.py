@@ -12,7 +12,7 @@ Every run refreshes docs/ from whatever explorers exist under output/, so a push
 publishes the current views. Excel artifacts stay in output/ and are never copied
 to docs/.
 """
-import sys, argparse, json
+import sys, argparse, json, re
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -30,10 +30,17 @@ GLOBAL_EXPLORER = "global-explorer.html"     # global source filename in output/
 BRIEF_TEMPLATE = (Path(__file__).resolve().parent / "brief_template.html").read_text(encoding="utf-8")
 
 
+_WINDOWS_ILLEGAL_CHARS = re.compile(r'[<>:"/\\|?*]')
+
+
 def _brief_filename(form_name):
-    """URL-encode a form name to a brief filename, matching the explorer's
-    JS encodeURIComponent so the 'Open full brief' link resolves to this file."""
-    return quote(form_name, safe="!*'()") + ".html"
+    """Form name -> filesystem-safe brief filename. Kept as the literal name
+    (spaces, parens, etc. all pass through unescaped) so it matches what a
+    browser resolves a plain href to — only characters illegal in a Windows
+    filename are stripped. Do NOT percent-encode here: encoding the filename
+    on disk while linking to it with encodeURIComponent double-encodes, since
+    the browser decodes the href before doing the filesystem lookup."""
+    return _WINDOWS_ILLEGAL_CHARS.sub("", form_name) + ".html"
 
 
 def rebuild_workspace(slug):

@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parser import discover_all, OUTPUT_DIR
 from build_inventory import sheet, TFONT, NFONT, SFONT, BFONT, WRAP
 import build_registry
+import narrate
 
 GLOBAL_DIR = OUTPUT_DIR / "global"
 TEMPLATE = (Path(__file__).resolve().parent / "global_template.html").read_text(encoding="utf-8")
@@ -62,6 +63,7 @@ def aggregate():
                 "workflowType": w.get("workflowType", ""),
                 "triggerForm": w["trigger"]["form"] if w["trigger"] else "",
                 "triggerAction": w["trigger"]["databaseAction"] if w["trigger"] else "",
+                "triggerPlain": narrate.workflow_story(w, data["fields"])["when"],
                 "targets": targets,
                 "writes": sum(1 for u in w["fieldUsage"] if u["direction"] == "Write"),
                 "enabled": w.get("enabled", True),
@@ -142,12 +144,14 @@ def _build_excel(agg, reg):
     sheet(wb.create_sheet("AllWorkflows"), "AllWorkflows · every workflow, every workspace",
           [("Workspace",18,"FK -> Workspaces"), ("Callsign",14,"Short alias"),
            ("WorkflowName",26,"Display name"),
+           ("TriggerPlain",50,"When it runs, in plain English (generated)"),
            ("WorkflowType",14,"Legacy (embedded WorkflowConfigs) or WFEngine (Triggers/Steps)"),
            ("Status",12,"Active/Disabled"),
            ("TriggerForm",28,"Form that fires it"),
            ("TriggerAction",14,"Create/Update/Delete"), ("TargetForms",40,"Forms it writes"),
            ("Writes",10,"Field writes")],
           [{"Workspace":w["slug"], "Callsign":w["callsign"], "WorkflowName":w["workflow"],
+            "TriggerPlain":w.get("triggerPlain",""),
             "WorkflowType":w.get("workflowType",""),
             "Status":"Active" if w.get("enabled", True) else "Disabled",
             "TriggerForm":w["triggerForm"], "TriggerAction":w["triggerAction"],
@@ -237,12 +241,21 @@ def _build_html(agg, reg):
             continue
         dup_forms.append({"name": name, "ids": [i["id"] for i in sorted(instances, key=lambda x: x["slug"])]})
 
+    # Cross-workspace workflow reuse — sidebar metadata only ("sameness is
+    # metadata, not topology": no graph edges). Patterns with 2+ instances,
+    # from the registry's pattern-keyed view (finer than dupFlows signatures).
+    wf_reuse = [{"pattern": r["PatternKey"], "triggerForm": r["TriggerForm"],
+                 "count": r["InstanceCount"], "workspaces": r["Workspaces"],
+                 "drift": r["DriftFlag"], "literalTwin": r["LiteralTwin"]}
+                for r in reg["workflowReuse"] if r["InstanceCount"] >= 2]
+
     viz = {
         "workspaces": [{"slug": w["slug"], "name": w["name"]} for w in agg["workspaces"]],
         "forms": node_forms,
         "dupForms": dup_forms,
         "dupFlows": [{"signature": d["signature"], "members": d["members"]}
                      for d in agg["duplicateFlows"]],
+        "wfReuse": wf_reuse,
         "stats": {
             "workspaces": len(agg["workspaces"]),
             "forms": len(all_forms),

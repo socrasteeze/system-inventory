@@ -17,6 +17,23 @@ DATA_DIR   = ROOT / "data"
 OUTPUT_DIR = ROOT / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+# One rebuild run discovers each workspace several times (per-workspace build,
+# global build, field index, briefs — each constructs fresh Workspace instances),
+# so diagnostics dedupe at module level: each distinct line prints once per
+# process. WARNINGS collects the warning subset for the end-of-run summary.
+_PRINTED_ONCE = set()
+WARNINGS = []
+
+def _print_once(msg):
+    if msg not in _PRINTED_ONCE:
+        _PRINTED_ONCE.add(msg)
+        print(msg)
+
+def _file_version(stem):
+    """The _vNN_ token platform export filenames carry; -1 when absent."""
+    m = re.search(r"_v(\d+)", stem)
+    return int(m.group(1)) if m else -1
+
 # Components that are pure layout containers (not data fields)
 LAYOUT_TYPES = {"TwoWideLayout","ThreeWideLayout","FourWideLayout","StackedLayout",
                 "FormSection","FormGrid","FormPage","Header","FormComponent"}
@@ -231,17 +248,25 @@ def _expr_to_text(node, ref_by_id):
     # not in workspace exports ("Grouping") — match on the prefix.
     if not isinstance(node, dict): return ""
     t = node.get("type","") or ""
+    op_map = {1:"==", 2:"!=", 3:"<", 4:"<=", 5:">", 6:">="}
     if t.startswith("Grouping"):
         op = {1:" AND ", 2:" OR "}.get(node.get("Operation"), " ")
-        return op.join(_expr_to_text(e, ref_by_id) for e in node.get("Expressions",[]))
+        # A child can render empty (an expression type we don't handle);
+        # joining empties produces " AND  AND ..." garbage — filter them.
+        parts = [txt for txt in (_expr_to_text(e, ref_by_id)
+                                 for e in node.get("Expressions",[])) if txt.strip()]
+        return op.join(parts)
     if t.startswith("FormFieldComparisonExpression"):
         fld = ref_by_id.get(node.get("FormFieldId",""), {})
         fld_name = fld.get("FieldName", "?")
         val = node.get("ResponseFieldValue") or {}
         val_text = val.get("Value","?") if str(val.get("type","")).startswith("ConstantTerm") else val.get("ContextName","?")
-        op_map = {1:"==", 2:"!=", 3:"<", 4:"<=", 5:">", 6:">="}
         op = op_map.get(node.get("Operation"), "?")
         return f"{fld_name} {op} '{val_text}'"
+    # "Comparison" nodes (record-metadata guards like LastModifierId vs a user
+    # GUID) are deliberately NOT rendered: their operation enum is unverified
+    # and a dozen GUID clauses drown the readable part of a condition. They
+    # fall through to "" and the Grouping join filters them out.
     return ""
 
 def _extract_condition_fields(expr_json, ref_by_id):
@@ -646,9 +671,10 @@ class Workspace:
         self.workflows_dir = self.dir / "workflows"
         self.manual_dir = self.dir / "manual"
         self._overrides = None
-        self._ws_exports = None   # cached parsed workspace exports
-        self._discovered = None   # cached discover() result (files don't change mid-run)
-        self._warned = set()      # shadow warnings already printed (once per instance)
+        self._ws_exports = None         # cached parsed workspace exports
+        self._discovered = None         # cached discover() result (files don't change mid-run)
+        self._root_form_files = []      # individual form exports found at the slug root
+        self._root_workflow_files = []  # individual workflow exports found at the slug root
 
     def _read_json(self, path, default):
         if path.exists():
@@ -659,25 +685,44 @@ class Workspace:
         return default
 
     def _warn(self, msg):
-        if msg not in self._warned:
-            self._warned.add(msg)
-            print(msg)
+        if msg not in _PRINTED_ONCE:
+            WARNINGS.append(msg)
+        _print_once(msg)
+
+    def _info(self, msg):
+        _print_once(msg)
 
     def workspace_exports(self):
         """Parsed whole-workspace exports from data/<slug>/*.json, cached.
-        Returns [(filename, parsed)] in filename order; non-workspace JSONs at
-        the root are warned about and skipped."""
+        Returns [(filename, parsed)] in filename order.
+
+        Root JSONs are routed by detected content, not by folder: workspace
+        exports become the baseline; individual form/workflow exports found at
+        the root are collected for discover() to ingest as overrides, exactly
+        as if they lived in forms/ or workflows/. Dropping a file anywhere
+        under data/<slug>/ therefore just works."""
         if self._ws_exports is None:
             self._ws_exports = []
+            self._root_form_files = []
+            self._root_workflow_files = []
             for path in sorted(self.dir.glob("*.json")):
                 d = self._read_json(path, None)
                 fmt = detect_format(d)
-                if fmt != "workspace":
-                    self._warn(f"  ! {self.slug}/{path.name}: not a workspace export "
-                               f"(detected: {fmt}) -- skipped. Individual form/workflow "
-                               f"exports belong in forms/ and workflows/.")
-                    continue
-                self._ws_exports.append((path.name, parse_workspace_export(d)))
+                if fmt == "workspace":
+                    self._ws_exports.append((path.name, parse_workspace_export(d)))
+                elif fmt == "form":
+                    self._root_form_files.append(path)
+                elif fmt == "workflow":
+                    self._root_workflow_files.append(path)
+                else:
+                    self._warn(f"  ! {self.slug}/{path.name}: not a recognized "
+                               f"export JSON -- skipped")
+            n_f, n_w = len(self._root_form_files), len(self._root_workflow_files)
+            if n_f or n_w:
+                bits = [b for b in (f"{n_f} form export(s)" if n_f else "",
+                                    f"{n_w} workflow export(s)" if n_w else "") if b]
+                self._info(f"  [{self.slug}] {' and '.join(bits)} at the workspace "
+                           f"root -- ingesting as individual overrides")
         return self._ws_exports
 
     @property
@@ -712,6 +757,55 @@ class Workspace:
         aliases = overrides.get("name_aliases", {}) if isinstance(overrides, dict) else {}
         return aliases.get(name, name)
 
+    def _resolve_form_name(self, json_path, fields, baseline_fields):
+        """Display name for an individual form export.
+
+        The export carries no form name or GUID of its own, and the platform's
+        filename conventions drift (the old regex heuristic mis-names every
+        current export), so resolution is content-first:
+
+        1. manual/form_aliases.json filename-stem entry — the explicit escape hatch;
+        2. field-overlap match against the workspace baseline — the baseline form
+           sharing the most field names wins when it covers >=80% of the export's
+           fields with a clear margin; near-ties fall back to filename-token
+           similarity (handles tiny lookup forms like Climate Zones);
+        3. the legacy filename heuristic — only when there is no baseline to
+           match against (pure individual-file workspaces).
+        """
+        stem = re.sub(r'(__\d+_?)+$', '', json_path.stem)
+        overrides = self._load_overrides()
+        if stem in overrides:
+            return overrides[stem]
+
+        design = {f["name"] for f in fields if f.get("name")}
+        if baseline_fields and design:
+            scored = sorted(((len(fns & design), name)
+                             for name, fns in baseline_fields.items()), reverse=True)
+            best_score, best_name = scored[0]
+            second_score = scored[1][0] if len(scored) > 1 else 0
+            coverage = best_score / len(design)
+            if best_score and coverage >= 0.8:
+                if best_score >= 1.5 * max(1, second_score):
+                    self._info(f"  [{self.slug}] {json_path.name} -> '{best_name}' "
+                               f"(matched {best_score}/{len(design)} fields)")
+                    return best_name
+                # Near-tie: break it on filename tokens vs candidate form names.
+                stem_tokens = set(re.split(r"[\s_\-().&/]+",
+                                           re.sub(r"_v\d+(_design)?$", "", stem).lower())) - {""}
+                close = [name for score, name in scored
+                         if score >= max(1, int(0.8 * best_score))]
+                tok = lambda name: len(stem_tokens &
+                                       (set(re.split(r"[\s_\-().&/]+", name.lower())) - {""}))
+                ranked = sorted(close, key=tok, reverse=True)
+                if len(ranked) == 1 or tok(ranked[0]) > tok(ranked[1]):
+                    self._info(f"  [{self.slug}] {json_path.name} -> '{ranked[0]}' "
+                               f"(matched {best_score}/{len(design)} fields + filename)")
+                    return ranked[0]
+            self._warn(f"  ! {self.slug}/{json_path.name}: no confident baseline match "
+                       f"(best: '{best_name}' {best_score}/{len(design)} fields) -- using the "
+                       f"filename heuristic; add a form_aliases.json entry if it guesses wrong")
+        return self.guess_form_name(json_path.stem)
+
     def guess_form_name(self, stem):
         """Map a filename stem to a clean display name. Manual overrides take precedence."""
         import re
@@ -735,14 +829,17 @@ class Workspace:
             return f"{parts[0].strip()} - {parts[1].title()}"
         return s.title()
 
-    def parse_form(self, json_path):
-        """Parse a single form design JSON. Returns {name, fields, relationships, refPulls}."""
+    def parse_form(self, json_path, baseline_fields=None):
+        """Parse a single form design JSON. Returns {name, fields, relationships, refPulls}.
+
+        baseline_fields ({form name: set of field names}) enables content-based
+        name resolution against the workspace baseline; without it the name
+        falls back to alias/heuristic resolution from the filename."""
         d = json.loads(Path(json_path).read_text(encoding="utf-8"))
         fields = []
         _walk(d["Components"][0], fields)
 
-        # form name guessed from filename — override via manual/form_aliases.json if needed
-        form_name = self.guess_form_name(json_path.stem)
+        form_name = self._resolve_form_name(json_path, fields, baseline_fields or {})
 
         relationships = []
         ref_pulls = []
@@ -923,24 +1020,70 @@ class Workspace:
                     wf_index[wf_key(wf)] = len(workflows)
                     workflows.append(wf)
 
-        # 2. Individual form exports override the baseline form-by-form.
+        # 2. Individual form exports override the baseline form-by-form. Files in
+        #    forms/ and form-format JSONs at the slug root (routed by content in
+        #    workspace_exports()) go through the same pipeline — location never
+        #    matters. Names resolve by field overlap against the baseline.
+        baseline_fields = {n: {f["name"] for f in pf["fields"] if f.get("name")}
+                           for n, pf in merged.items()}
+        override_files = []
         if self.forms_dir.exists():
-            for json_file in sorted(self.forms_dir.glob("*.json")):
-                parsed = self.parse_form(json_file)
-                name = parsed["name"]
-                if name in merged:
-                    self._warn(f"  ! {name}: individual export ({json_file.name}) "
-                               f"overrides workspace baseline ({merged[name]['sourceFile']})")
-                    base = merged[name]
-                    # Structure comes from the individual file; workspace-only
-                    # extras (description, saved filters, dup rules) are kept.
-                    base.update({"fields": parsed["fields"],
-                                 "relationships": parsed["relationships"],
-                                 "refPulls": parsed["refPulls"],
-                                 "sourceFile": json_file.name})
-                else:
-                    merged[name] = dict(parsed, sourceFile=json_file.name)
-                    order.append(name)
+            override_files += [(p, True) for p in sorted(self.forms_dir.glob("*.json"))]
+        override_files += [(p, False) for p in self._root_form_files]
+
+        candidates = []   # (resolved name, version, in forms/, path, parsed)
+        for json_file, in_forms in override_files:
+            try:
+                parsed = self.parse_form(json_file, baseline_fields=baseline_fields)
+            except Exception as exc:
+                self._warn(f"  ! {self.slug}/{json_file.name}: unreadable form export "
+                           f"({exc}) -- skipped")
+                continue
+            candidates.append((parsed["name"], _file_version(json_file.stem),
+                               in_forms, json_file, parsed))
+
+        # Same form exported more than once (e.g. _v78 and _v79 side by side):
+        # highest version wins; ties prefer forms/ placement (deliberate), then
+        # filename order. Losers are warned about, never silently merged.
+        by_name = {}
+        for cand in candidates:
+            by_name.setdefault(cand[0], []).append(cand)
+        winners = []
+        for name, group in by_name.items():
+            group.sort(key=lambda c: (c[1], c[2], c[3].name))
+            winner = group[-1]
+            for loser in group[:-1]:
+                self._warn(f"  ! {name}: multiple exports found; using "
+                           f"{winner[3].name}, ignoring {loser[3].name}")
+            winners.append(winner)
+
+        for name, _ver, _in_forms, json_file, parsed in sorted(winners, key=lambda c: c[3].name):
+            if name in merged:
+                self._warn(f"  ! {name}: individual export ({json_file.name}) "
+                           f"overrides workspace baseline ({merged[name]['sourceFile']})")
+                base = merged[name]
+                # Structure comes from the individual file; workspace-only
+                # extras (description, saved filters, dup rules) are kept.
+                base.update({"fields": parsed["fields"],
+                             "relationships": parsed["relationships"],
+                             "refPulls": parsed["refPulls"],
+                             "sourceFile": json_file.name})
+            else:
+                merged[name] = dict(parsed, sourceFile=json_file.name)
+                order.append(name)
+
+        # Alias hygiene: a filename-stem alias whose file no longer exists is a
+        # stale leftover from a previous export batch — flag it for cleanup.
+        overrides_map = self._load_overrides()
+        alias_stems = {k for k in overrides_map if k != "name_aliases"} \
+            if isinstance(overrides_map, dict) else set()
+        if alias_stems:
+            present = {re.sub(r'(__\d+_?)+$', '', p.stem) for p, _ in override_files}
+            stale = sorted(alias_stems - present)
+            if stale:
+                self._warn(f"  ! [{self.slug}] form_aliases.json: {len(stale)} filename "
+                           f"alias(es) match no file on disk (e.g. {stale[0]}) -- "
+                           f"remove them or re-add the files")
 
         forms = []
         fields_by_form = {}
@@ -1012,8 +1155,8 @@ class Workspace:
                 f["role"] = "Spoke"
                 reclassified += 1
         if reclassified:
-            print(f"  [{self.slug}] {reclassified} form(s) reclassified Lookup->Spoke "
-                  f"(not a reference target or pull target)")
+            self._info(f"  [{self.slug}] {reclassified} form(s) reclassified Lookup->Spoke "
+                       f"(not a reference target or pull target)")
 
         # Manual role pins — data/<slug>/manual/form_roles.json is the final word.
         # Keyed by form display name → role string. Applied after all heuristics so
@@ -1026,10 +1169,10 @@ class Workspace:
             for form_name, pinned_role in form_role_pins.items():
                 f = forms_by_name.get(form_name)
                 if f is None:
-                    print(f"  [{self.slug}] form_roles.json: '{form_name}' not found, skipping")
+                    self._warn(f"  ! [{self.slug}] form_roles.json: '{form_name}' not found, skipping")
                     continue
                 if f["role"] != pinned_role:
-                    print(f"  [{self.slug}] pinned '{form_name}' role {f['role']} -> {pinned_role}")
+                    self._info(f"  [{self.slug}] pinned '{form_name}' role {f['role']} -> {pinned_role}")
                     f["role"] = pinned_role
 
         # 3. Workflows: embedded baseline already loaded; individual exports
@@ -1040,18 +1183,21 @@ class Workspace:
             manual = workflow_manual.get(wf["name"], {})
             if manual.get("callsign"):
                 wf["callsign"] = manual["callsign"]
+        wf_files = []
         if self.workflows_dir.exists():
-            for json_file in sorted(self.workflows_dir.glob("*.json")):
-                manual = workflow_manual.get(json_file.stem, {})
-                wf = self.parse_workflow(json_file, manual)
-                wf["sourceFile"] = json_file.name
-                if wf_key(wf) in wf_index:
-                    self._warn(f"  ! workflow '{wf['name']}': individual export ({json_file.name}) "
-                               f"overrides embedded workspace-export version")
-                    workflows[wf_index[wf_key(wf)]] = wf
-                else:
-                    wf_index[wf_key(wf)] = len(workflows)
-                    workflows.append(wf)
+            wf_files += sorted(self.workflows_dir.glob("*.json"))
+        wf_files += self._root_workflow_files   # routed by content, same pipeline
+        for json_file in wf_files:
+            manual = workflow_manual.get(json_file.stem, {})
+            wf = self.parse_workflow(json_file, manual)
+            wf["sourceFile"] = json_file.name
+            if wf_key(wf) in wf_index:
+                self._warn(f"  ! workflow '{wf['name']}': individual export ({json_file.name}) "
+                           f"overrides embedded workspace-export version")
+                workflows[wf_index[wf_key(wf)]] = wf
+            else:
+                wf_index[wf_key(wf)] = len(workflows)
+                workflows.append(wf)
 
         # Callsigns are node IDs and Excel PKs — de-dupe within the workspace
         # (two embedded workflows can share a name, e.g. "Pending Reviews").

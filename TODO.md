@@ -2,28 +2,63 @@
 
 ## Active
 
-(none — backlog cleared 2026-06-16; the four items previously listed here were all
-already shipped. Candidates for the next round below.)
+(none — plans/01–03 executed 2026-07-02, see Done below and the status headers in
+each `plans/*.md` file.)
 
 ## Candidates
 
-- Workflow deep-linking (`#wf=<callsign>`). Forms get `#form=` deep links from the global
-  view via `selectFromHash()`; workflows have no equivalent. Add a `wf` hash param so a
-  workflow can be linked/centered the same way a form is. Note: value is reduced now that
-  the global graph is forms-only — nothing links *out* to a workflow node anymore, so the
-  remaining use is bookmarking/sharing a workflow URL by hand, not cross-view navigation.
-- Action-index precision on workflow edges. `scrollToWfAction()` matches on target form, so
-  a workflow with two actions to the same target form always scrolls to the first. Carry an
-  action index on `wf-edge` data to scroll to the exact action card.
-- Global sidebar: cross-workspace workflow-reuse panel. List workflows duplicated across
-  workspaces from the registry's `workflowReuse` (`InstanceCount` / `Workspaces` /
-  `DriftFlag` / `LiteralTwin`), not the coarse `dupFlows` signature. Data is already
-  computed by `build_registry.compute_registries()`; it just isn't wired in — `_build_html()`
-  in `build_global.py` never passes `reg` into the global `viz` dict. Pure sidebar metadata
-  (no graph edges, so it honors "sameness is metadata, not topology"); fills the gap left
-  when the global graph went forms-only.
+- Verify the Legacy condition operator enum. Workspace-export trigger conditions render
+  some text-field comparisons as `>=` (e.g. "Review Status is at least 'Corrections
+  Required'") where equality is almost certainly meant, and operation 12 renders as `?`
+  ("compares to" in plain English). The op map in `parser._expr_to_text` was built for
+  WFEngine exports; the Legacy enum may differ. Needs platform documentation or a
+  controlled experiment — do not guess-change the mapping.
+- Render record-metadata `Comparison` guards (LastModifierId vs user GUIDs) compactly
+  instead of dropping them — e.g. one "(plus N system-user rules)" suffix. They're
+  currently filtered out of condition text deliberately (14 GUID clauses drown the
+  readable part, and their operator enum is unverified).
+- `regenerate.py` discovers every workspace up to 4× per full rebuild (per-workspace
+  builds + global + field index + briefs construct fresh `Workspace` instances). Share
+  one `discover_all()` result across the run to cut rebuild time roughly in half.
 
 ## Done
+
+Plans 01–03 executed (2026-07-02) — one working session, all verified end-to-end:
+
+**Drop-anywhere ingestion (plans/01).** Root-level JSONs are routed by detected content
+(workspace export → baseline; form/workflow export → override), so file placement no
+longer matters. Individual form exports match their baseline form by **field overlap**
+(all 33 pending 2026-06 design files resolved correctly; Climate Zones via the
+filename-token tiebreak) with `form_aliases.json` as the escape hatch; the filename
+regex heuristic survives only for no-baseline workspaces. Same-form version dedup
+(v79 beat v78, warned). Stale socal-whp filename aliases removed; unused-alias warning
+added. Three stale-name phantom stubs (`Account Management (200)`, `499 - SDGE Fee
+Schedule`, `QAR Measures`) fixed with `name_aliases` entries (local-only — data/ is
+gitignored). start.bat README.txt/error text rewritten.
+
+**Plain-English briefs (plans/02).** narrate.py rewritten for the program staffer:
+platform Description leads each brief, workflow story cards ("Runs when a 310 -
+Enrollment Intake record is updated, and only if Enrollment Status is 'Pending
+Review'. → Sends an email to operations@maromaes.com — subject …"), labels over API
+names, workflow names over callsigns, count_phrase (no "(s)"), plain conditions
+(`condition_to_plain`), humanized schedules ("weekly on Monday"), de-braced template
+tokens ("{the record's ESA Key}"). Fixed `_expr_to_text` empty-operand joins (the
+" AND  AND …" garbage); unrenderable `Comparison` guards are filtered, not shown as
+noise. Fixed narrative key-order nondeterminism (sorted set union). Brief page
+restructured (What this form is for / What happens automatically / Filling it out /
+What changes what + Filled-in-automatically). Explorer JS phrase mirror synced;
+narrative wfCondition/writtenBy now carry `{callsign, name}`.
+
+**General improvements (plans/03).** Rebuild summary block (totals + all warnings,
+collected once per process in `parser.WARNINGS`); `--check` discovery-only mode;
+workflow story panel ("What this does") atop the explorer's workflow detail via
+`DATA.wfStories`; per-workspace `forms/index.html` brief indexes + "All form briefs"
+landing chips; `TriggerPlain` column in Workflows/AllWorkflows sheets; Excel
+WorkflowType fills unified to the graph palette (light red/olive); global sidebar
+workflow-reuse panel (pattern/DriftFlag/LiteralTwin from the registry); action-index
+precision on wf-edges (`actionIndex` → `data-action-idx`); `#wf=<callsign>` deep link;
+brief print page-break rules; start.bat remembers the last-opened view
+(`output/last-view.txt`, gitignored).
 
 Graph search box — both explorers. Per-workspace: `runSearch()` (#search input) matches
 forms, fields, and workflows by name, prints a match count, tiers results by hop distance

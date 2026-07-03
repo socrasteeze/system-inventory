@@ -132,6 +132,13 @@
   .summary-prose{font-size:12px;line-height:1.55;color:var(--text)}
   .summary-prose .lead{font-weight:600}
   .summary-prose .muted{color:var(--muted)}
+  /* Workflow story panel — "when it runs / what it does" prose card. */
+  .wf-story-panel{font-size:12px;line-height:1.55;background:var(--bg);
+              border:1px solid var(--border);border-radius:6px;padding:10px 12px}
+  .wf-story-panel .story-when{margin-bottom:6px}
+  .wf-story-panel .story-then{padding-left:14px;position:relative;color:var(--text)}
+  .wf-story-panel .story-then::before{content:'\2192';position:absolute;left:0;color:var(--accent)}
+  .wf-story-panel .story-off{margin-top:6px;color:#fbbf24;font-style:italic}
   .brief-link{display:inline-block;margin-top:8px;font-size:11px;color:var(--accent);
               text-decoration:none}
   .brief-link:hover{text-decoration:underline}
@@ -366,10 +373,11 @@ DATA.workflows.forEach(w => {
     elements.push({data:{source:w.trigger.form, target:'WF:'+w.callsign,
       label:'trigger', kind:'wf-edge', workflowType:w.workflowType}});
   }
-  w.actions.forEach(a => {
+  w.actions.forEach((a, i) => {
     if (a.targetForm) {
       elements.push({data:{source:'WF:'+w.callsign, target:a.targetForm,
-        label:a.type.replace('BuiltIn.',''), kind:'wf-edge', workflowType:w.workflowType}});
+        label:a.type.replace('BuiltIn.',''), kind:'wf-edge', workflowType:w.workflowType,
+        actionIndex:i}});
     }
   });
 });
@@ -518,12 +526,14 @@ const cy = cytoscape({
 
 cy.ready(() => { cy.fit(undefined, 60); selectFromHash(); });
 
-// Deep link from the global explorer: #form=<name> opens with that form selected.
+// Deep links: #form=<name> (from the global explorer) opens with that form
+// selected; #wf=<callsign> opens with that workflow selected (bookmark/share).
 function selectFromHash(){
-  const formName = new URLSearchParams(location.hash.slice(1)).get('form');
-  if (!formName) return;
-  const node = cy.$id(formName);
-  if (node.empty()) return;
+  const params = new URLSearchParams(location.hash.slice(1));
+  const formName = params.get('form');
+  const wf = params.get('wf');
+  const node = formName ? cy.$id(formName) : (wf ? cy.$id('WF:' + wf) : null);
+  if (!node || node.empty()) return;
   node.emit('tap');
   cy.animate({center:{eles: node}}, {duration:400});
 }
@@ -608,7 +618,7 @@ function renderForm(formName){
     <span class="role ${f.role}">${f.role}</span>${f.featured ? '<span class="badge featured">Featured</span>' : ''}
     <div class="meta">
       ${f.subformOf ? `Embedded grid of <b>${escapeHtml(f.subformOf)}</b><br>` : ''}
-      ${f.description ? `${escapeHtml(f.description)}<br>` : ''}
+      ${(!nar && f.description) ? `${escapeHtml(f.description)}<br>` : ''}
       <b>${f.fieldCount}</b> fields ·
       <b>${incomingRels.length}</b> incoming links ·
       <b>${outgoingRels.length}</b> outgoing links<br>
@@ -753,16 +763,24 @@ function restoreRoving(refocus){
   if (refocus) target.focus();
 }
 
-function scrollToWfAction(targetForm){
+function scrollToWfAction(targetForm, actionIdx){
   const cards = document.querySelectorAll('.wf-card[data-action-form]');
-  for (const card of cards){
-    if (card.dataset.actionForm === targetForm){
-      card.scrollIntoView({block:'nearest'});
-      const prev = card.style.borderColor;
-      card.style.borderColor = 'var(--accent)';
-      setTimeout(() => { card.style.borderColor = prev; }, 1500);
-      break;
+  // Prefer the exact action (edges carry actionIndex); fall back to the first
+  // card whose target form matches (old behavior, e.g. when idx is absent).
+  let match = null;
+  if (actionIdx !== undefined && actionIdx !== null && actionIdx !== ''){
+    match = document.querySelector(`.wf-card[data-action-idx="${actionIdx}"]`);
+  }
+  if (!match){
+    for (const card of cards){
+      if (card.dataset.actionForm === targetForm){ match = card; break; }
     }
+  }
+  if (match){
+    match.scrollIntoView({block:'nearest'});
+    const prev = match.style.borderColor;
+    match.style.borderColor = 'var(--accent)';
+    setTimeout(() => { match.style.borderColor = prev; }, 1500);
   }
 }
 
@@ -1117,11 +1135,20 @@ function relationshipTarget(formName, via){
 // Forward phrasing — mirror of narrate.py FORWARD_PHRASE/KIND_BADGE (kept in sync).
 const FORWARD_PHRASE = {
   visibility: t => `shows or hides ${t}`,
-  formula:    t => `recalculates ${t}`,
-  validation: t => `changes whether ${t} is required / valid`,
-  filter:     t => `re-filters the choices in ${t}`,
+  formula:    t => `automatically updates ${t}`,
+  validation: t => `changes whether ${t} must be filled in`,
+  filter:     t => `changes which choices appear in ${t}`,
 };
 const FORWARD_BADGE = {visibility:'VISIBLE', formula:'FX', validation:'REQ', filter:'FILTER'};
+
+// A field's human name: label when present, else the API name.
+function fieldLabelOf(formName, apiName){
+  const f = (DATA.fields[formName]||[]).find(x => x.name === apiName);
+  const lbl = f && (f.label||'').trim();
+  return (lbl && lbl !== apiName) ? lbl : apiName;
+}
+// narrative wfCondition/writtenBy entries are {callsign, name} objects; show the name.
+const wfRefName = r => (r && (r.name || r.callsign)) || String(r);
 
 function fieldDetailHTML(formName, fieldName){
   const field = (DATA.fields[formName]||[]).find(f => f.name === fieldName);
@@ -1179,18 +1206,18 @@ function fieldDetailHTML(formName, fieldName){
       <div class="usage" style="font-family:monospace;white-space:pre-wrap;line-height:1.4">${escapeHtml(field.formula)}</div>`:''}
 
     ${fwd && (fwd.fields.length || fwd.wfCondition.length) ? `<h3>Changing this field affects (${fwd.fields.length + fwd.wfCondition.length})</h3>
-      ${fwd.fields.slice(0,6).map(x => `<div class="usage Condition">
-        <span class="dir">${FORWARD_BADGE[x.kind]||'DEP'}</span>${escapeHtml(x.target)}
-        <div class="ctx">${escapeHtml((FORWARD_PHRASE[x.kind]||(t=>t))(x.target))}</div>
+      ${fwd.fields.slice(0,6).map(x => `<div class="usage Condition" title="${escapeAttr(x.target)}">
+        <span class="dir">${FORWARD_BADGE[x.kind]||'DEP'}</span>${escapeHtml(fieldLabelOf(formName, x.target))}
+        <div class="ctx">${escapeHtml((FORWARD_PHRASE[x.kind]||(t=>t))(fieldLabelOf(formName, x.target)))}</div>
       </div>`).join('')}
       ${fwd.fields.length>6 ? `<div class="empty-state" style="font-style:normal">+${fwd.fields.length-6} more fields</div>`:''}
-      ${fwd.wfCondition.map(cs => `<div class="usage Condition">
-        <span class="dir">FLOW</span>${escapeHtml(cs)}
-        <div class="ctx">changing this can change what this workflow does</div>
+      ${fwd.wfCondition.map(r => `<div class="usage Condition">
+        <span class="dir">FLOW</span>${escapeHtml(wfRefName(r))}
+        <div class="ctx">helps decide whether this automated step runs</div>
       </div>`).join('')}`
       :''}
 
-    ${fwd && fwd.writtenBy.length ? `<div class="ctx" style="margin-top:4px">Set automatically by workflow: ${fwd.writtenBy.map(escapeHtml).join(', ')}</div>`:''}
+    ${fwd && fwd.writtenBy.length ? `<div class="ctx" style="margin-top:4px">Filled in automatically by ${fwd.writtenBy.map(r => escapeHtml(wfRefName(r))).join(', ')} — normally not edited by hand</div>`:''}
 
     ${usages.length?
       `<h3>Workflow usage (${usages.length})</h3>
@@ -1223,12 +1250,21 @@ function renderWorkflow(callsign){
   currentFormName = null;
   const w = DATA.workflows.find(x => x.callsign === callsign);
   if (!w) return;
+  const st = (DATA.wfStories && DATA.wfStories[callsign]) || null;
   panel.className = 'panel';
   panel.innerHTML = `
     <button class="close-btn" onclick="renderEmpty()">×</button>
     <h2>${escapeHtml(w.name)}</h2>
     <span class="role Workflow">Workflow · ${escapeHtml(w.callsign)}</span>${
       w.enabled === false ? '<span class="badge off">Disabled</span>' : ''}
+
+    ${st ? `<div class="section"><h3>What this does</h3>
+      <div class="wf-story-panel">
+        <div class="story-when">${escapeHtml(st.when)}</div>
+        ${st.then.map(t => `<div class="story-then">${escapeHtml(t)}</div>`).join('')}
+        ${st.disabled ? '<div class="story-off">Currently switched off — it will not run.</div>' : ''}
+      </div>
+    </div>` : ''}
 
     <div class="section"><h3>Trigger</h3>
       <div class="usage Condition">
@@ -1238,7 +1274,7 @@ function renderWorkflow(callsign){
     </div>
 
     <div class="section"><h3>Actions</h3>
-      ${w.actions.map(a => `<div class="wf-card" data-action-form="${escapeAttr(a.targetForm)}">
+      ${w.actions.map((a, i) => `<div class="wf-card" data-action-form="${escapeAttr(a.targetForm)}" data-action-idx="${i}">
         <div class="nm">${escapeHtml(a.name)}</div>
         <div class="cs">${escapeHtml(a.type)}</div>
         <div class="desc">target: ${escapeHtml(a.targetForm)}<br>
@@ -1342,12 +1378,13 @@ cy.on('tap', 'edge', evt => {
     const callsign = wfId.slice(3);
     const isAction = src.startsWith('WF:');
     const actionTarget = isAction ? tgt : null;
+    const actionIdx = e.data('actionIndex');
     activeNodeId = null;
     const w = DATA.workflows.find(x => x.callsign === callsign);
     if (w) highlightWorkflow(w);
     if (!pinnedForm){
       renderWorkflow(callsign);
-      if (isAction && actionTarget) setTimeout(() => scrollToWfAction(actionTarget), 0);
+      if (isAction && actionTarget) setTimeout(() => scrollToWfAction(actionTarget, actionIdx), 0);
     }
     return;
   }

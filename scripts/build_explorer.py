@@ -24,6 +24,9 @@ def build(ws):
                   for f in data["forms"]],
         "fields": data["fields"],
         "narrative": narrate.build_all(data),
+        # Plain-English workflow stories (when it runs / what it does), keyed by
+        # callsign — rendered at the top of the workflow-detail panel.
+        "wfStories": narrate.build_workflow_stories(data),
         "relationships": [{"source": r["source"], "target": r["target"],
                            "via": r["via"], "label": r["label"],
                            "targetMatchField": r.get("targetMatchField", "")}

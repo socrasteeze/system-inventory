@@ -28,3 +28,6 @@ scratch/
 
 # Workspace data (JSON exports — may contain embedded PII in notification configs)
 data/
+
+# Per-machine launcher preference (start.bat last-opened view)
+output/last-view.txt

@@ -7,6 +7,8 @@ Usage:
     python scripts/regenerate.py                 rebuild all workspaces + global
     python scripts/regenerate.py --workspace X   rebuild only workspace X
     python scripts/regenerate.py --global        rebuild only the global aggregator
+    python scripts/regenerate.py --check         discovery only: counts, orphans,
+                                                 warnings; writes nothing
 
 Every run refreshes docs/ from whatever explorers exist under output/, so a push
 publishes the current views. Excel artifacts stay in output/ and are never copied
@@ -53,8 +55,9 @@ def rebuild_workspace(slug):
 
     # Orphan check: forms/grids that render with no graph edge. A workspace export
     # can leave a subform's parent out, or a form unlinked; dropping that form's
-    # individual JSON into data/<slug>/forms/ usually supplies the missing links.
-    orphans = find_orphans(ws.discover())   # cached; no re-parse, no duplicate prints
+    # individual JSON anywhere under data/<slug>/ usually supplies the missing links.
+    d = ws.discover()                       # cached; no re-parse, no duplicate prints
+    orphans = find_orphans(d)
     if orphans:
         print(f"  Orphans: {len(orphans)} form(s) with no graph edge "
               f"(import the individual form JSON to connect):")
@@ -62,6 +65,34 @@ def rebuild_workspace(slug):
             print(f"    - {o['name']} [{o['role']}] -- {o['reason']}")
     else:
         print("  Orphans: none")
+    return len(d["forms"]), len(d["workflows"])
+
+
+def _print_summary(stats):
+    """End-of-run block: what was built and every warning in one place.
+
+    Warnings scroll past during a multi-workspace rebuild; start.bat users see
+    this block right above the view-choice menu, so problems surface at the
+    moment they're looking. parser.WARNINGS collects each distinct warning once
+    per process.
+    """
+    from parser import WARNINGS
+    print()
+    print("=" * 64)
+    if stats:
+        total_f = sum(f for f, _ in stats.values())
+        total_w = sum(w for _, w in stats.values())
+        print(f"Rebuild summary: {len(stats)} workspace(s) - "
+              f"{total_f} forms, {total_w} workflows")
+    else:
+        print("Rebuild summary:")
+    if WARNINGS:
+        print(f"{len(WARNINGS)} warning(s) to review:")
+        for w in WARNINGS:
+            print(w if w.startswith("  ") else "  " + w)
+    else:
+        print("No warnings.")
+    print("=" * 64)
 
 
 def _html_escape(s):
@@ -80,11 +111,16 @@ def _write_landing(views, stamp, featured_links=None):
         slug = href.split("/")[0]
         chips = featured_links.get(slug) or []
         chip_html = ""
-        if chips:
+        # Any workspace with briefs gets an "All form briefs" chip; featured
+        # forms (if any) come first as their own quick links.
+        if slug in featured_links:
             links = "".join(
                 f'<a class="chip" href="{_html_escape(bhref)}">{_html_escape(fname)}</a>'
                 for fname, bhref in chips)
-            chip_html = f'\n      <div class="chips"><span class="chips-lbl">Featured:</span> {links}</div>'
+            links += (f'<a class="chip all" href="{_html_escape(slug + "/forms/index.html")}">'
+                      f'All form briefs &rarr;</a>')
+            lbl = "Featured:" if chips else "Briefs:"
+            chip_html = f'\n      <div class="chips"><span class="chips-lbl">{lbl}</span> {links}</div>'
         return f'''    <div class="view">
       <a class="view-main" href="{_html_escape(href)}">
         <div class="name">{_html_escape(title)} <span class="arrow">&rarr;</span></div>
@@ -122,6 +158,8 @@ def _write_landing(views, stamp, featured_links=None):
   a.chip{{font-size:11px;background:#4a3a12;color:#fcd34d;border-radius:4px;
          padding:2px 9px;text-decoration:none}}
   a.chip:hover{{background:#5c4715}}
+  a.chip.all{{background:var(--bg3);color:var(--accent)}}
+  a.chip.all:hover{{background:#2e3340}}
   .ts{{color:var(--muted);font-size:12px;margin-top:36px;font-family:monospace}}
 </style>
 </head>
@@ -175,70 +213,107 @@ def emit_field_index():
     print(f"  docs/field-index.json -> {len(index)} forms, {total} fields")
 
 
-def _render_brief(slug, ws_name, form, nar_form, data, featured):
-    """Render one printable per-form brief (plain HTML, no JS)."""
+def _render_brief(slug, ws_name, form, nar_form, data, featured, stories):
+    """Render one printable per-form brief (plain HTML, no JS).
+
+    Voice: plain English for a program staffer. Field labels lead (API names
+    muted), workflow display names only (callsigns as muted cross-references),
+    and every workflow gets a story card (when it runs / what it does) from
+    narrate.workflow_story."""
     esc = _html_escape
     name = form["name"]
     role = form.get("role", "")
     s = nar_form["summary"]
     fwd = nar_form["forward"]
+    fields = data["fields"].get(name, [])
+    disp = {f["name"]: narrate.field_display(f) for f in fields if f.get("name")}
+    label_of = lambda fn: disp.get(fn) or narrate.decamel(fn)
 
-    parts = [(fn, e) for fn, e in fwd.items() if e["fields"] or e["wfCondition"]]
+    # ── What changes what: labels first, API name as the muted second line.
+    parts = sorted(((fn, e) for fn, e in fwd.items()
+                    if e["fields"] or e["wfCondition"]),
+                   key=lambda p: label_of(p[0]).lower())
     if parts:
         rows = []
         for fn, e in parts:
             effects = []
             for x in e["fields"]:
-                phrase = narrate.FORWARD_PHRASE.get(x["kind"], "{t}").format(t=esc(x["target"]))
+                phrase = narrate.FORWARD_PHRASE.get(x["kind"], "{t}").format(
+                    t=f"<b>{esc(label_of(x['target']))}</b>")
                 badge = narrate.KIND_BADGE.get(x["kind"], "DEP")
                 effects.append(f'<div class="effect"><span class="chip {x["kind"]}">{badge}</span>{phrase}</div>')
-            for cs in e["wfCondition"]:
+            for ref in e["wfCondition"]:
                 effects.append(f'<div class="effect"><span class="chip flow">FLOW</span>'
-                               f'can change what workflow <b>{esc(cs)}</b> does</div>')
-            rows.append(f'<tr><td class="field">{esc(fn)}</td><td>{"".join(effects)}</td></tr>')
+                               f'helps decide whether the automated step '
+                               f'&ldquo;<b>{esc(ref["name"])}</b>&rdquo; runs</div>')
+            rows.append(f'<tr><td class="field">{esc(label_of(fn))}'
+                        f'<div class="api">{esc(fn)}</div></td>'
+                        f'<td>{"".join(effects)}</td></tr>')
         changes = ('<table><thead><tr><th>When you change&hellip;</th>'
                    '<th>&hellip;this happens</th></tr></thead><tbody>'
                    + "".join(rows) + "</tbody></table>")
     else:
         changes = '<div class="empty">No fields on this form trigger changes elsewhere.</div>'
 
-    req = [f for f in data["fields"].get(name, []) if f.get("required") == "Yes"]
+    # ── Written-by notes: fields the automation fills in (normally not edited).
+    written = sorted(((fn, e["writtenBy"]) for fn, e in fwd.items() if e["writtenBy"]),
+                     key=lambda p: label_of(p[0]).lower())
+    if written:
+        wr_rows = "".join(
+            f'<li><b>{esc(label_of(fn))}</b> <span class="when">— filled in automatically by '
+            + ", ".join(f'&ldquo;{esc(r["name"])}&rdquo;' for r in refs)
+            + '; normally not edited by hand</span></li>'
+            for fn, refs in written)
+        changes += f'<h3>Filled in automatically</h3><ul>{wr_rows}</ul>'
+
+    # ── Required fields (label first, API name muted).
+    req = [f for f in fields if f.get("required") == "Yes"]
     if req:
         reqhtml = "<ul>" + "".join(
-            f'<li>{esc(f.get("label") or f["name"])} '
+            f'<li>{esc(narrate.field_display(f))} '
             f'<span class="when">({esc(f["name"])})</span></li>' for f in req) + "</ul>"
     else:
         reqhtml = '<div class="empty">No required fields.</div>'
 
+    # ── Workflow story cards.
     acting = narrate._workflows_on(name, data.get("workflows", []))
     if acting:
-        items = []
+        cards = []
         for w in acting:
-            cond = (w.get("trigger") or {}).get("condition")
-            tail = f' &mdash; {esc(cond)}' if cond else ""
-            items.append(f'<li><b>{esc(w.get("name") or w.get("callsign"))}</b> '
-                         f'<span class="when">{esc(narrate._trigger_phrase(w))}{tail}</span></li>')
-        wfhtml = "<ul>" + "".join(items) + "</ul>"
+            st = stories.get(w.get("callsign", "")) or narrate.workflow_story(w, data["fields"])
+            off = st["disabled"]
+            then_html = "".join(f'<div class="then">{esc(t)}</div>' for t in st["then"])
+            offnote = ('<div class="offnote">Currently switched off &mdash; it will not run.</div>'
+                       if off else "")
+            cards.append(
+                f'<div class="wf-story{" off" if off else ""}">'
+                f'<div class="wf-title">{esc(st["title"])}'
+                f'<span class="cs">{esc(st["callsign"])}</span></div>'
+                f'<div class="when-line">{esc(st["when"])}</div>'
+                f'{then_html}{offnote}</div>')
+        lead = f'<p class="lead">{esc(s["workflows"])}</p>' if s["workflows"] else ""
+        wfhtml = lead + "".join(cards)
     else:
-        wfhtml = '<div class="empty">No workflows act on this form.</div>'
+        wfhtml = '<div class="empty">Nothing runs automatically on this form.</div>'
 
     badges = f'<span class="badge {esc(role)}">{esc(role)}</span>'
     if featured:
         badges += '<span class="badge featured">Featured</span>'
+
+    filling = f'<p class="lead">{esc(s["fields"])}' \
+              + (" " + esc(s["interactions"]) if s["interactions"] else "") + "</p>"
 
     body = [
         f'  <a class="back" href="../explorer.html#form={quote(name)}">&larr; Back to {esc(ws_name)} explorer</a>',
         f'  <div class="badges" style="margin-top:14px">{badges}</div>',
         f'  <h1>{esc(name)}</h1>',
         f'  <div class="ws">{esc(ws_name)}</div>',
-        f'  <p class="lead"><b>{esc(s["role_line"])}</b> {esc(s["connects"])}'
-        + (f'<br>{esc(s["workflows"])}' if s["workflows"] else "")
-        + f'<br><span class="muted">{esc(s["fields"])}'
-        + (" " + esc(s["interactions"]) if s["interactions"] else "")
-        + "</span></p>",
-        f"  <h2>What changes what</h2>{changes}",
-        f"  <h2>Required fields</h2>{reqhtml}",
-        f"  <h2>Workflows acting on this form</h2>{wfhtml}",
+        f'  <h2>What this form is for</h2>',
+        f'  <p class="lead">{esc(s["role_line"])} {esc(s["connects"])}</p>',
+        f'  <h2>What happens automatically</h2>{wfhtml}',
+        f'  <h2>Filling it out</h2>{filling}'
+        f'  <h3>Required fields</h3>{reqhtml}',
+        f'  <h2>What changes what</h2>{changes}',
         f'  <div class="foot">Generated by regenerate.py &middot; not hand-edited</div>',
     ]
     return (BRIEF_TEMPLATE
@@ -246,11 +321,49 @@ def _render_brief(slug, ws_name, form, nar_form, data, featured):
             .replace("__BODY__", "\n".join(body)))
 
 
+def _render_brief_index(slug, ws_name, data, featured):
+    """One browsable index page per workspace listing every form brief,
+    grouped by role (featured first within each group). Written next to the
+    briefs so relative links stay trivial."""
+    esc = _html_escape
+    role_order = ["Hub", "Spoke", "Lookup", "Subform"]
+    role_title = {"Hub": "Central records", "Spoke": "Working forms",
+                  "Lookup": "Reference lists", "Subform": "Repeating tables (grids)"}
+    groups = {}
+    for f in data["forms"]:
+        groups.setdefault(f.get("role") or "Spoke", []).append(f)
+    sections = []
+    for role in role_order + sorted(set(groups) - set(role_order)):
+        forms = groups.get(role)
+        if not forms:
+            continue
+        forms = sorted(forms, key=lambda f: (f["name"] not in featured, f["name"].lower()))
+        items = "".join(
+            f'<li><a href="{esc(_brief_filename(f["name"]))}">{esc(f["name"])}</a>'
+            + ('<span class="badge featured">Featured</span>' if f["name"] in featured else "")
+            + (f' <span class="when">{esc(f.get("description") or "")}</span>'
+               if f.get("description") else "")
+            + "</li>"
+            for f in forms)
+        sections.append(f'<h2>{esc(role_title.get(role, role))} ({len(forms)})</h2><ul>{items}</ul>')
+    body = [
+        f'  <a class="back" href="../explorer.html">&larr; Back to {esc(ws_name)} explorer</a>',
+        f'  <h1>{esc(ws_name)} &mdash; form briefs</h1>',
+        f'  <div class="ws">One printable plain-English page per form</div>',
+        "".join(sections),
+        f'  <div class="foot">Generated by regenerate.py &middot; not hand-edited</div>',
+    ]
+    return (BRIEF_TEMPLATE
+            .replace("__TITLE__", esc(ws_name) + " — form briefs")
+            .replace("__BODY__", "\n".join(body)))
+
+
 def emit_form_briefs():
     """Write a printable per-form brief for every form, into both
     output/<slug>/forms/ (so the local explorer's 'Open full brief' link resolves)
-    and docs/<slug>/forms/ (for GitHub Pages). Returns {slug: [(name, docs_href)]}
-    of featured forms for the landing page.
+    and docs/<slug>/forms/ (for GitHub Pages), plus a per-workspace index.html
+    listing every brief. Returns {slug: [(name, docs_href)]} of featured forms
+    for the landing page.
 
     Uses the same in-memory discover_all() source as emit_field_index(); the
     narrative is presentation-only and never touches field-index.json.
@@ -261,6 +374,7 @@ def emit_form_briefs():
     for slug, data in sorted(discovered.items()):
         ws_name = data.get("workspaceName", slug)
         nar = narrate.build_all(data)
+        stories = narrate.build_workflow_stories(data)
         featured = set(data.get("featured", []))
         out_dir = OUTPUT_DIR / slug / "forms"
         docs_dir = DOCS_DIR / slug / "forms"
@@ -268,14 +382,18 @@ def emit_form_briefs():
         docs_dir.mkdir(parents=True, exist_ok=True)
         for form in data["forms"]:
             name = form["name"]
-            html = _render_brief(slug, ws_name, form, nar[name], data, name in featured)
+            html = _render_brief(slug, ws_name, form, nar[name], data,
+                                 name in featured, stories)
             fn = _brief_filename(name)
             (out_dir / fn).write_text(html, encoding="utf-8")
             (docs_dir / fn).write_text(html, encoding="utf-8")
             total += 1
+        idx = _render_brief_index(slug, ws_name, data, featured)
+        (out_dir / "index.html").write_text(idx, encoding="utf-8")
+        (docs_dir / "index.html").write_text(idx, encoding="utf-8")
         featured_links[slug] = [(n, f"{slug}/forms/{_brief_filename(n)}")
                                 for n in data.get("featured", [])]
-    print(f"  form briefs -> {total} page(s) (output/ + docs/)")
+    print(f"  form briefs -> {total} page(s) + {len(discovered)} index page(s) (output/ + docs/)")
     return featured_links
 
 
@@ -330,33 +448,52 @@ def main():
     ap.add_argument("--workspace", metavar="SLUG", help="rebuild only this workspace")
     ap.add_argument("--global", dest="global_only", action="store_true",
                     help="rebuild only the cross-workspace global aggregator")
+    ap.add_argument("--check", action="store_true",
+                    help="discovery only: parse everything, print counts, orphans, "
+                         "and warnings; write nothing")
     args = ap.parse_args()
 
     slugs = list_workspaces()
     if not slugs:
-        print("No workspaces found under data/. Add data/<slug>/forms and /workflows,")
-        print("or a whole-workspace export JSON at data/<slug>/*.json.")
+        print("No workspaces found under data/. Drop any export JSON under data/<slug>/")
+        print("(whole-workspace export, or individual form/workflow exports).")
         sys.exit(1)
+
+    if args.check:
+        print("Check mode: discovery only, nothing written.\n")
+        stats = {}
+        for slug in slugs:
+            ws = Workspace(slug)
+            d = ws.discover()
+            stats[slug] = (len(d["forms"]), len(d["workflows"]))
+            orphans = find_orphans(d)
+            print(f"[{slug}] {ws.name}: {len(d['forms'])} forms, "
+                  f"{len(d['workflows'])} workflows, {len(orphans)} orphan(s)")
+        _print_summary(stats)
+        return
 
     if args.global_only:
         print("[global]")
         build_global.build()
         print("\n[docs] publish")
         publish_docs()
+        _print_summary({})
         return
 
     if args.workspace:
         if args.workspace not in slugs:
             print(f"Unknown workspace '{args.workspace}'. Available: {', '.join(slugs)}")
             sys.exit(1)
-        rebuild_workspace(args.workspace)
+        stats = {args.workspace: rebuild_workspace(args.workspace)}
         print("\nGlobal aggregator not rebuilt (run with --global or no args to refresh it).")
         print("\n[docs] publish")
         publish_docs()
+        _print_summary(stats)
         return
 
+    stats = {}
     for slug in slugs:
-        rebuild_workspace(slug)
+        stats[slug] = rebuild_workspace(slug)
 
     print("\n[global] cross-workspace aggregator")
     build_global.build()
@@ -365,6 +502,7 @@ def main():
     publish_docs()
 
     print("\nDone. Output under output/<slug>/ and output/global/; browsable views mirrored to docs/.")
+    _print_summary(stats)
 
 
 if __name__ == "__main__":

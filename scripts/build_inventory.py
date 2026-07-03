@@ -10,6 +10,7 @@ from openpyxl.utils import get_column_letter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parser import Workspace, list_workspaces, OUTPUT_DIR
+import narrate
 
 # ── styles ─────────────────────────────────────────────────────────
 HFONT  = Font(name="Arial", size=10, bold=True, color="FFFFFF")
@@ -25,9 +26,11 @@ BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 WRAP   = Alignment(horizontal="left", vertical="top", wrap_text=True)
 CTR    = Alignment(horizontal="center", vertical="center")
 
-# WorkflowType cell fills
-LEGACY_FILL = PatternFill("solid", start_color="FEF3C7")   # amber-100
-WFENG_FILL  = PatternFill("solid", start_color="CCFBF1")   # teal-100
+# WorkflowType cell fills — light tints of the graph palette (red = Legacy,
+# olive = WFEngine; --wf-legacy / --wf-engine in the explorer templates) so the
+# Excel column and the graph read as one color scheme.
+LEGACY_FILL = PatternFill("solid", start_color="FEE2E2")   # light red
+WFENG_FILL  = PatternFill("solid", start_color="ECEFDA")   # light olive
 
 def sheet(ws, title, cols, rows, pk=None, fks=None):
     ws.sheet_view.showGridLines = False
@@ -186,10 +189,14 @@ def build(workspace):
            for r in data["refPulls"]],
           fks=["DestinationForm"])
 
-    # Workflows
+    # Workflows — TriggerPlain is the narrated "when it runs" sentence
+    # (narrate.workflow_story), alongside the raw trigger columns in Triggers.
+    wf_stories = {w["callsign"]: narrate.workflow_story(w, data["fields"])
+                  for w in data["workflows"]}
     wf_rows = [{
         "Callsign": w["callsign"], "WorkflowName": w["name"],
         "Description": w["description"],
+        "TriggerPlain": wf_stories[w["callsign"]]["when"],
         "WorkflowType": w.get("workflowType", ""),
         "BusinessProcess": "", "Workspace": workspace_name, "Owner": "",
         "Status": "Active" if w.get("enabled", True) else "Disabled",
@@ -200,6 +207,7 @@ def build(workspace):
     wf_cols = [
         ("Callsign",14,"PK · short alias"), ("WorkflowName",24,"Display name"),
         ("Description",40,"Plain-English summary"),
+        ("TriggerPlain",50,"When it runs, in plain English (generated)"),
         ("WorkflowType",14,"Legacy (embedded WorkflowConfigs) or WFEngine (Triggers/Steps)"),
         ("BusinessProcess",20,"FK → BusinessProcesses"),
         ("Workspace",28,"Workspace"), ("Owner",24,"Name/email"),

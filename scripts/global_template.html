@@ -59,6 +59,10 @@
   .row .s{color:var(--muted);font-size:11px;margin-top:2px;font-family:monospace}
   .pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin:2px 4px 0 0;
         background:#1e3a5f;color:#bcdbff;font-family:monospace}
+  .pill.drift-Twin{background:#1e3d2f;color:#6ee7b7}
+  .pill.drift-Drift{background:#4a3a12;color:#fcd34d}
+  .pill.drift-Single{background:var(--bg3);color:var(--muted)}
+  .pill.twin{background:#3b2d63;color:#d9c9ff}
   .open-btn{display:inline-block;margin:10px 0 4px;padding:7px 12px;border-radius:5px;
             background:var(--accent);color:#0f1115;font-size:12px;font-weight:600;text-decoration:none}
   .open-btn:hover{filter:brightness(1.1)}
@@ -230,6 +234,7 @@ function renderOverview(){
   clearHighlights();
   const collisions = DATA.dupForms;
   const flows = DATA.dupFlows;
+  const reuse = DATA.wfReuse || [];
   panel.innerHTML = `
     <h2>Cross-workspace analysis</h2>
     <div class="meta"><b>${DATA.stats.workspaces}</b> workspaces ·
@@ -242,6 +247,17 @@ function renderOverview(){
           <div class="s">${c.ids.map(id => escapeHtml(id.split('::')[0])).join(' · ')}</div>
         </div>`).join('')
         : '<div class="empty-state">No form name appears in more than one workspace yet.</div>'}
+    </div>
+
+    <div class="section"><h3>Workflow reuse (${reuse.length} patterns)</h3>
+      ${reuse.length ? reuse.map(r => `
+        <div class="row" style="cursor:default">
+          <div class="t">${escapeHtml(r.pattern)}
+            <span class="pill drift-${escapeHtml(r.drift)}">${escapeHtml(r.drift)}</span>${
+            r.literalTwin ? `<span class="pill twin" title="Exact-hash twin group (identical logic, possibly different trigger forms)">${escapeHtml(r.literalTwin)}</span>` : ''}</div>
+          <div class="s">${r.count} instances · ${escapeHtml(r.workspaces)}</div>
+        </div>`).join('')
+        : '<div class="empty-state">No workflow pattern repeats across workspaces yet.</div>'}
     </div>
 
     <div class="section"><h3>Duplicate flows (${flows.length})</h3>

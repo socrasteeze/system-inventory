@@ -85,13 +85,15 @@ if not exist "data\README.txt" (
     (
         echo Drop workspace data here to build the inventory / explorer.
         echo.
-        echo Whole-workspace export ^(preferred^):
-        echo   data\^<slug^>\^<any-name^>.json      e.g. data\liwp\low-income_weatherization_program.json
+        echo Any platform export JSON goes anywhere under data\^<slug^>\ - the rebuild
+        echo detects what each file is ^(whole-workspace export, individual form design,
+        echo or individual workflow^) and routes it automatically. No manual placement:
+        echo the forms\ and workflows\ subfolders still work but nothing requires them.
         echo.
-        echo Individual form/workflow export ^(surgical override or no export available^):
-        echo   data\^<slug^>\forms\^<form^>.json
-        echo   data\^<slug^>\workflows\^<workflow^>.json
-        echo   data\^<slug^>\manual\workspace.json   ^(sets displayName; only needed for this route^)
+        echo   data\^<slug^>\^<any-name^>.json    e.g. data\liwp\low-income_weatherization_program.json
+        echo.
+        echo An individual form/workflow export always overrides the same form/workflow
+        echo in the whole-workspace baseline ^(a surgical update^).
         echo.
         echo Known slugs already published from this repo: liwp, nve-qar, sce-be, sdge-whp, socal-whp
         echo Slugs use hyphens, not underscores.
@@ -109,7 +111,7 @@ echo.
 if errorlevel 1 (
     echo.
     echo [ERROR] The rebuild failed or found nothing to build. The most likely causes:
-    echo     - data\ has no workspace JSON yet ^(see data\README.txt for exactly where to drop it^).
+    echo     - data\ has no export JSON yet ^(drop any export under data\^<slug^>\ - see data\README.txt^).
     echo     - A file in the data\ folder is not valid JSON.
     echo     - A required package is missing  ^(run: %PY% -m pip install -r requirements.txt^).
     echo     - Your Python is too old; version 3.9 or newer is required.
@@ -136,16 +138,34 @@ for /d %%D in (output\*) do (
     )
 )
 echo.
+REM --- Remember the last-opened view. output\last-view.txt holds G or a slug;
+REM     Enter re-opens it. A number, G, or a slug typed directly all work. ---
+set "LASTV="
+if exist "output\last-view.txt" set /p LASTV=<"output\last-view.txt"
+if not defined LASTV set "LASTV=G"
+
 set "CHOICE="
-set /p CHOICE="Enter a number, G for the global view, or just press Enter for global: "
+set /p CHOICE="Enter a number, G for global, or press Enter for the last view [!LASTV!]: "
 
 set "TARGET="
-if "!CHOICE!"=="" set "CHOICE=G"
+set "PICKED="
+if "!CHOICE!"=="" set "CHOICE=!LASTV!"
 if /i "!CHOICE!"=="G" (
-    if exist "output\global\global-explorer.html" set "TARGET=output\global\global-explorer.html"
+    if exist "output\global\global-explorer.html" (
+        set "TARGET=output\global\global-explorer.html"
+        set "PICKED=G"
+    )
 ) else (
     if defined WS_!CHOICE! (
-        for %%V in (!CHOICE!) do set "TARGET=output\!WS_%%V!\workspace_explorer.html"
+        for %%V in (!CHOICE!) do (
+            set "TARGET=output\!WS_%%V!\workspace_explorer.html"
+            set "PICKED=!WS_%%V!"
+        )
+    ) else (
+        if exist "output\!CHOICE!\workspace_explorer.html" (
+            set "TARGET=output\!CHOICE!\workspace_explorer.html"
+            set "PICKED=!CHOICE!"
+        )
     )
 )
 if not defined TARGET (
@@ -165,6 +185,7 @@ if not exist "!TARGET!" (
     pause
     exit /b 1
 )
+if defined PICKED >"output\last-view.txt" echo !PICKED!
 
 echo.
 echo Opening !TARGET! in your default browser...

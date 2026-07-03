@@ -4,8 +4,10 @@ Documentation system for the workflow automations and form architecture of platf
 
 Two export formats are supported, and they can coexist in one workspace:
 
-- **Whole-workspace export** — one JSON carrying the entire workspace (all forms, embedded workflows, relationships). Dropped at `data/<slug>/*.json`, it becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself.
-- **Individual form / workflow exports** — one JSON per form or workflow, under `data/<slug>/forms/` and `data/<slug>/workflows/`. When an individual export covers something also present in the workspace baseline, the **individual file always wins** — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.
+- **Whole-workspace export** — one JSON carrying the entire workspace (all forms, embedded workflows, relationships). It becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself.
+- **Individual form / workflow exports** — one JSON per form or workflow. When an individual export covers something also present in the workspace baseline, the **individual file always wins** — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.
+
+**Placement is automatic.** Drop any export JSON anywhere under `data/<slug>/` — the rebuild detects what each file is by its content and routes it (workspace export → baseline; form/workflow export → override). The `forms/` and `workflows/` subfolders still work, but nothing requires them. Individual form exports are matched to their baseline form by **field overlap**, not filename, so no name-mapping is needed for overrides either.
 
 The project is **multi-workspace**: each workspace lives under `data/<slug>/` (slugs use hyphens, e.g. `sce-be`) and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. Add workspaces by placing JSON exports under `data/<slug>/` and running the rebuild.
 
@@ -114,15 +116,15 @@ If something is missing it prints plain-English instructions instead of failing 
 
 ### Where each export goes
 
-Placement is by **export type**, into the workspace's slug directory (`data/<slug>/`, hyphenated — e.g. `data/sce-be/`):
+Anywhere under the workspace's slug directory (`data/<slug>/`, hyphenated — e.g. `data/sce-be/`). **The rebuild routes each JSON by its content, not its location:**
 
-| You exported… | Drop the JSON at… | Role |
-|---|---|---|
-| The **whole workspace** (one JSON, all forms + workflows) | `data/<slug>/` — the slug root, **not** a subfolder | Baseline. Sets the workspace name, all forms, embedded workflows, and relationships. |
-| A **single form** design | `data/<slug>/forms/` | Surgical override — replaces that form's fields/relationships in the baseline. **Always wins** over the baseline. |
-| A **single workflow** | `data/<slug>/workflows/` | Surgical override, matched by `(trigger form, name)`. **Always wins** over the baseline. |
+| You exported… | What the rebuild does with it |
+|---|---|
+| The **whole workspace** (one JSON, all forms + workflows) | Baseline. Sets the workspace name, all forms, embedded workflows, and relationships. |
+| A **single form** design | Surgical override — matched to its baseline form by **field overlap** (no filename mapping needed), replaces that form's fields/relationships. **Always wins** over the baseline. |
+| A **single workflow** | Surgical override, matched by `(trigger form, name)`. **Always wins** over the baseline. |
 
-A non-workspace JSON dropped at the slug root (e.g. a single form export left in the wrong place) is **skipped with a warning** — individual exports must live in `forms/` or `workflows/`. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a `!` warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the now-stale individual files.
+The `forms/` and `workflows/` subfolders still work; the slug root works just as well. If the same form is exported twice (e.g. `_v78` and `_v79`), the highest version wins and the ignored file is warned about. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a `!` warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the now-stale individual files.
 
 For a brand-new workspace there's nothing to pre-create with the whole-workspace route — just make `data/<slug>/`, drop the export at its root, and regenerate. See **Adding a new workspace** below.
 
@@ -132,9 +134,10 @@ For a brand-new workspace there's nothing to pre-create with the whole-workspace
 python scripts/regenerate.py                 # rebuild all workspaces + global
 python scripts/regenerate.py --workspace X   # rebuild only workspace X
 python scripts/regenerate.py --global        # rebuild only the global aggregator
+python scripts/regenerate.py --check         # discovery only: counts, orphans, warnings; writes nothing
 ```
 
-Run from the project root after adding or changing any JSON under `data/`, then open the relevant file in `output/<slug>/` (or `output/global/`) to confirm.
+Run from the project root after adding or changing any JSON under `data/`, then open the relevant file in `output/<slug>/` (or `output/global/`) to confirm. Every run ends with a **Rebuild summary** block — totals plus every warning in one place, so nothing scrolls away unseen (`start.bat` shows it right above its view-choice menu). `start.bat` also remembers the last view you opened and offers it as the Enter-key default next time.
 
 ## First-time setup
 
@@ -153,13 +156,13 @@ Python 3.9 or newer. `openpyxl` is the only runtime dependency.
 When new JSONs come from the platform:
 
 1. Export from the platform UI — either the whole workspace (one JSON) or an individual form/workflow.
-2. Drop it in place: a workspace export goes at `data/<slug>/` (root); individual exports go into `data/<slug>/forms/` or `data/<slug>/workflows/`.
+2. Drop it anywhere under `data/<slug>/` — the rebuild routes it by content.
 3. Run the rebuild: `python scripts/regenerate.py` (or `--workspace <slug>` for just that one). Watch for `!` warnings — each one names an individual file that is shadowing the workspace baseline.
 4. Read the per-workspace **`Orphans:`** line in the rebuild output (see below).
 5. Open `output/<slug>/workspace_explorer.html` to confirm the new node/edge appears.
 6. Commit + push.
 
-**Orphan check.** After each workspace builds, the rebuild prints an `Orphans:` line listing any form or grid that renders with **no graph edge** — either an embedded grid whose parent form wasn't in the workspace export (`unparented grid`), or a form with no relationship or workflow link (`isolated …`). These show up as floating, disconnected nodes in the explorer (toggle the **Orphaned** filter to see them). The usual remedy is to export that form individually and drop its JSON into `data/<slug>/forms/`, which supplies the relationships the whole-workspace export left out; re-run and the node connects. `Orphans: none` means every form is reachable in the graph. The check is read-only — it never changes the output, just surfaces what to look at.
+**Orphan check.** After each workspace builds, the rebuild prints an `Orphans:` line listing any form or grid that renders with **no graph edge** — either an embedded grid whose parent form wasn't in the workspace export (`unparented grid`), or a form with no relationship or workflow link (`isolated …`). These show up as floating, disconnected nodes in the explorer (toggle the **Orphaned** filter to see them). The usual remedy is to export that form individually and drop its JSON anywhere under `data/<slug>/`, which supplies the relationships the whole-workspace export left out; re-run and the node connects. `Orphans: none` means every form is reachable in the graph. The check is read-only — it never changes the output, just surfaces what to look at.
 
 Typical workspace-export lifecycle: baseline the workspace with one full export → update individual forms surgically as they change (each shows a shadow warning, which is expected) → when drift accumulates, re-export the whole workspace and delete the stale individual files.
 
@@ -170,7 +173,7 @@ Typical workspace-export lifecycle: baseline the workspace with one full export 
 Files in `data/<slug>/manual/` override or annotate without touching the auto-discovered data. None are required; sensible defaults apply when absent.
 
 - **`workspace.json`** — the workspace `slug` and `displayName` (used as the Excel title and graph heading).
-- **`form_aliases.json`** — maps the messy export filename to a clean display name (e.g. `so_cal-esa_whole_home_pp_d__300-account_management_v342_design` → `300 - Account Management`). Its `name_aliases` section corrects stale form names that workflow exports still reference.
+- **`form_aliases.json`** — two escape hatches, both rarely needed. Filename-stem entries force a display name when content-matching can't resolve one (form exports are normally matched to the baseline by field overlap automatically). The `name_aliases` section corrects stale form names that exports still reference (e.g. `"Account Management (200)" → "200 - Account"`), which would otherwise create phantom lookup nodes.
 - **`workflow_metadata.json`** — assigns each workflow its callsign, criticality, owner, and business process.
 - **`business_processes.json`** — defines the real-world processes workflows can be tagged against.
 - **`explorer_layout.json`** — optional preset node positions for the graph; without it the explorer uses a force-directed layout.
@@ -183,15 +186,14 @@ Edit these in any editor, then re-run `regenerate.py`.
 
 **With individual files:**
 
-1. Create `data/<slug>/forms/`, `data/<slug>/workflows/`, and `data/<slug>/manual/`.
-2. Add `data/<slug>/manual/workspace.json` with the `slug` and `displayName`.
-3. Drop form and workflow JSON exports into the respective folders, and add `form_aliases.json` entries as needed.
-4. Run `python scripts/regenerate.py`. Output appears under `output/<slug>/`, and the global view picks the workspace up automatically.
+1. Create `data/<slug>/` and add `data/<slug>/manual/workspace.json` with the `slug` and `displayName`.
+2. Drop form and workflow JSON exports anywhere under `data/<slug>/`, and add `form_aliases.json` filename entries (with no baseline to content-match against, names come from the filename).
+3. Run `python scripts/regenerate.py`. Output appears under `output/<slug>/`, and the global view picks the workspace up automatically.
 
 ## Adding a new workflow (individual export)
 
 1. Build the workflow in the platform and export its JSON.
-2. Save it into `data/<slug>/workflows/`.
+2. Save it anywhere under `data/<slug>/`.
 3. Optionally add an entry to that workspace's `workflow_metadata.json` with a callsign and criticality rating (key by filename stem; workflows embedded in a workspace export key by workflow name instead).
 4. If the workflow references a form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
 5. Regenerate.
@@ -199,9 +201,8 @@ Edit these in any editor, then re-run `regenerate.py`.
 ## Adding or updating a form (individual export)
 
 1. Export the form design JSON.
-2. Save it into `data/<slug>/forms/`.
-3. Add an entry to that workspace's `form_aliases.json` mapping the filename to a display name. If the form also exists in a workspace-export baseline, the display name must match the export's spelling exactly — that match is what makes the individual file override the baseline.
-4. Regenerate.
+2. Save it anywhere under `data/<slug>/`.
+3. Regenerate. The rebuild matches the file to its baseline form by field overlap and prints the decision (`<file> -> '<form>' (matched N/M fields)`); if it warns of a low-confidence match, add a `form_aliases.json` filename entry naming the form exactly as the baseline spells it.
 
 ## Data sensitivity
 

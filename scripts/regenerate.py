@@ -309,7 +309,9 @@ def _render_brief(slug, ws_name, form, nar_form, data, featured, stories):
         f'  <h1>{esc(name)}</h1>',
         f'  <div class="ws">{esc(ws_name)}</div>',
         f'  <h2>What this form is for</h2>',
-        f'  <p class="lead">{esc(s["role_line"])} {esc(s["connects"])}</p>',
+        f'  <p class="lead">{esc(s["role_line"])}'
+        f'{(" " + esc(s["collects"])) if s.get("collects") else ""}'
+        f' {esc(s["connects"])}</p>',
         f'  <h2>What happens automatically</h2>{wfhtml}',
         f'  <h2>Filling it out</h2>{filling}'
         f'  <h3>Required fields</h3>{reqhtml}',

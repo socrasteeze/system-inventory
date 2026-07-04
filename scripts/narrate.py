@@ -36,13 +36,13 @@ KIND_BADGE = {"visibility": "VISIBLE", "formula": "FX",
 # role -> what the form *is*, in words a first-time reader understands.
 # {ws} = workspace display name, {parent} = subform's parent form.
 ROLE_PLAIN = {
-    "Hub":     "the central record — most other forms in {ws} connect back to it",
-    "Spoke":   "a working form in the {ws} process",
-    "Lookup":  ("a reference list that other forms read from, like a rate sheet "
-                "or ZIP-code table — it is rarely edited directly"),
-    "Subform": "a repeating table inside {parent}; each row is one entry",
+    "Hub":     "the central record in {ws} — most other forms connect back to it",
+    "Spoke":   "one of the working forms staff complete as part of {ws}",
+    "Lookup":  ("a reference list that other forms read from — like a rate sheet "
+                "or ZIP-code table — and is rarely edited by hand"),
+    "Subform": "a repeating table inside {parent}, where each row is one entry",
 }
-_SUBFORM_NO_PARENT = "a repeating table used inside another form; each row is one entry"
+_SUBFORM_NO_PARENT = "a repeating table used inside another form, where each row is one entry"
 
 _SMALL_NUMBERS = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four",
                   5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
@@ -324,17 +324,24 @@ def form_summary(form, fields, relationships, ref_pulls, workflows, forward,
     name = form["name"]
     role = form.get("role", "")
     ws = ws_name or "this workspace"
-    role_text = ROLE_PLAIN.get(role, "a form in {ws}").format(
+    role_text = ROLE_PLAIN.get(role, "part of {ws}").format(
         ws=ws, parent=form.get("subformOf", ""))
     if role == "Subform" and not form.get("subformOf"):
         role_text = _SUBFORM_NO_PARENT
-    role_line = f"{name} is {role_text}."
+    # Subject is "This form", not the raw form name: the brief and explorer both
+    # already show the name as a heading directly above this line, so repeating
+    # a coded name ("AccountNotes is …") only reads awkwardly.
+    role_line = f"This form is {role_text}."
     # The platform's own description is the purpose statement — lead with it.
     desc = (form.get("description") or "").strip()
     if desc:
         if not desc.endswith((".", "!", "?")):
             desc += "."
-        role_line = f"{desc} {role_line}"
+        # A real description already states the purpose. For a plain Spoke the
+        # generic role sentence only restates "it's a form in the process", so
+        # drop it; for Hub/Lookup/Subform keep the structural framing (central
+        # record / reference list / embedded grid), which the description omits.
+        role_line = desc if role == "Spoke" else f"{desc} {role_line}"
 
     out_targets = {r["target"] for r in relationships
                    if r.get("source") == name and r.get("via") != "(embedded grid)"}

@@ -61,6 +61,15 @@ def count_phrase(n, singular, plural=None):
     plural = plural or singular + "s"
     return f"{num_word(n)} {singular if n == 1 else plural}"
 
+def and_join(items):
+    """Oxford-comma join: [a] -> 'a', [a,b] -> 'a and b', [a,b,c] -> 'a, b, and c'."""
+    items = [i for i in items if i]
+    if len(items) <= 1:
+        return items[0] if items else ""
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + ", and " + items[-1]
+
 def decamel(name):
     """API name -> readable words: 'ComputedHISR' -> 'Computed HISR',
     'UpdatedPrimaryPhoneNumber' -> 'Updated Primary Phone Number'."""
@@ -310,6 +319,66 @@ def build_workflow_stories(data):
             for w in data.get("workflows", [])}
 
 
+# ── "what does it collect?" — derived from the form's own structure ─
+
+# Sections that are containers / plumbing, not collected subject data. Named
+# only as a last resort (when a form has nothing but these), so a high-level
+# "what does it collect" summary leads with real content, not Notes/Deprecated.
+_ADMIN_SECTION_RE = re.compile(
+    r"^(notes?|attachments?|files?|photos?|deprecated|internal use|"
+    r"submission information|terms and conditions|acknowledge?ment|"
+    r"signatures?|files? & attachments|additional (files?|photos?))",
+    re.I)
+
+def _ranked_sections(fields):
+    """Unique section titles with field counts, biggest first (stable on
+    first-seen order for ties). Empty for forms whose fields carry no section
+    (embedded grids from a workspace export)."""
+    counts, seen_order = {}, {}
+    for f in fields:
+        sec = (f.get("section") or "").strip()
+        if not sec:
+            continue
+        if sec not in counts:
+            seen_order[sec] = len(seen_order)
+        counts[sec] = counts.get(sec, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], seen_order[kv[0]]))
+
+def collects_line(form, fields):
+    """One deterministic sentence answering 'what does this form collect?',
+    built from the form author's own section titles (or, for a sectionless
+    embedded grid, a sample of its field labels). '' when there's nothing
+    meaningful to say (e.g. a single section that just echoes the form name)."""
+    name = form["name"]
+    ranked = _ranked_sections(fields)
+    if ranked:
+        substantive = [(s, c) for s, c in ranked
+                       if not _ADMIN_SECTION_RE.match(s)]
+        use = substantive or ranked
+        if len(use) == 1:
+            only = use[0][0]
+            if only.strip().lower() in {"overview", name.strip().lower()}:
+                return ""
+            return f"It captures {only}."
+        named = and_join([s for s, _ in use[:4]])
+        total = len(ranked)
+        if len(use) <= 4:
+            return f"It captures {named}."
+        return (f"It is organized into {count_phrase(total, 'section')}, "
+                f"covering areas such as {named}.")
+    # Sectionless embedded grid: sample a few distinct field labels.
+    seen, labels = set(), []
+    for f in fields:
+        lbl = field_display(f).strip()
+        key = lbl.lower()
+        if lbl and key not in seen:
+            seen.add(key)
+            labels.append(lbl)
+    if len(labels) >= 3:
+        return f"Each row captures details such as {and_join(labels[:3])}."
+    return ""
+
+
 # ── per-form summary fragments ──────────────────────────────────────
 
 def form_summary(form, fields, relationships, ref_pulls, workflows, forward,
@@ -318,8 +387,8 @@ def form_summary(form, fields, relationships, ref_pulls, workflows, forward,
 
     Returns a dict of short, independent sentence fragments so the UI can lay them
     out cleanly (NOT one frozen blob). Keys are a template contract
-    (explorer_template.html renderForm): role_line, connects, workflows, fields,
-    interactions.
+    (explorer_template.html renderForm): role_line, collects, connects, workflows,
+    fields, interactions.
     """
     name = form["name"]
     role = form.get("role", "")
@@ -423,6 +492,7 @@ def form_summary(form, fields, relationships, ref_pulls, workflows, forward,
 
     return {
         "role_line": role_line,
+        "collects": collects_line(form, fields),
         "connects": connects,
         "workflows": workflows_line,
         "fields": fields_line,

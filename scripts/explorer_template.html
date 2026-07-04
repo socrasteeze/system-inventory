@@ -628,6 +628,7 @@ function renderForm(formName){
     ${nar ? `<div class="section"><h3>What this form does</h3>
       <div class="summary-prose">
         <span class="lead">${escapeHtml(nar.summary.role_line)}</span>
+        ${nar.summary.collects ? ' ' + escapeHtml(nar.summary.collects) : ''}
         ${nar.summary.connects ? ' ' + escapeHtml(nar.summary.connects) : ''}
         ${nar.summary.workflows ? '<br>' + escapeHtml(nar.summary.workflows) : ''}
         <br><span class="muted">${escapeHtml(nar.summary.fields)}${

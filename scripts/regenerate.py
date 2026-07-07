@@ -9,10 +9,17 @@ Usage:
     python scripts/regenerate.py --global        rebuild only the global aggregator
     python scripts/regenerate.py --check         discovery only: counts, orphans,
                                                  warnings; writes nothing
+    python scripts/regenerate.py --snapshot [LABEL]
+                                                 capture a version snapshot (no rebuild)
+    python scripts/regenerate.py --list-snapshots
+                                                 list saved snapshots (newest first)
+    python scripts/regenerate.py --compare OLD NEW [--workspace SLUG]
+                                                 diff two snapshots (refs: id, label,
+                                                 latest, previous)
 
 Every run refreshes docs/ from whatever explorers exist under output/, so a push
 publishes the current views. Excel artifacts stay in output/ and are never copied
-to docs/.
+to docs/. Full rebuilds auto-save a snapshot after publish_docs().
 """
 import sys, argparse, json, re
 from datetime import datetime
@@ -25,6 +32,7 @@ import build_inventory
 import build_explorer
 import build_global
 import narrate
+import versioning
 
 DOCS_DIR = OUTPUT_DIR.parent / "docs"
 WS_EXPLORER = "workspace_explorer.html"      # per-workspace source filename in output/
@@ -399,6 +407,72 @@ def emit_form_briefs():
     return featured_links
 
 
+def _auto_snapshot(discovered_all, label=None):
+    """Save a snapshot after rebuild; skip when nothing changed vs latest."""
+    existing = versioning.list_snapshots()
+    snap = versioning.build_snapshot(discovered_all, label=label)
+    if existing:
+        try:
+            latest = versioning.load_snapshot("latest")
+            if versioning.snapshot_fingerprint(latest) == versioning.snapshot_fingerprint(snap):
+                print("  Snapshot: unchanged from latest (not saved)")
+                return None
+        except FileNotFoundError:
+            pass
+    entry = versioning.save_snapshot(discovered_all, label=label)
+    print(f"  Snapshot: {entry['id']}"
+          + (f" ({entry['label']})" if entry.get("label") else ""))
+    return entry
+
+
+def _run_snapshot(label=None):
+    discovered = discover_all()
+    if not discovered:
+        print("No workspaces found under data/.")
+        sys.exit(1)
+    entry = versioning.save_snapshot(discovered, label=label)
+    print(f"Snapshot saved: {entry['id']}"
+          + (f" ({entry['label']})" if entry.get("label") else ""))
+    print(f"  {entry['totals']['forms']} forms, "
+          f"{entry['totals']['workflows']} workflows across "
+          f"{len(entry['workspaces'])} workspace(s)")
+    return entry
+
+
+def _run_compare(old_ref, new_ref, workspace=None, write_json=False):
+    try:
+        old_snap = versioning.load_snapshot(old_ref)
+        new_snap = versioning.load_snapshot(new_ref)
+    except (FileNotFoundError, ValueError) as e:
+        print(str(e))
+        sys.exit(1)
+    if workspace and workspace not in old_snap["workspaces"] and workspace not in new_snap["workspaces"]:
+        print(f"Workspace '{workspace}' not found in either snapshot.")
+        sys.exit(1)
+    result = versioning.compare_snapshots(old_snap, new_snap, workspace=workspace)
+    print(versioning.format_compare_report(result))
+    if write_json:
+        path = versioning.write_compare_report(result)
+        print(f"JSON report: {path}")
+    return result
+
+
+def _list_snapshots():
+    entries = versioning.list_snapshots()
+    if not entries:
+        print("No snapshots yet. Run a full rebuild or --snapshot to create one.")
+        return
+    print(f"{len(entries)} snapshot(s), newest first:\n")
+    for i, e in enumerate(entries):
+        tag = "latest" if i == 0 else ("previous" if i == 1 else "")
+        label = f"  label={e['label']}" if e.get("label") else ""
+        hint = f"  ({tag})" if tag else ""
+        print(f"  {e['id']}{label}{hint}")
+        print(f"    {e['created']}  |  {e['totals']['forms']} forms, "
+              f"{e['totals']['workflows']} workflows  |  "
+              f"{', '.join(e['workspaces'])}")
+
+
 def publish_docs():
     """Mirror the built HTML explorers into docs/ and write the landing page.
 
@@ -453,7 +527,31 @@ def main():
     ap.add_argument("--check", action="store_true",
                     help="discovery only: parse everything, print counts, orphans, "
                          "and warnings; write nothing")
+    ap.add_argument("--snapshot", nargs="?", const="", metavar="LABEL",
+                    help="capture a version snapshot without rebuilding (optional label)")
+    ap.add_argument("--list-snapshots", action="store_true",
+                    help="list saved snapshots under output/snapshots/")
+    ap.add_argument("--compare", nargs=2, metavar=("OLD", "NEW"),
+                    help="compare two snapshots (id, label, latest, or previous)")
+    ap.add_argument("--compare-json", action="store_true",
+                    help="with --compare, also write a JSON report file")
+    ap.add_argument("--no-snapshot", action="store_true",
+                    help="skip auto-snapshot after a full rebuild")
     args = ap.parse_args()
+
+    if args.list_snapshots:
+        _list_snapshots()
+        return
+
+    if args.compare:
+        _run_compare(args.compare[0], args.compare[1],
+                     workspace=args.workspace, write_json=args.compare_json)
+        return
+
+    if args.snapshot is not None:
+        label = args.snapshot or None
+        _run_snapshot(label=label)
+        return
 
     slugs = list_workspaces()
     if not slugs:
@@ -502,6 +600,10 @@ def main():
 
     print("\n[docs] publish")
     publish_docs()
+
+    if not args.no_snapshot:
+        print("\n[snapshots]")
+        _auto_snapshot(discover_all())
 
     print("\nDone. Output under output/<slug>/ and output/global/; browsable views mirrored to docs/.")
     _print_summary(stats)

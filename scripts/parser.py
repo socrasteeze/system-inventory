@@ -1021,14 +1021,15 @@ class Workspace:
                     workflows.append(wf)
 
         # 2. Individual form exports override the baseline form-by-form. Files in
-        #    forms/ and form-format JSONs at the slug root (routed by content in
+        #    forms/ (scanned recursively — flat, or one subfolder per form) and
+        #    form-format JSONs at the slug root (routed by content in
         #    workspace_exports()) go through the same pipeline — location never
         #    matters. Names resolve by field overlap against the baseline.
         baseline_fields = {n: {f["name"] for f in pf["fields"] if f.get("name")}
                            for n, pf in merged.items()}
         override_files = []
         if self.forms_dir.exists():
-            override_files += [(p, True) for p in sorted(self.forms_dir.glob("*.json"))]
+            override_files += [(p, True) for p in sorted(self.forms_dir.rglob("*.json"))]
         override_files += [(p, False) for p in self._root_form_files]
 
         candidates = []   # (resolved name, version, in forms/, path, parsed)
@@ -1183,9 +1184,11 @@ class Workspace:
             manual = workflow_manual.get(wf["name"], {})
             if manual.get("callsign"):
                 wf["callsign"] = manual["callsign"]
+        # Recursive: optional one-subfolder-per-workflow organization is
+        # matched by workflow name, not path, same as forms/ above.
         wf_files = []
         if self.workflows_dir.exists():
-            wf_files += sorted(self.workflows_dir.glob("*.json"))
+            wf_files += sorted(self.workflows_dir.rglob("*.json"))
         wf_files += self._root_workflow_files   # routed by content, same pipeline
         for json_file in wf_files:
             manual = workflow_manual.get(json_file.stem, {})

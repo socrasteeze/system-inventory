@@ -20,13 +20,13 @@ No output file is hand-edited. All are regenerated from the JSON exports in `dat
 
 Current workspaces (whole-workspace export baseline; all five also carry root-level individual design exports from 2026-06 that override their main forms):
 
-- `socal-whp` — **Workspace A** (97 forms / 54 workflows)
+- `socal-whp` — **Workspace A** (98 forms / 54 workflows)
 - `sdge-whp` — **Workspace B** (46 forms / 25 workflows)
 - `sce-be` — **Workspace C** (36 forms / 22 workflows)
 - `liwp` — **Workspace D** (125 forms / 33 workflows)
 - `nve-qar` — **Workspace E** (10 forms / 1 workflow)
 
-`socal-whp` was originally ingested via the individual-file route, then **re-baselined** to a whole-workspace export (its `forms/`/`workflows/` individual files were deleted as the reset; only `manual/` overrides remain).
+`socal-whp` was originally ingested via the individual-file route, then **re-baselined** to a whole-workspace export (its old `forms/`/`workflows/` individual files were deleted as that reset). It has since gained individual `forms/` overrides again (one subfolder per form, e.g. `forms/300 - Account Management/300 - Account Management.json`) plus a `manual/form_aliases.json` pinning each to its exact baseline display name — a workspace export dropped on top of these will still be correctly shadowed by them, not duplicated, as long as the aliases stay in sync with the baseline's display names.
 
 **Slug naming convention: hyphens**, not underscores (`sce-be`, `socal-whp`).
 
@@ -58,6 +58,8 @@ Two export formats are supported, detected per file by root shape (`parser.detec
 **Individual form exports are name-resolved by content, not filename.** A design export carries no form name or GUID of its own, and the platform's filename conventions drift (a 2026-06 export batch broke the old regex heuristic on every file). `Workspace._resolve_form_name()` resolves in order: (1) a `form_aliases.json` filename-stem entry — the explicit escape hatch; (2) **field-overlap match** against the workspace baseline — the baseline form sharing the most field names wins when it covers ≥80% of the export's fields with a ≥1.5× margin over the runner-up, near-ties broken by filename-token similarity (handles tiny lookup forms like Climate Zones); (3) the legacy filename regex heuristic, only when there is no baseline to match against (pure individual-file workspaces). Each resolution prints one line (`<file> -> '<form>' (matched N/M fields)`); a low-confidence match warns and names the alias escape hatch. Stale filename aliases (stems matching no file on disk) are warned about.
 
 **Same-form version dedup.** When multiple exports resolve to the same form (e.g. `_v78` and `_v79` side by side), the highest `_vNN_` filename token wins (tie → `forms/` placement wins, then filename order); each ignored file gets a warning — never a silent merge.
+
+`forms/` and `workflows/` are scanned **recursively** (`rglob`, not `glob`) — a file can sit directly in the folder or be organized one subfolder per form/workflow (e.g. `data/<slug>/forms/300 - Account Management/300 - Account Management.json`). Matching against the baseline is by parsed display name (forms) or `(trigger form, name)` (workflows), never by path, so subfolder nesting is purely organizational — a place to keep a form's export readable at a glance, or to later drop related files (notes, superseded versions) alongside it. `form_aliases.json`/`workflow_metadata.json` still key off the **filename stem**, unaffected by which folder it's nested in.
 
 ### Whole-workspace export
 
@@ -132,7 +134,10 @@ data/
   <slug>/
     *.json       ← whole-workspace export(s), if using that format (baseline)
     forms/       ← individual form design JSON exports (override the baseline)
+                   scanned recursively -- flat, or one subfolder per form:
+                   forms/300 - Account Management/300 - Account Management.json
     workflows/   ← individual workflow JSON exports (override the baseline)
+                   same recursive scan; optional one subfolder per workflow
     manual/      ← human-maintained overrides and metadata (see below)
 output/
   <slug>/        ← per-workspace Excel + HTML
@@ -400,7 +405,7 @@ Slug convention: **hyphens** (e.g. `my-workspace`), never underscores.
 ## Updating a form in a workspace-export workspace (surgical update)
 
 1. Export just that form's design JSON from the platform.
-2. Drop it anywhere under `data/<slug>/` (root or `forms/` — content routing sorts it out). No alias entry needed: the file is matched to its baseline form by field overlap.
+2. Drop it anywhere under `data/<slug>/` (root, `forms/` flat, or `forms/<form name>/` — content routing sorts it out and both `forms/` and `workflows/` are scanned recursively). No alias entry needed: the file is matched to its baseline form by field overlap.
 3. Regenerate — the rebuild log prints the match decision and warns that the individual file now shadows the baseline. Those lines are expected and stay until you either delete the file or re-baseline.
 4. If the new design references a form by a renamed/stale name (rebuild shows a new phantom Lookup node or an auto-stub), add a `name_aliases` entry mapping the stale name to the canonical one.
 5. When you re-export the whole workspace, delete the now-stale individual files.
@@ -408,7 +413,7 @@ Slug convention: **hyphens** (e.g. `my-workspace`), never underscores.
 ## Adding a new workflow
 
 1. Export the workflow JSON from the platform.
-2. Drop it anywhere under `data/<slug>/` (root or `workflows/`).
+2. Drop it anywhere under `data/<slug>/` (root, `workflows/` flat, or `workflows/<workflow name>/`).
 3. Optionally add an entry to that workspace's `workflow_metadata.json` with callsign, criticality, owner, businessProcess.
 4. If the workflow references any form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
 5. Run `python scripts/regenerate.py` (or `--workspace <slug>`).

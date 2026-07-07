@@ -7,7 +7,7 @@ Two export formats are supported, and they can coexist in one workspace:
 - **Whole-workspace export** — one JSON carrying the entire workspace (all forms, embedded workflows, relationships). It becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself.
 - **Individual form / workflow exports** — one JSON per form or workflow. When an individual export covers something also present in the workspace baseline, the **individual file always wins** — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.
 
-**Placement is automatic.** Drop any export JSON anywhere under `data/<slug>/` — the rebuild detects what each file is by its content and routes it (workspace export → baseline; form/workflow export → override). The `forms/` and `workflows/` subfolders still work, but nothing requires them. Individual form exports are matched to their baseline form by **field overlap**, not filename, so no name-mapping is needed for overrides either.
+**Placement is automatic.** Drop any export JSON anywhere under `data/<slug>/` — the rebuild detects what each file is by its content and routes it (workspace export → baseline; form/workflow export → override). The `forms/` and `workflows/` subfolders still work (scanned recursively — flat, or one subfolder per form/workflow), but nothing requires them. Individual form exports are matched to their baseline form by **field overlap**, not filename, so no name-mapping is needed for overrides either.
 
 The project is **multi-workspace**: each workspace lives under `data/<slug>/` (slugs use hyphens, e.g. `sce-be`) and produces its own artifacts under `output/<slug>/`. A global aggregator combines every workspace into one cross-workspace view under `output/global/`. Add workspaces by placing JSON exports under `data/<slug>/` and running the rebuild.
 
@@ -91,7 +91,9 @@ If something is missing it prints plain-English instructions instead of failing 
 │   └── <slug>/                  one directory per workspace, e.g. sce-be/ (hyphenated slugs)
 │       ├── *.json               ← whole-workspace export(s) — the baseline, if using that format
 │       ├── forms/               ← individual form design exports (override the baseline)
+│       │   └── <form name>/     ← optional: one subfolder per form, scanned recursively
 │       ├── workflows/           ← individual workflow exports (override the baseline)
+│       │   └── <workflow name>/ ← optional: one subfolder per workflow, scanned recursively
 │       └── manual/              ← human-maintained overrides
 │           ├── workspace.json           (slug + display name)
 │           ├── form_aliases.json        (filename → display name; plus name_aliases)
@@ -129,7 +131,7 @@ Anywhere under the workspace's slug directory (`data/<slug>/`, hyphenated — e.
 | A **single form** design | Surgical override — matched to its baseline form by **field overlap** (no filename mapping needed), replaces that form's fields/relationships. **Always wins** over the baseline. |
 | A **single workflow** | Surgical override, matched by `(trigger form, name)`. **Always wins** over the baseline. |
 
-The `forms/` and `workflows/` subfolders still work; the slug root works just as well. If the same form is exported twice (e.g. `_v78` and `_v79`), the highest version wins and the ignored file is warned about. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a `!` warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the now-stale individual files.
+The `forms/` and `workflows/` subfolders still work, scanned recursively (flat, or one subfolder per form/workflow — e.g. `forms/300 - Account Management/300 - Account Management.json`); the slug root works just as well. If the same form is exported twice (e.g. `_v78` and `_v79`), the highest version wins and the ignored file is warned about. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a `!` warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the now-stale individual files.
 
 For a brand-new workspace there's nothing to pre-create with the whole-workspace route — just make `data/<slug>/`, drop the export at its root, and regenerate. See **Adding a new workspace** below.
 
@@ -166,7 +168,7 @@ Python 3.9 or newer. `openpyxl` is the only runtime dependency.
 When new JSONs come from the platform:
 
 1. Export from the platform UI — either the whole workspace (one JSON) or an individual form/workflow.
-2. Drop it anywhere under `data/<slug>/` — the rebuild routes it by content.
+2. Drop it anywhere under `data/<slug>/` — the rebuild routes it by content (root, `forms/`/`workflows/` flat, or in their own subfolder, all scanned recursively). Give the file a clean, self-describing name — it makes the folder readable at a glance instead of carrying the platform's raw export filename.
 3. Run the rebuild: `python scripts/regenerate.py` (or `--workspace <slug>` for just that one). Watch for `!` warnings — each one names an individual file that is shadowing the workspace baseline.
 4. Read the per-workspace **`Orphans:`** line in the rebuild output (see below).
 5. Open `output/<slug>/workspace_explorer.html` to confirm the new node/edge appears.
@@ -183,7 +185,7 @@ Typical workspace-export lifecycle: baseline the workspace with one full export 
 Files in `data/<slug>/manual/` override or annotate without touching the auto-discovered data. None are required; sensible defaults apply when absent.
 
 - **`workspace.json`** — the workspace `slug` and `displayName` (used as the Excel title and graph heading).
-- **`form_aliases.json`** — two escape hatches, both rarely needed. Filename-stem entries force a display name when content-matching can't resolve one (form exports are normally matched to the baseline by field overlap automatically). The `name_aliases` section corrects stale form names that exports still reference (e.g. `"Account Management (200)" → "200 - Account"`), which would otherwise create phantom lookup nodes.
+- **`form_aliases.json`** — two escape hatches, both rarely needed. Filename-stem entries (keyed the same regardless of whether the file sits flat in `forms/` or in its own subfolder) force a display name when content-matching can't resolve one (form exports are normally matched to the baseline by field overlap automatically). The `name_aliases` section corrects stale form names that exports still reference (e.g. `"Account Management (200)" → "200 - Account"`), which would otherwise create phantom lookup nodes.
 - **`workflow_metadata.json`** — assigns each workflow its callsign, criticality, owner, and business process.
 - **`business_processes.json`** — defines the real-world processes workflows can be tagged against.
 - **`explorer_layout.json`** — optional preset node positions for the graph; without it the explorer uses a force-directed layout.
@@ -203,7 +205,7 @@ Edit these in any editor, then re-run `regenerate.py`.
 ## Adding a new workflow (individual export)
 
 1. Build the workflow in the platform and export its JSON.
-2. Save it anywhere under `data/<slug>/`.
+2. Give the file a clean, self-describing name and save it anywhere under `data/<slug>/` — root, or `workflows/` flat or in its own subfolder (recursive scan, path doesn't affect matching).
 3. Optionally add an entry to that workspace's `workflow_metadata.json` with a callsign and criticality rating (key by filename stem; workflows embedded in a workspace export key by workflow name instead).
 4. If the workflow references a form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
 5. Regenerate.
@@ -211,7 +213,7 @@ Edit these in any editor, then re-run `regenerate.py`.
 ## Adding or updating a form (individual export)
 
 1. Export the form design JSON.
-2. Save it anywhere under `data/<slug>/`.
+2. Give the file a clean, self-describing name and save it anywhere under `data/<slug>/` — root, or `forms/` flat or in its own subfolder (recursive scan, path doesn't affect matching).
 3. Regenerate. The rebuild matches the file to its baseline form by field overlap and prints the decision (`<file> -> '<form>' (matched N/M fields)`); if it warns of a low-confidence match, add a `form_aliases.json` filename entry naming the form exactly as the baseline spells it.
 
 ## Data sensitivity

@@ -100,12 +100,16 @@ If something is missing it prints plain-English instructions instead of failing 
 │           └── explorer_layout.json     (optional preset graph positions)
 ├── output/
 │   ├── <slug>/                  ← per-workspace Excel + HTML
-│   └── global/                  ← cross-workspace Excel + HTML
+│   ├── global/                  ← cross-workspace Excel + HTML
+│   └── snapshots/               ← version snapshots (<id>.json + manifest.json)
 ├── scripts/
 │   ├── parser.py                (Workspace class + shared JSON parser)
+│   ├── narrate.py               (deterministic plain-English narration)
 │   ├── build_inventory.py       (per-workspace Excel builder)
 │   ├── build_explorer.py        (per-workspace HTML builder)
 │   ├── build_global.py          (cross-workspace aggregator)
+│   ├── build_registry.py        (cross-workspace reuse/sameness views)
+│   ├── versioning.py            (snapshot capture + compare)
 │   ├── explorer_template.html   (per-workspace HTML template)
 │   ├── global_template.html     (global HTML template)
 │   └── regenerate.py            (rebuild orchestrator)

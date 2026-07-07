@@ -138,6 +138,7 @@ output/
   <slug>/        ← per-workspace Excel + HTML
     forms/       ← per-form printable briefs (generated; so the local explorer's "Open full brief" link resolves)
   global/        ← cross-workspace Excel + HTML
+  snapshots/     ← version snapshots (<id>.json + manifest.json); git-tracked temporal history
 docs/            ← GitHub Pages publish target (HTML only; generated, not hand-edited)
   index.html       landing page listing every view (+ featured-form quick-link chips)
   <slug>/explorer.html

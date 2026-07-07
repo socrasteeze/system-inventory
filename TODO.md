@@ -23,6 +23,13 @@ each `plans/*.md` file.)
 
 ## Done
 
+**Version snapshots and compare (2026-07-07).** `scripts/versioning.py` serializes
+`discover_all()` output to `output/snapshots/` with a manifest index. Full rebuilds
+auto-save when state changes; `--snapshot [LABEL]` captures on demand; `--compare OLD NEW`
+reports form/field/workflow/relationship deltas (console + optional JSON). Reuses
+`build_registry` fingerprints for design and workflow logic drift. Unit tests in
+`tests/test_versioning.py`.
+
 Plans 01–03 executed (2026-07-02) — one working session, all verified end-to-end:
 
 **Drop-anywhere ingestion (plans/01).** Root-level JSONs are routed by detected content

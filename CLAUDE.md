@@ -152,6 +152,7 @@ scripts/
   brief_template.html       per-form printable brief shell (title + body injected)
   build_global.py       cross-workspace aggregator (Excel + HTML)
   build_registry.py     reuse/sameness views (WorkflowReuse, FormFamilies, FieldTemplates) + step-4 suppression
+  versioning.py         snapshot capture + compare (temporal change tracking)
   global_template.html      global HTML template
   regenerate.py         rebuild orchestrator (CLI) + docs/ publish
 ```
@@ -165,11 +166,39 @@ python scripts/regenerate.py                 rebuild all workspaces + global
 python scripts/regenerate.py --workspace X   rebuild only workspace X (skips global)
 python scripts/regenerate.py --global        rebuild only the global aggregator
 python scripts/regenerate.py --check         discovery only: counts, orphans, warnings; writes nothing
+python scripts/regenerate.py --snapshot [LABEL]
+                                             capture a version snapshot (no rebuild)
+python scripts/regenerate.py --list-snapshots
+                                             list saved snapshots (newest first)
+python scripts/regenerate.py --compare OLD NEW [--workspace SLUG] [--compare-json]
+                                             diff two snapshots (refs: id, label, latest, previous)
+python scripts/regenerate.py --no-snapshot   skip auto-snapshot after a full rebuild
 ```
 
 Run from the project root after adding or changing any JSON in `data/`. Open the relevant `output/<slug>/workspace_explorer.html` (or `output/global/global-explorer.html`) to confirm the graph.
 
 `--workspace X` intentionally does not rebuild the global view; run with no args (or `--global`) to refresh it. `--check` is the fast "is my data folder sane?" answer — it parses everything and prints per-workspace counts, orphan counts, and all warnings without touching `output/` or `docs/`.
+
+### Version snapshots and compare
+
+Full rebuilds (no flags, or default path) auto-save a **version snapshot** after `publish_docs()` unless `--no-snapshot` is passed. Snapshots serialize the normalized `discover_all()` output — the same substrate the builders consume — under `output/snapshots/`:
+
+- `<id>.json` — full snapshot (all workspaces, forms, fields, workflows, relationships, ref-pulls)
+- `manifest.json` — index of snapshots (id, label, created timestamp, per-workspace counts)
+
+If the discovered state is byte-identical to the latest snapshot, a duplicate is not written. Pin a meaningful baseline with a labeled capture: `python scripts/regenerate.py --snapshot pre-migration`.
+
+Compare any two snapshots:
+
+```
+python scripts/regenerate.py --compare previous latest
+python scripts/regenerate.py --compare 2026-07-01T10-00-00 2026-07-07T14-00-00 --workspace socal-whp
+python scripts/regenerate.py --compare baseline pre-migration --compare-json
+```
+
+The console report lists forms added/removed/modified (with per-field attribute deltas), workflow trigger/action signature changes, and relationship/ref-pull deltas. `--compare-json` also writes `output/snapshots/compare_<from>_to_<to>.json` for tooling. Snapshot refs accept: full/partial id, exact label, `latest`, or `previous`.
+
+Form design drift uses the same fingerprint as `build_registry._form_fingerprint()`; workflow logic drift uses `_exact_hash()`. Snapshots are intended to be git-tracked alongside `output/` so commit history carries inventory state even though `data/` is gitignored locally.
 
 **Rebuild summary block.** Every run ends with a `Rebuild summary:` block — workspace/form/workflow totals plus every distinct warning collected during the run (`parser.WARNINGS`; each warning prints once per process via the module-level `_PRINTED_ONCE` dedupe, even though discovery runs several times per rebuild). start.bat users see this block directly above the view-choice menu.
 

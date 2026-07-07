@@ -37,6 +37,7 @@ The project answers questions about workflow automations and form architecture t
 - Where is field X used — across forms, workflows, validation rules, and formulas?
 - Do workflows in different workspaces duplicate each other's logic?
 - Which automations run on a schedule, and when?
+- **What changed since the last rebuild or baseline?** Version snapshots under `output/snapshots/` capture normalized discovery state; `--compare` reports form, field, workflow, and relationship deltas.
 
 ## Scope
 
@@ -135,7 +136,12 @@ python scripts/regenerate.py                 # rebuild all workspaces + global
 python scripts/regenerate.py --workspace X   # rebuild only workspace X
 python scripts/regenerate.py --global        # rebuild only the global aggregator
 python scripts/regenerate.py --check         # discovery only: counts, orphans, warnings; writes nothing
+python scripts/regenerate.py --snapshot [LABEL]   # capture a version snapshot (no rebuild)
+python scripts/regenerate.py --list-snapshots     # list saved snapshots
+python scripts/regenerate.py --compare OLD NEW [--workspace SLUG] [--compare-json]
 ```
+
+Full rebuilds auto-save a version snapshot after publish (skipped when unchanged vs `latest`, or when `--no-snapshot` is passed). Snapshots live in `output/snapshots/` and record the normalized discovery state — forms, fields, workflows, relationships — so you can diff two points in time even when `data/` is not in git. Compare with `previous latest`, snapshot ids, or labels; scope to one workspace with `--workspace`.
 
 Run from the project root after adding or changing any JSON under `data/`, then open the relevant file in `output/<slug>/` (or `output/global/`) to confirm. Every run ends with a **Rebuild summary** block — totals plus every warning in one place, so nothing scrolls away unseen (`start.bat` shows it right above its view-choice menu). `start.bat` also remembers the last view you opened and offers it as the Enter-key default next time.
 

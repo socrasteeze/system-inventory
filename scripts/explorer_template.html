@@ -84,10 +84,11 @@
   .panel .section{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
   .panel .section h3{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
                      color:var(--muted);margin-bottom:10px}
-  .panel input.field-search{width:100%;background:var(--bg3);color:var(--text);
+  .panel input.field-search,.panel select.field-search{width:100%;background:var(--bg3);color:var(--text);
       border:1px solid var(--border);padding:6px 10px;border-radius:5px;font-size:12px;
-      outline:none;margin-bottom:8px}
-  .panel input.field-search:focus{border-color:var(--accent)}
+      outline:none;margin-bottom:8px;font-family:inherit}
+  .panel input.field-search:focus,.panel select.field-search:focus{border-color:var(--accent)}
+  .panel select.field-search option{background:var(--bg3);color:var(--text)}
   .field-list{max-height:none}
   .field{padding:6px 8px;border-radius:4px;font-size:12px;cursor:pointer;
          border-left:2px solid transparent;transition:all 0.1s;font-family:monospace}
@@ -128,6 +129,8 @@
   .badge.dep-uses{background:#1e3d2f;color:#6ee7b7;cursor:default}
   .badge.dep-used{background:#2d3a1e;color:#bef264;cursor:default}
   .badge.featured{background:#4a3a12;color:#fcd34d}
+  .badge.mode-advanced{background:#3b2d63;color:#d9c9ff;cursor:default}
+  .badge.mode-conditional{background:#1e3a5f;color:#bcdbff;cursor:default}
   /* Plain-English narrative: prose in the muted meta style, plus a quiet link out. */
   .summary-prose{font-size:12px;line-height:1.55;color:var(--text)}
   .summary-prose .lead{font-weight:600}
@@ -542,6 +545,7 @@ function selectFromHash(){
 const panel = document.getElementById('panel');
 let activeNodeId = null;
 let activeFieldFilter = '';
+let activeModeFilter = '';       // '' | 'Advanced' | 'Conditional' -- config authoring mode
 let currentFormName = null;
 let expandedFields = new Set();  // field names expanded inline; reset when the form changes
 let keyboardActiveField = null;  // roving-tabindex anchor; null = use first row
@@ -662,6 +666,13 @@ function renderForm(formName){
         <button id="filter-lock" class="mini-btn${lockFieldFilter?' active':''}"
                 title="Keep this filter when switching forms" onclick="toggleFilterLock()">Lock</button>
       </div>
+      <select id="field-mode-filter" class="field-search" style="margin-bottom:8px"
+              title="Show only fields whose formula, visibility, required, or filter logic was authored this way"
+              onchange="activeModeFilter=this.value; renderFieldList('${escapeAttr(formName)}')">
+        <option value=""${activeModeFilter===''?' selected':''}>All configuration</option>
+        <option value="Advanced"${activeModeFilter==='Advanced'?' selected':''}>Advanced (code) only</option>
+        <option value="Conditional"${activeModeFilter==='Conditional'?' selected':''}>Conditional (rule builder) only</option>
+      </select>
       <div class="field-list" id="field-list" role="listbox"></div>
     </div>
 
@@ -698,10 +709,29 @@ function renderForm(formName){
 
 // Fields matching the current filter; expansion state is tracked separately so a
 // filter only changes what's visible, never what's expanded.
+// Config text a field carries beyond its name/label -- formula, validator, and
+// the raw visibility/required/filter expressions (e.g. an IsInGroup(...) call) --
+// so searching for a function or token surfaces every field using it that way.
+function fieldConfigText(f){
+  return [f.formula, f.validator, f.visibilityExpr, f.validationExpr, f.filterExpr]
+    .filter(Boolean).join(' \x00 ').toLowerCase();
+}
+
+// The four config-mode slots a field can carry: 'Advanced' (raw code) or
+// 'Conditional' (the platform's visual rule builder). A field can mix both
+// across its formula/visibility/required/filter -- fieldModes() collects the
+// distinct set present so filtering and badges only need to check membership.
+function fieldModes(f){
+  return new Set([f.formulaMode, f.visibilityMode, f.validationMode, f.filterMode].filter(Boolean));
+}
+
 function visibleFields(formName){
   const q = activeFieldFilter.toLowerCase();
-  return (DATA.fields[formName] || []).filter(f =>
-    !q || f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q));
+  return (DATA.fields[formName] || []).filter(f => {
+    if (activeModeFilter && !fieldModes(f).has(activeModeFilter)) return false;
+    return !q || f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q)
+      || fieldConfigText(f).includes(q);
+  });
 }
 
 // Map of field name -> Set of directions (Read/Write/Condition) for every workflow
@@ -867,10 +897,11 @@ function renderFieldList(formName, refocus){
   </div>`;
 
   if (!visible.length) {
-    const noResultMsg = activeFieldFilter
-      ? `No fields match <b style="color:var(--text)">${escapeHtml(activeFieldFilter)}</b>`
-      : 'No fields';
-    const clearBtn = activeFieldFilter
+    const bits = [];
+    if (activeFieldFilter) bits.push(`match <b style="color:var(--text)">${escapeHtml(activeFieldFilter)}</b>`);
+    if (activeModeFilter) bits.push(`have ${activeModeFilter}-mode configuration`);
+    const noResultMsg = bits.length ? `No fields ${bits.join(' and ')}` : 'No fields';
+    const clearBtn = (activeFieldFilter || activeModeFilter)
       ? `<br><button class="mini-btn" style="margin-top:8px" onclick="clearFieldFilter()">Clear filter</button>`
       : '';
     list.innerHTML = controls + `<div class="empty-state" style="font-style:normal">${noResultMsg}${clearBtn}</div>`;
@@ -884,6 +915,23 @@ function renderFieldList(formName, refocus){
     if (!dirs) return '';
     return DIR_ORDER.filter(d => dirs.has(d))
       .map(d => `<span class="badge dir-${d.toLowerCase()}">${d[0]}</span>`).join('');
+  }
+
+  // When the field list is filtered by config text (formula/visibility/required/filter)
+  // rather than by name or label, flag it so the match reason is visible at a glance.
+  const q = activeFieldFilter.toLowerCase();
+  function isConfigMatch(f){
+    if (!q) return false;
+    if (f.name.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q)) return false;
+    return fieldConfigText(f).includes(q);
+  }
+
+  function modeBadges(f){
+    const modes = fieldModes(f);
+    let out = '';
+    if (modes.has('Advanced')) out += '<span class="badge mode-advanced" title="Has formula/visibility/required/filter logic written in the Advanced code editor">ADV</span>';
+    if (modes.has('Conditional')) out += '<span class="badge mode-conditional" title="Has formula/visibility/required/filter logic built with the Conditional rule builder">COND</span>';
+    return out;
   }
 
   function renderFieldRow(f){
@@ -900,6 +948,8 @@ function renderFieldList(formName, refocus){
         <span class="flbl">${escapeHtml(secondary)}</span>
         <span class="badges">
           ${dirBadges(dirs)}
+          ${isConfigMatch(f)?`<span class="badge dep-uses" title="Matches “${escapeAttr(activeFieldFilter)}” in this field's formula, visibility, required, or filter logic">CFG</span>`:''}
+          ${modeBadges(f)}
           ${f.required==='Yes'?'<span class="badge req">REQ</span>':''}
           ${f.component==='FormRelationshipInput'?'<span class="badge rel">REL</span>':''}
           ${f.component==='FormRelationshipReferenceDataInput'?'<span class="badge ref">REF</span>':''}
@@ -974,8 +1024,11 @@ function copyFieldName(evt, fieldName){
 
 function clearFieldFilter(){
   activeFieldFilter = '';
+  activeModeFilter = '';
   const searchEl = document.getElementById('field-search');
   if (searchEl) { searchEl.value = ''; searchEl.focus(); }
+  const modeEl = document.getElementById('field-mode-filter');
+  if (modeEl) modeEl.value = '';
   if (currentFormName) renderFieldList(currentFormName);
 }
 
@@ -990,8 +1043,11 @@ function updateExpandCount(){
 // active filter so the field is visible, expand it, and scroll it into view.
 function focusFieldDetail(formName, fieldName){
   activeFieldFilter = '';
+  activeModeFilter = '';
   const se = document.getElementById('field-search');
   if (se) se.value = '';
+  const me = document.getElementById('field-mode-filter');
+  if (me) me.value = '';
   expandedFields.add(fieldName);
   renderFieldList(currentFormName || formName, true);
   document.querySelectorAll('#field-list .field-row').forEach(row => {
@@ -1132,6 +1188,22 @@ function relationshipTarget(formName, via){
   return rel ? rel.target : null;
 }
 
+// One field-detail config block (Formula/Visibility/Required/Filter). Shows the
+// authoring mode next to the header always; the raw text when resolved (both
+// Advanced code and Conditional rule-builder expressions render to text), else
+// a fallback naming the fields the rule touches (e.g. a comparison type this
+// renderer doesn't decode yet).
+function configSectionHTML(title, mode, text, deps){
+  if (!mode) return '';
+  const modeTag = `<span class="badge mode-${mode.toLowerCase()}" style="margin-left:6px">${mode.toUpperCase()}</span>`;
+  const body = text
+    ? `<div class="usage" style="font-family:monospace;white-space:pre-wrap;line-height:1.4">${escapeHtml(text)}</div>`
+    : `<div class="empty-state" style="font-style:normal">${(deps||[]).length
+        ? `Conditional rule referencing ${(deps||[]).map(escapeHtml).join(', ')}`
+        : 'Conditional rule (not yet renderable)'}</div>`;
+  return `<h3>${title}${modeTag}</h3>${body}`;
+}
+
 // Inner HTML for a field's inline detail block (no DOM side effects).
 // Forward phrasing — mirror of narrate.py FORWARD_PHRASE/KIND_BADGE (kept in sync).
 const FORWARD_PHRASE = {
@@ -1203,8 +1275,10 @@ function fieldDetailHTML(formName, fieldName){
       ${field.validator?`<b>Validator:</b> ${escapeHtml(field.validator)}<br>`:''}
     </div>
 
-    ${field.formula?`<h3>Formula</h3>
-      <div class="usage" style="font-family:monospace;white-space:pre-wrap;line-height:1.4">${escapeHtml(field.formula)}</div>`:''}
+    ${configSectionHTML('Formula', field.formulaMode, field.formula, field.dependsOn && field.dependsOn.formula)}
+    ${configSectionHTML('Visibility condition', field.visibilityMode, field.visibilityExpr, field.dependsOn && field.dependsOn.visibility)}
+    ${configSectionHTML('Required / validation condition', field.validationMode, field.validationExpr, field.dependsOn && field.dependsOn.validation)}
+    ${configSectionHTML('Filter condition', field.filterMode, field.filterExpr, field.dependsOn && field.dependsOn.filter)}
 
     ${fwd && (fwd.fields.length || fwd.wfCondition.length) ? `<h3>Changing this field affects (${fwd.fields.length + fwd.wfCondition.length})</h3>
       ${fwd.fields.slice(0,6).map(x => `<div class="usage Condition" title="${escapeAttr(x.target)}">

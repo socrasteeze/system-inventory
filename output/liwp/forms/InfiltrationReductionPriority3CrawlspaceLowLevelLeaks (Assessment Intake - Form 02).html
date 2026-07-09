@@ -58,6 +58,60 @@
   li .when{color:var(--muted);font-size:12px}
   .empty{color:var(--muted);font-style:italic;font-size:13px}
   .foot{color:var(--muted);font-size:11px;font-family:monospace;margin-top:40px}
+  /* All-fields browser: search + expandable rows, mirrors the workspace explorer's panel. */
+  .field-tools{display:flex;gap:6px;margin-bottom:10px}
+  .field-search,.field-mode-filter{background:var(--bg3);color:var(--text);border:1px solid var(--border);
+      padding:6px 10px;border-radius:5px;font-size:13px;outline:none;font-family:inherit}
+  .field-search{flex:1}
+  .field-search:focus,.field-mode-filter:focus{border-color:var(--accent)}
+  .field-mode-filter option{background:var(--bg3);color:var(--text)}
+  .field-controls{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .field-controls .exp-count{font-size:11px;color:var(--muted);font-family:monospace}
+  .field-controls .spacer{flex:1}
+  .mini-btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);
+      padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit}
+  .mini-btn:hover{border-color:var(--accent)}
+  .field-list{max-height:none}
+  .field-row{margin-bottom:2px}
+  .field-row:focus{outline:none}
+  .fld{padding:6px 8px;border-radius:4px;font-size:12px;cursor:pointer;
+      border-left:2px solid transparent;font-family:monospace;display:flex;align-items:center;gap:6px}
+  .fld:hover{background:var(--bg2)}
+  .fld.touched{border-left-color:var(--accent);background:rgba(94,234,212,0.06)}
+  .fld .chev{display:inline-block;width:0;height:0;flex-shrink:0;
+      border-left:5px solid var(--muted);border-top:4px solid transparent;
+      border-bottom:4px solid transparent;transition:transform 0.12s}
+  .fld.expanded .chev{transform:rotate(90deg);border-left-color:var(--accent)}
+  .fld .fname{color:var(--text)}
+  .fld .ftype{color:var(--accent);font-size:10px;margin-left:auto;font-family:monospace}
+  .fld .flbl{color:var(--muted);font-size:10px;font-family:sans-serif}
+  .fld .fbadges{display:inline-flex;gap:4px}
+  .fbadge{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg3);
+      color:var(--muted);font-family:sans-serif;letter-spacing:0.3px}
+  .fbadge.req{background:#5f2424;color:#ffc4c4}
+  .fbadge.rel{background:#3b2d63;color:#d9c9ff}
+  .fbadge.ref{background:#1e3a5f;color:#bcdbff}
+  .fbadge.mode-advanced{background:#3b2d63;color:#d9c9ff}
+  .fbadge.mode-conditional{background:#1e3a5f;color:#bcdbff}
+  .fbadge.dir-read{background:var(--read);color:#0f1115}
+  .fbadge.dir-write{background:var(--write);color:#0f1115}
+  .fbadge.dir-condition{background:var(--cond);color:#0f1115}
+  .field-detail{margin:2px 0 8px 16px;padding:6px 10px;border-left:2px solid var(--border);
+      background:var(--bg2);border-radius:0 5px 5px 0;font-size:12px}
+  .field-detail h4{font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
+      color:var(--muted);margin:10px 0 6px}
+  .field-detail h4:first-child{margin-top:2px}
+  .field-detail .fmeta{color:var(--muted);line-height:1.6}
+  .field-detail .fmeta b{color:var(--text);font-weight:600}
+  .code-block{font-family:monospace;white-space:pre-wrap;line-height:1.4;
+      background:var(--bg);border-left:3px solid var(--muted);border-radius:4px;padding:6px 10px;margin-bottom:6px}
+  .fu-row{padding:5px 8px;border-radius:4px;font-size:11px;margin-bottom:4px;
+      background:var(--bg);border-left:3px solid var(--muted)}
+  .fu-row.Read{border-left-color:var(--read)}
+  .fu-row.Write{border-left-color:var(--write)}
+  .fu-row.Condition{border-left-color:var(--cond)}
+  .fu-row.Match{border-left-color:var(--match)}
+  .empty-note{color:var(--muted);font-size:11px;font-style:italic;padding:2px 0}
   @media print{
     :root{--bg:#fff;--bg2:#fff;--bg3:#eee;--border:#ccc;--text:#111;--muted:#555}
     body{max-width:none;padding:0}
@@ -68,11 +122,13 @@
     tr,li{page-break-inside:avoid}
     .wf-story{border:1px solid #ccc}
     h2{page-break-after:avoid}
+    .field-tools,.field-controls{display:none}
+    .fld .chev{display:none}
   }
 </style>
 </head>
 <body>
-  <a class="back" href="../explorer.html#form=InfiltrationReductionPriority3CrawlspaceLowLevelLeaks%20%28Assessment%20Intake%20-%20Form%2002%29">&larr; Back to Low-Income Weatherization Program explorer</a>
+  <a class="back" href="../workspace_explorer.html#form=InfiltrationReductionPriority3CrawlspaceLowLevelLeaks%20%28Assessment%20Intake%20-%20Form%2002%29">&larr; Back to Low-Income Weatherization Program explorer</a>
   <div class="badges" style="margin-top:14px"><span class="badge Subform">Subform</span><span class="badge featured">Featured</span></div>
   <h1>InfiltrationReductionPriority3CrawlspaceLowLevelLeaks (Assessment Intake - Form 02)</h1>
   <div class="ws">Low-Income Weatherization Program</div>
@@ -81,6 +137,210 @@
   <h2>What happens automatically</h2><div class="empty">Nothing runs automatically on this form.</div>
   <h2>Filling it out</h2><p class="lead">There are five fields to work with.</p>  <h3>Required fields</h3><div class="empty">No required fields.</div>
   <h2>What changes what</h2><div class="empty">No fields on this form trigger changes elsewhere.</div>
+  <h2>All fields (5)</h2>  <div class="field-tools"><input class="field-search" placeholder="filter fields..." oninput="__briefFilterInput(this.value)"><select class="field-mode-filter" onchange="__briefModeFilter(this.value)"><option value="">All configuration</option><option value="Advanced">Advanced (code) only</option><option value="Conditional">Conditional (rule builder) only</option></select></div>  <div class="field-controls"><span class="exp-count" id="brief-exp-count">0 expanded</span><span class="spacer"></span><button class="mini-btn" onclick="__briefCollapseAll()">Collapse all</button><button class="mini-btn" onclick="__briefExpandAll()">Expand all</button></div>  <div class="field-list" id="brief-field-list"></div>
   <div class="foot">Generated by regenerate.py &middot; not hand-edited</div>
+<script>window.__BRIEF_FIELDS__ = {"fields":[{"name":"Priority3CrawlspaceLowLevelLeaksSealed","label":"Sealed","type":"Boolean","component":"","required":"","hidden":"","enabled":"","relatedForm":"","relatedField":"","via":"","validator":"","formula":"","filter":"","visibility":"","defaultValue":"","dependsOn":{"validation":[],"formula":[],"filter":[],"visibility":[]},"dependsOnAll":[],"page":null,"section":null,"sort_order":0},{"name":"Priority3CrawlspaceLowLevelLeaksFeasible","label":"Feasible","type":"Boolean","component":"","required":"","hidden":"","enabled":"","relatedForm":"","relatedField":"","via":"","validator":"","formula":"","filter":"","visibility":"","defaultValue":"","dependsOn":{"validation":[],"formula":[],"filter":[],"visibility":[]},"dependsOnAll":[],"page":null,"section":null,"sort_order":0},{"name":"Priority3CrawlspaceLowLevelLeaksVerified","label":"Verified","type":"Boolean","component":"","required":"","hidden":"","enabled":"","relatedForm":"","relatedField":"","via":"","validator":"","formula":"","filter":"","visibility":"","defaultValue":"","dependsOn":{"validation":[],"formula":[],"filter":[],"visibility":[]},"dependsOnAll":[],"page":null,"section":null,"sort_order":0},{"name":"Priority3CrawlspaceLowLevelLeaks","label":"Crawlspace/Low Level Leaks","type":"Text","component":"","required":"","hidden":"","enabled":"","relatedForm":"","relatedField":"","via":"","validator":"","formula":"","filter":"","visibility":"","defaultValue":"","dependsOn":{"validation":[],"formula":[],"filter":[],"visibility":[]},"dependsOnAll":[],"page":null,"section":null,"sort_order":0},{"name":"Priority3CrawlspaceLowLevelLeaksPhoto","label":"Photo","type":"Files","component":"","required":"","hidden":"","enabled":"","relatedForm":"","relatedField":"","via":"","validator":"","formula":"","filter":"","visibility":"","defaultValue":"","dependsOn":{"validation":[],"formula":[],"filter":[],"visibility":[]},"dependsOnAll":[],"page":null,"section":null,"sort_order":0}],"forward":{},"referencedBy":{},"fieldUsage":{}};</script>
+<script>
+(function(){
+  var DATA = window.__BRIEF_FIELDS__;
+  if (!DATA) return;
+  var activeFilter = '', activeMode = '';
+  var expanded = new Set();
+
+  function escapeHtml(s){return String(s).replace(/[&<>"]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function escapeAttr(s){return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+
+  function fieldConfigText(f){
+    return [f.formula, f.validator, f.visibilityExpr, f.validationExpr, f.filterExpr]
+      .filter(Boolean).join(' \x00 ').toLowerCase();
+  }
+  function fieldModes(f){
+    return new Set([f.formulaMode, f.visibilityMode, f.validationMode, f.filterMode].filter(Boolean));
+  }
+  function visibleFields(){
+    var q = activeFilter.toLowerCase();
+    return DATA.fields.filter(function(f){
+      if (activeMode && !fieldModes(f).has(activeMode)) return false;
+      if (!q) return true;
+      return f.name.toLowerCase().indexOf(q) > -1 || (f.label||'').toLowerCase().indexOf(q) > -1
+        || fieldConfigText(f).indexOf(q) > -1;
+    });
+  }
+  function isConfigMatch(f, q){
+    if (!q) return false;
+    if (f.name.toLowerCase().indexOf(q) > -1 || (f.label||'').toLowerCase().indexOf(q) > -1) return false;
+    return fieldConfigText(f).indexOf(q) > -1;
+  }
+
+  var FORWARD_PHRASE = {
+    visibility: function(t){ return 'shows or hides ' + t; },
+    formula:    function(t){ return 'automatically updates ' + t; },
+    validation: function(t){ return 'changes whether ' + t + ' must be filled in'; },
+    filter:     function(t){ return 'changes which choices appear in ' + t; },
+  };
+  var FORWARD_BADGE = {visibility:'VISIBLE', formula:'FX', validation:'REQ', filter:'FILTER'};
+  var KIND_PHRASE = {
+    validation: function(f){ return 'Validation / required rule on ' + f; },
+    formula:    function(f){ return 'Formula for computed field ' + f; },
+    filter:     function(f){ return 'Filter condition on ' + f; },
+    visibility: function(f){ return 'Visibility condition on ' + f; },
+  };
+  var KIND_BADGE = {validation:'REQ', formula:'FX', filter:'FILTER', visibility:'VISIBLE'};
+
+  function fieldLabelOf(apiName){
+    var f = DATA.fields.find(function(x){ return x.name === apiName; });
+    var lbl = f && (f.label||'').trim();
+    return (lbl && lbl !== apiName) ? lbl : apiName;
+  }
+  var wfRefName = function(r){ return (r && (r.name || r.callsign)) || String(r); };
+
+  function configSectionHTML(title, mode, text, deps){
+    if (!mode) return '';
+    var modeTag = '<span class="fbadge mode-' + mode.toLowerCase() + '" style="margin-left:6px">' + mode.toUpperCase() + '</span>';
+    var body = text
+      ? '<div class="code-block">' + escapeHtml(text) + '</div>'
+      : '<div class="empty-note">' + ((deps||[]).length
+          ? 'Conditional rule referencing ' + deps.map(escapeHtml).join(', ')
+          : 'Conditional rule (not yet renderable)') + '</div>';
+    return '<h4>' + title + modeTag + '</h4>' + body;
+  }
+
+  function fieldDetailHTML(field){
+    var fwd = (DATA.forward && DATA.forward[field.name]) || null;
+    var usages = DATA.fieldUsage[field.name] || [];
+    var referencedBy = DATA.referencedBy[field.name] || [];
+    var intraRefs = [];
+    DATA.fields.forEach(function(g){
+      var dep = g.dependsOn || {};
+      Object.keys(KIND_PHRASE).forEach(function(kind){
+        if ((dep[kind]||[]).indexOf(field.name) > -1) intraRefs.push({by: g.name, kind: kind});
+      });
+    });
+
+    var html = '<div class="fmeta">';
+    html += '<b>Label:</b> ' + escapeHtml(field.label||'(none)') + '<br>';
+    html += '<b>Type:</b> ' + escapeHtml(field.type||'') + '<br>';
+    html += '<b>Component:</b> ' + escapeHtml(field.component||'') + '<br>';
+    if (field.relatedForm) html += '<b>Linked to:</b> ' + escapeHtml(field.relatedForm) + '<br>';
+    if (field.relatedField) html += '<b>Pulls field:</b> ' + escapeHtml(field.relatedField) + '<br>';
+    if (field.via) html += '<b>Via relationship:</b> ' + escapeHtml(field.via) + '<br>';
+    if (field.defaultValue) html += '<b>Default:</b> ' + escapeHtml(field.defaultValue) + '<br>';
+    if (field.validator) html += '<b>Validator:</b> ' + escapeHtml(field.validator) + '<br>';
+    html += '</div>';
+
+    html += configSectionHTML('Formula', field.formulaMode, field.formula, field.dependsOn && field.dependsOn.formula);
+    html += configSectionHTML('Visibility condition', field.visibilityMode, field.visibilityExpr, field.dependsOn && field.dependsOn.visibility);
+    html += configSectionHTML('Required / validation condition', field.validationMode, field.validationExpr, field.dependsOn && field.dependsOn.validation);
+    html += configSectionHTML('Filter condition', field.filterMode, field.filterExpr, field.dependsOn && field.dependsOn.filter);
+
+    if (fwd && (fwd.fields.length || fwd.wfCondition.length)){
+      html += '<h4>Changing this field affects (' + (fwd.fields.length + fwd.wfCondition.length) + ')</h4>';
+      fwd.fields.slice(0,6).forEach(function(x){
+        html += '<div class="fu-row Condition"><b>' + (FORWARD_BADGE[x.kind]||'DEP') + '</b> ' + escapeHtml(fieldLabelOf(x.target))
+          + '<div>' + escapeHtml((FORWARD_PHRASE[x.kind]||function(t){return t;})(fieldLabelOf(x.target))) + '</div></div>';
+      });
+      if (fwd.fields.length > 6) html += '<div class="empty-note">+' + (fwd.fields.length-6) + ' more fields</div>';
+      fwd.wfCondition.forEach(function(r){
+        html += '<div class="fu-row Condition"><b>FLOW</b> ' + escapeHtml(wfRefName(r))
+          + '<div>helps decide whether this automated step runs</div></div>';
+      });
+    }
+    if (fwd && fwd.writtenBy.length){
+      html += '<div class="empty-note" style="font-style:normal;margin-top:4px">Filled in automatically by '
+        + fwd.writtenBy.map(function(r){ return escapeHtml(wfRefName(r)); }).join(', ') + ' — normally not edited by hand</div>';
+    }
+
+    html += '<h4>Workflow usage (' + usages.length + ')</h4>';
+    html += usages.length
+      ? usages.map(function(u){ return '<div class="fu-row ' + u.direction + '"><b>' + u.direction + '</b> ' + escapeHtml(u.name)
+          + '<div>' + escapeHtml(u.context) + '</div></div>'; }).join('')
+      : '<div class="empty-note">no workflows touch this field yet</div>';
+
+    html += '<h4>Referenced by (' + referencedBy.length + ')</h4>';
+    html += referencedBy.length
+      ? referencedBy.map(function(x){ return '<div class="fu-row Match"><b>REF</b> ' + escapeHtml(x.form)
+          + '<div>via ' + escapeHtml(x.via) + ' → ' + escapeHtml(x.localField) + '</div></div>'; }).join('')
+      : '<div class="empty-note">no forms reference this field</div>';
+
+    html += '<h4>Used within this form (' + intraRefs.length + ')</h4>';
+    html += intraRefs.length
+      ? intraRefs.map(function(x){ return '<div class="fu-row Condition"><b>' + KIND_BADGE[x.kind] + '</b> ' + escapeHtml(x.by)
+          + '<div>' + escapeHtml(KIND_PHRASE[x.kind](x.by)) + '</div></div>'; }).join('')
+      : '<div class="empty-note">not referenced by other fields on this form</div>';
+
+    return html;
+  }
+
+  function modeBadges(f){
+    var modes = fieldModes(f), out = '';
+    if (modes.has('Advanced')) out += '<span class="fbadge mode-advanced" title="Advanced (code) configuration">ADV</span>';
+    if (modes.has('Conditional')) out += '<span class="fbadge mode-conditional" title="Conditional (rule builder) configuration">COND</span>';
+    return out;
+  }
+
+  function touchedDirs(fieldName){
+    var dirs = new Set();
+    (DATA.fieldUsage[fieldName] || []).forEach(function(u){ dirs.add(u.direction); });
+    return dirs;
+  }
+
+  function renderRow(f, q){
+    var dirs = touchedDirs(f.name);
+    var isExp = expanded.has(f.name);
+    var dirOrder = ['Read','Write','Condition'];
+    var dirHtml = dirOrder.filter(function(d){ return dirs.has(d); })
+      .map(function(d){ return '<span class="fbadge dir-' + d.toLowerCase() + '">' + d[0] + '</span>'; }).join('');
+    var cfgMatch = isConfigMatch(f, q) ? '<span class="fbadge mode-conditional" title="Matches search in formula/visibility/required/filter logic">CFG</span>' : '';
+    var row = '<div class="field-row" data-field="' + escapeAttr(f.name) + '">';
+    row += '<div class="fld' + (dirs.size?' touched':'') + (isExp?' expanded':'') + '" onclick="__briefToggleField(\'' + escapeAttr(f.name) + '\')">';
+    row += '<span class="chev"></span><span class="fname">' + escapeHtml(f.name) + '</span>';
+    if (f.label) row += '<span class="flbl">' + escapeHtml(f.label) + '</span>';
+    row += '<span class="ftype">' + escapeHtml(f.type||'') + '</span>';
+    row += '<span class="fbadges">' + dirHtml + cfgMatch + modeBadges(f)
+      + (f.required==='Yes'?'<span class="fbadge req">REQ</span>':'')
+      + (f.component==='FormRelationshipInput'?'<span class="fbadge rel">REL</span>':'')
+      + (f.component==='FormRelationshipReferenceDataInput'?'<span class="fbadge ref">REF</span>':'')
+      + '</span></div>';
+    if (isExp) row += '<div class="field-detail">' + fieldDetailHTML(f) + '</div>';
+    row += '</div>';
+    return row;
+  }
+
+  function render(){
+    var list = document.getElementById('brief-field-list');
+    if (!list) return;
+    var q = activeFilter.toLowerCase();
+    var visible = visibleFields();
+    var countEl = document.getElementById('brief-exp-count');
+    if (countEl) countEl.textContent = expanded.size + ' expanded';
+    if (!visible.length){
+      var bits = [];
+      if (activeFilter) bits.push('match "' + activeFilter + '"');
+      if (activeMode) bits.push('have ' + activeMode + '-mode configuration');
+      list.innerHTML = '<div class="empty-note" style="font-style:normal">'
+        + (bits.length ? 'No fields ' + bits.join(' and ') : 'No fields') + '</div>';
+      return;
+    }
+    list.innerHTML = visible.map(function(f){ return renderRow(f, q); }).join('');
+  }
+
+  window.__briefToggleField = function(fieldName){
+    if (expanded.has(fieldName)) expanded.delete(fieldName); else expanded.add(fieldName);
+    render();
+  };
+  window.__briefExpandAll = function(){
+    visibleFields().forEach(function(f){ expanded.add(f.name); });
+    render();
+  };
+  window.__briefCollapseAll = function(){
+    expanded.clear();
+    render();
+  };
+  window.__briefFilterInput = function(v){ activeFilter = v; render(); };
+  window.__briefModeFilter = function(v){ activeMode = v; render(); };
+
+  render();
+})();
+</script>
 </body>
 </html>

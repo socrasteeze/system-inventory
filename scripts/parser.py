@@ -53,7 +53,10 @@ FEATURED_KEYWORDS = ("account", "enrollment", "assessment", "installation", "inv
 
 def _decode_b64_json(s):
     try:
-        return json.loads(base64.b64decode(s).decode("utf-8"))
+        # Encoders vary on whether the trailing '=' padding is included; add
+        # what's missing rather than let b64decode reject an unpadded string.
+        padded = s + "=" * (-len(s) % 4)
+        return json.loads(base64.b64decode(padded).decode("utf-8"))
     except Exception:
         return None
 
@@ -91,6 +94,41 @@ def _clean_formula(code):
     code = re.sub(r"/\*\*.*?\*/", "", code, flags=re.S)
     return re.sub(r"\s+", " ", code).strip()
 
+def _advanced_config(value, own_name=None):
+    """Decode an AdvancedConfiguration-shaped field config (formula / visibility /
+    conditional-required / filter) into its authoring mode, human-readable text,
+    and the same-form field names it references.
+
+    Every such config carries a fixed key set (Configuration, Expression,
+    ClearValueOnTrue/False, Key, Fields, ExpressionFieldReferences) with exactly
+    one of two populated, never both:
+    - Configuration (a JS string) = written in the platform's "Advanced" code
+      editor. Text comes straight from the code; deps from _config_field_refs.
+    - Expression (base64-encoded JSON) = built with the "Conditional" visual
+      rule builder — a GroupingDto tree of field comparisons / context checks
+      (e.g. IsInGroup). Its sibling ExpressionFieldReferences is a ready-made
+      {FieldName: FieldGUID} map for every field the rule touches, which is
+      also enough to resolve FormFieldId refs inside the tree to names without
+      any external GUID index.
+    """
+    obj = _as_config_obj(value)
+    if not isinstance(obj, dict):
+        return {"mode": "", "text": "", "deps": []}
+    if obj.get("Configuration"):
+        return {
+            "mode": "Advanced",
+            "text": _clean_formula(obj["Configuration"]),
+            "deps": _config_field_refs(value, own_name),
+        }
+    if obj.get("Expression"):
+        expr = _as_config_obj(obj["Expression"])
+        name_by_guid = {guid: {"FieldName": fname}
+                        for fname, guid in (obj.get("ExpressionFieldReferences") or {}).items()}
+        text = _expr_to_text(expr, name_by_guid) if isinstance(expr, dict) else ""
+        deps = sorted(fn for fn in (obj.get("ExpressionFieldReferences") or {}) if fn != own_name)
+        return {"mode": "Conditional", "text": text, "deps": deps}
+    return {"mode": "", "text": "", "deps": []}
+
 def _extract_field_config(node, own_name):
     """Field-level config + the fields each piece references (the intra-form depends-on)."""
     ep = node.get("ExtraProperties", {}) or {}
@@ -100,27 +138,33 @@ def _extract_field_config(node, own_name):
     dv = ep.get("DefaultValue")
     default_value = str(dv) if dv not in (None, "") else ""
 
+    modes = {"formula": "", "filter": "", "visibility": "", "validation": ""}
+
     formula = ""
     formula_cfg = ep.get("AdvancedConfiguration") or ep.get("ValueAdvancedConfiguration")
     if formula_cfg:
-        obj = _as_config_obj(formula_cfg)
-        if isinstance(obj, dict) and obj.get("Configuration"):
-            formula = _clean_formula(obj["Configuration"])
-        deps["formula"] = _config_field_refs(formula_cfg, own_name)
+        r = _advanced_config(formula_cfg, own_name)
+        formula, modes["formula"], deps["formula"] = r["text"], r["mode"], r["deps"]
 
     visibility = ""
+    visibility_expr = ""
     if ep.get("HiddenAdvancedConfiguration"):
         visibility = "Yes"
-        deps["visibility"] = _config_field_refs(ep["HiddenAdvancedConfiguration"], own_name)
+        r = _advanced_config(ep["HiddenAdvancedConfiguration"], own_name)
+        visibility_expr, modes["visibility"], deps["visibility"] = r["text"], r["mode"], r["deps"]
 
+    validation_expr = ""
     if ep.get("RequiredAdvancedConfiguration"):
-        deps["validation"] = _config_field_refs(ep["RequiredAdvancedConfiguration"], own_name)
+        r = _advanced_config(ep["RequiredAdvancedConfiguration"], own_name)
+        validation_expr, modes["validation"], deps["validation"] = r["text"], r["mode"], r["deps"]
 
     filt = ""
+    filter_expr = ""
     filter_node = node.get("Filter")
     if isinstance(filter_node, str) and filter_node:
         filt = "Yes"
-        deps["filter"] = _config_field_refs(filter_node, own_name)
+        r = _advanced_config(filter_node, own_name)
+        filter_expr, modes["filter"], deps["filter"] = r["text"], r["mode"], r["deps"]
     elif isinstance(filter_node, dict) and filter_node:
         # Workspace exports carry the filter as a parsed expression dict whose
         # field refs are GUIDs; the caller resolves those (needs the GUID index).
@@ -130,9 +174,10 @@ def _extract_field_config(node, own_name):
 
     return {
         "validator": validator,
-        "formula": formula,
-        "filter": filt,
-        "visibility": visibility,
+        "formula": formula, "formulaMode": modes["formula"],
+        "filter": filt, "filterExpr": filter_expr, "filterMode": modes["filter"],
+        "visibility": visibility, "visibilityExpr": visibility_expr, "visibilityMode": modes["visibility"],
+        "validationExpr": validation_expr, "validationMode": modes["validation"],
         "defaultValue": default_value,
         "dependsOn": deps,
         "dependsOnAll": sorted({f for lst in deps.values() for f in lst}),
@@ -263,6 +308,14 @@ def _expr_to_text(node, ref_by_id):
         val_text = val.get("Value","?") if str(val.get("type","")).startswith("ConstantTerm") else val.get("ContextName","?")
         op = op_map.get(node.get("Operation"), "?")
         return f"{fld_name} {op} '{val_text}'"
+    if t.startswith("FormContextExpression"):
+        # Context checks from the visual rule builder, e.g. IsInGroup("Admin") —
+        # ContextOption is the function name; Term(s)Value hold its argument(s).
+        opt = node.get("ContextOption", "?")
+        term = node.get("TermValue") or {}
+        terms = node.get("TermValues") or []
+        args = [str(t["Value"]) for t in [term] + list(terms) if t.get("Value") not in (None, "")]
+        return f"{opt}({', '.join(repr(a) for a in args)})"
     # "Comparison" nodes (record-metadata guards like LastModifierId vs a user
     # GUID) are deliberately NOT rendered: their operation enum is unverified
     # and a dozen GUID clauses drown the readable part of a condition. They
@@ -516,6 +569,36 @@ def _ws_parse_form(raw, display, form_name_by_id, field_index, subform_of):
         "role": "Subform" if subform_of else None,
     }
 
+def _wf_form_prefix(form_name):
+    """Short, deterministic token for namespacing a workflow callsign by its
+    parent form (e.g. '310 - Enrollment Intake' -> '310', 'Invoice' -> 'INVOICE').
+    Same-named workflows nested under different forms need distinct, stable
+    callsigns that don't depend on parse order.
+    """
+    m = re.match(r"\s*(\d+)\s*-", form_name or "")
+    if m:
+        return m.group(1)
+    first_word = (form_name or "").split(" - ")[0].split()
+    token = re.sub(r"[^A-Za-z0-9]", "", first_word[0]) if first_word else ""
+    return token[:10].upper() or "WF"
+
+def _wf_name_token(name, maxlen=20):
+    """Workflow name -> callsign token, truncated on word boundaries (never
+    mid-word) with no trailing underscore -- e.g. 'Review Notification
+    (Operations)' -> 'REVIEW_NOTIFICATION', not 'REVIEW_NOTIF'."""
+    words = re.findall(r"[A-Za-z0-9]+", name or "")
+    if not words:
+        return "WF"
+    kept, length = [], 0
+    for w in words:
+        w = w.upper()
+        added = len(w) + (1 if kept else 0)
+        if kept and length + added > maxlen:
+            break
+        kept.append(w)
+        length += added
+    return "_".join(kept)[:maxlen].rstrip("_") or words[0].upper()[:maxlen]
+
 def _ws_parse_workflow(cfg, host_form, ws_display, ref_map, host_field_names):
     """One WorkflowConfigs[] entry -> the parse_workflow shape.
 
@@ -537,7 +620,7 @@ def _ws_parse_workflow(cfg, host_form, ws_display, ref_map, host_field_names):
         schedule = " · ".join(parts)
 
     wf = {
-        "callsign": name[:12].upper().replace(" ", "_"),
+        "callsign": f"{_wf_form_prefix(host_form)}_{_wf_name_token(name)}",
         "name": name,
         "description": "",
         "workflowType": "Legacy",

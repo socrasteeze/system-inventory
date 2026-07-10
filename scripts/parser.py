@@ -34,6 +34,55 @@ def _file_version(stem):
     m = re.search(r"_v(\d+)", stem)
     return int(m.group(1)) if m else -1
 
+# Field attributes compared between two parses of the same form — the canonical
+# list, shared with versioning.py (which imports it; parser stays import-free).
+FIELD_COMPARE_KEYS = (
+    "label", "type", "component", "required", "hidden", "enabled",
+    "relatedForm", "relatedField", "via", "validator", "formula",
+    "filter", "visibility", "defaultValue",
+)
+
+def _field_delta(old_fields, new_fields):
+    """added/removed/changed between two parsed field lists, keyed by field name.
+
+    Labels are captured here because superseded parses are discarded afterward —
+    a removed field's label exists only in the older parse. Output lists are
+    sorted by name so version history is byte-deterministic.
+    """
+    old = {f["name"]: f for f in old_fields if f.get("name")}
+    new = {f["name"]: f for f in new_fields if f.get("name")}
+    added = [{"name": n, "label": new[n].get("label") or n}
+             for n in sorted(new.keys() - old.keys())]
+    removed = [{"name": n, "label": old[n].get("label") or n}
+               for n in sorted(old.keys() - new.keys())]
+    changed = []
+    for n in sorted(old.keys() & new.keys()):
+        attrs = [k for k in FIELD_COMPARE_KEYS if old[n].get(k) != new[n].get(k)]
+        if (old[n].get("dependsOn") or {}) != (new[n].get("dependsOn") or {}):
+            attrs.append("dependsOn")
+        if attrs:
+            changed.append({"name": n, "label": new[n].get("label") or n,
+                            "attributes": attrs})
+    return {"added": added, "removed": removed, "changed": changed}
+
+def _vfmt(v):
+    """'v208' for a real version, 'v?' when the filename had no _vNN token."""
+    return f"v{v}" if v is not None and v >= 0 else "v?"
+
+def _delta_phrase(delta):
+    """Compact '+2 fields, -1 field, 3 changed' summary for log lines."""
+    parts = []
+    n = len(delta["added"])
+    if n:
+        parts.append(f"+{n} field" + ("s" if n != 1 else ""))
+    n = len(delta["removed"])
+    if n:
+        parts.append(f"-{n} field" + ("s" if n != 1 else ""))
+    n = len(delta["changed"])
+    if n:
+        parts.append(f"{n} changed")
+    return ", ".join(parts) if parts else "no field changes"
+
 # Components that are pure layout containers (not data fields)
 LAYOUT_TYPES = {"TwoWideLayout","ThreeWideLayout","FourWideLayout","StackedLayout",
                 "FormSection","FormGrid","FormPage","Header","FormComponent"}
@@ -1127,21 +1176,43 @@ class Workspace:
                                in_forms, json_file, parsed))
 
         # Same form exported more than once (e.g. _v78 and _v79 side by side):
-        # highest version wins; ties prefer forms/ placement (deliberate), then
-        # filename order. Losers are warned about, never silently merged.
+        # intentional version history, not a mistake. Highest _vNN wins as the
+        # active design; ties prefer forms/ placement (deliberate), then
+        # filename order. Superseded exports are kept as versionHistory (with
+        # per-version field deltas) and summarized in one changelog info line;
+        # a warning only fires when the winner ties another file on version —
+        # that ambiguity needs a _vNN token or a deletion to resolve.
         by_name = {}
         for cand in candidates:
             by_name.setdefault(cand[0], []).append(cand)
         winners = []
+        histories = {}   # resolved name -> versionHistory list, oldest -> newest
         for name, group in by_name.items():
             group.sort(key=lambda c: (c[1], c[2], c[3].name))
             winner = group[-1]
-            for loser in group[:-1]:
-                self._warn(f"  ! {name}: multiple exports found; using "
-                           f"{winner[3].name}, ignoring {loser[3].name}")
+            hist = []
+            for i, (_nm, ver, _inf, path, parsed) in enumerate(group):
+                delta = _field_delta(group[i - 1][4]["fields"],
+                                     parsed["fields"]) if i else None
+                hist.append({"version": ver if ver >= 0 else None,
+                             "sourceFile": path.name,
+                             "fieldDelta": delta})
+            histories[name] = hist
+            if len(group) > 1:
+                prev = group[-2]
+                if prev[1] == winner[1]:
+                    for loser in (c for c in group[:-1] if c[1] == winner[1]):
+                        self._warn(f"  ! {name}: multiple exports with the same "
+                                   f"version; using {winner[3].name}, ignoring "
+                                   f"{loser[3].name} -- add a _vNN filename "
+                                   f"token or delete one")
+                self._info(f"  [{self.slug}] {name}: {_vfmt(prev[1])} -> "
+                           f"{_vfmt(winner[1])} active "
+                           f"({_delta_phrase(hist[-1]['fieldDelta'])})")
             winners.append(winner)
 
         for name, _ver, _in_forms, json_file, parsed in sorted(winners, key=lambda c: c[3].name):
+            version = _ver if _ver >= 0 else None
             if name in merged:
                 self._warn(f"  ! {name}: individual export ({json_file.name}) "
                            f"overrides workspace baseline ({merged[name]['sourceFile']})")
@@ -1151,9 +1222,13 @@ class Workspace:
                 base.update({"fields": parsed["fields"],
                              "relationships": parsed["relationships"],
                              "refPulls": parsed["refPulls"],
-                             "sourceFile": json_file.name})
+                             "sourceFile": json_file.name,
+                             "version": version,
+                             "versionHistory": histories[name]})
             else:
-                merged[name] = dict(parsed, sourceFile=json_file.name)
+                merged[name] = dict(parsed, sourceFile=json_file.name,
+                                    version=version,
+                                    versionHistory=histories[name])
                 order.append(name)
 
         # Alias hygiene: a filename-stem alias whose file no longer exists is a
@@ -1182,7 +1257,9 @@ class Workspace:
                           "description": pf.get("description", ""),
                           "subformOf": pf.get("subformOf", ""),
                           "duplicateRules": pf.get("duplicateRules", ""),
-                          "savedFilters": pf.get("savedFilters", [])})
+                          "savedFilters": pf.get("savedFilters", []),
+                          "version": pf.get("version"),
+                          "versionHistory": pf.get("versionHistory", [])})
             fields_by_form[name] = pf["fields"]
             relationships.extend(pf["relationships"])
             ref_pulls.extend(pf["refPulls"])
@@ -1192,7 +1269,8 @@ class Workspace:
         referenced = {r["target"] for r in relationships} | {r["source"] for r in relationships}
         for name in sorted(referenced - known):
             forms.append({"name": name, "role": "Lookup", "fieldCount": 0,
-                          "sourceFile": None})
+                          "sourceFile": None, "version": None,
+                          "versionHistory": []})
             fields_by_form.setdefault(name, [])
 
         # Reclassification: _infer_role tags any form with no outgoing relationships

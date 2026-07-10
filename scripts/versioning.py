@@ -19,20 +19,16 @@ from pathlib import Path
 from typing import Any
 
 from build_registry import _exact_hash, _form_fingerprint
+from parser import FIELD_COMPARE_KEYS as _FIELD_COMPARE_KEYS
 
 SNAPSHOTS_DIR = Path(__file__).resolve().parent.parent / "output" / "snapshots"
 MANIFEST_NAME = "manifest.json"
 
-# Field keys compared when a field exists in both snapshots.
-_FIELD_COMPARE_KEYS = (
-    "label", "type", "component", "required", "hidden", "enabled",
-    "relatedForm", "relatedField", "via", "validator", "formula",
-    "filter", "visibility", "defaultValue",
-)
-
-# Form metadata keys compared (excluding fieldCount — derived).
+# Form metadata keys compared (excluding fieldCount — derived; versionHistory
+# is deliberately absent — version bumps already surface as a `version` meta
+# line plus field-level diffs, so diffing the history itself would be noise).
 _FORM_META_KEYS = ("role", "description", "subformOf", "sourceFile",
-                   "duplicateRules", "savedFilters")
+                   "duplicateRules", "savedFilters", "version")
 
 _WF_META_KEYS = ("callsign", "description", "workflowType", "enabled", "sourceFile")
 _TRIGGER_KEYS = ("form", "databaseAction", "timing", "condition", "cron")

@@ -621,6 +621,7 @@ function renderForm(formName){
     <h2>${escapeHtml(f.name)}</h2>
     <span class="role ${f.role}">${f.role}</span>${f.featured ? '<span class="badge featured">Featured</span>' : ''}
     <div class="meta">
+      ${f.version ? `<b>v${f.version}</b>${f.versionCount > 1 ? ` &middot; ${f.versionCount} versions on file` : ''}<br>` : ''}
       ${f.subformOf ? `Embedded grid of <b>${escapeHtml(f.subformOf)}</b><br>` : ''}
       ${(!nar && f.description) ? `${escapeHtml(f.description)}<br>` : ''}
       <b>${f.fieldCount}</b> fields ·

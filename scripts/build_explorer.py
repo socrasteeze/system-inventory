@@ -20,6 +20,8 @@ def build(ws):
         "forms": [{"name": f["name"], "role": f["role"], "fieldCount": f["fieldCount"],
                    "description": f.get("description", ""),
                    "subformOf": f.get("subformOf", ""),
+                   "version": f.get("version"),
+                   "versionCount": len(f.get("versionHistory") or []),
                    "featured": f["name"] in featured}
                   for f in data["forms"]],
         "fields": data["fields"],

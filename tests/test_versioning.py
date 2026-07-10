@@ -100,6 +100,27 @@ class VersioningTests(unittest.TestCase):
         report = v.format_compare_report(result)
         self.assertIn("+ form: Invoice", report)
 
+    def test_version_meta_change_surfaces_in_compare(self):
+        old = _minimal_workspace()
+        old["forms"][0]["version"] = 207
+        new = deepcopy(old)
+        new["forms"][0]["version"] = 208
+        diff = v.compare_workspace(old, new)
+        fm = diff["forms"]["modified"][0]
+        self.assertIn({"attribute": "version", "from": 207, "to": 208},
+                      fm["metaChanges"])
+
+    def test_compare_survives_snapshot_without_version_key(self):
+        # Old snapshots predate the version key entirely — .get() semantics
+        # must yield a None -> N change, never a crash.
+        old = _minimal_workspace()   # no "version" key at all
+        new = deepcopy(old)
+        new["forms"][0]["version"] = 208
+        diff = v.compare_workspace(old, new)
+        fm = diff["forms"]["modified"][0]
+        self.assertIn({"attribute": "version", "from": None, "to": 208},
+                      fm["metaChanges"])
+
     def test_snapshot_fingerprint_unchanged(self):
         data = {"demo": _minimal_workspace()}
         s1 = v.build_snapshot(data)

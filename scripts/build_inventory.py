@@ -113,6 +113,10 @@ def build(workspace):
         "Description": f.get("description", ""),
         "DuplicateRules": f.get("duplicateRules", ""),
         "SavedFilters": (lambda sf: f"{len(sf)}: " + ", ".join(sf) if sf else "")(f.get("savedFilters") or []),
+        "Version": f.get("version") if f.get("version") is not None else "",
+        "PriorVersions": ", ".join(
+            f"v{h['version']}" if h["version"] is not None else "v?"
+            for h in (f.get("versionHistory") or [])[:-1]),
         "SourceFile": f.get("sourceFile") or "(no JSON)",
         "Notes": "",
     } for f in data["forms"]]
@@ -124,6 +128,8 @@ def build(workspace):
            ("Description",44,"From the workspace export"),
            ("DuplicateRules",44,"Duplicate-response match rules"),
            ("SavedFilters",40,"Count + names of saved views"),
+           ("Version",10,"Active design export version (_vNN)"),
+           ("PriorVersions",22,"Superseded exports kept on file"),
            ("SourceFile",50,"Source JSON file (or empty if no profile yet)"),
            ("Notes",30,"Free-form")],
           forms_rows, pk="FormName")

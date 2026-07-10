@@ -91,7 +91,8 @@ If something is missing it prints plain-English instructions instead of failing 
 │   └── <slug>/                  one directory per workspace, e.g. sce-be/ (hyphenated slugs)
 │       ├── *.json               ← whole-workspace export(s) — the baseline, if using that format
 │       ├── forms/               ← individual form design exports (override the baseline)
-│       │   └── <form name>/     ← optional: one subfolder per form, scanned recursively
+│       │   └── <form name>/     ← one subfolder per form: drop each new _vNN version here;
+│       │                          older versions stay as history (scanned recursively)
 │       ├── workflows/           ← individual workflow exports (override the baseline)
 │       │   └── <workflow name>/ ← optional: one subfolder per workflow, scanned recursively
 │       └── manual/              ← human-maintained overrides
@@ -112,6 +113,7 @@ If something is missing it prints plain-English instructions instead of failing 
 │   ├── build_global.py          (cross-workspace aggregator)
 │   ├── build_registry.py        (cross-workspace reuse/sameness views)
 │   ├── versioning.py            (snapshot capture + compare)
+│   ├── organize_forms.py        (sweep loose form exports into forms/<Form Name>/ folders)
 │   ├── explorer_template.html   (per-workspace HTML template)
 │   ├── global_template.html     (global HTML template)
 │   └── regenerate.py            (rebuild orchestrator)
@@ -131,7 +133,7 @@ Anywhere under the workspace's slug directory (`data/<slug>/`, hyphenated — e.
 | A **single form** design | Surgical override — matched to its baseline form by **field overlap** (no filename mapping needed), replaces that form's fields/relationships. **Always wins** over the baseline. |
 | A **single workflow** | Surgical override, matched by `(trigger form, name)`. **Always wins** over the baseline. |
 
-The `forms/` and `workflows/` subfolders still work, scanned recursively (flat, or one subfolder per form/workflow — e.g. `forms/300 - Account Management/300 - Account Management.json`); the slug root works just as well. If the same form is exported twice (e.g. `_v78` and `_v79`), the highest version wins and the ignored file is warned about. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a `!` warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the now-stale individual files.
+The `forms/` and `workflows/` subfolders still work, scanned recursively; the slug root works just as well. The canonical layout is **one subfolder per form** (`forms/300 - Account Management/…`) holding that form's versioned exports. Multiple versions of the same form (e.g. `_v78` and `_v79` side by side) are **version history, not a mistake**: the highest `_vNN` wins as the active design, older files stay as history, and the rebuild prints one changelog line per multi-version form (`395 - Inspection Work Order: v78 -> v79 active (+1 field)`). The active version and its predecessors show up in the Excel Forms sheet (`Version` / `PriorVersions`), the explorer's form panel (`v79 · 2 versions on file`), and a "Version history" section in the form's brief with plain-English per-version changes. A warning only fires when two files carry the *same* version number. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a `!` warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the individual files (all versions). `python scripts/organize_forms.py` (dry-run; add `--apply`) sweeps loose form exports into their per-form folders.
 
 For a brand-new workspace there's nothing to pre-create with the whole-workspace route — just make `data/<slug>/`, drop the export at its root, and regenerate. See **Adding a new workspace** below.
 
@@ -176,7 +178,7 @@ When new JSONs come from the platform:
 
 **Orphan check.** After each workspace builds, the rebuild prints an `Orphans:` line listing any form or grid that renders with **no graph edge** — either an embedded grid whose parent form wasn't in the workspace export (`unparented grid`), or a form with no relationship or workflow link (`isolated …`). These show up as floating, disconnected nodes in the explorer (toggle the **Orphaned** filter to see them). The usual remedy is to export that form individually and drop its JSON anywhere under `data/<slug>/`, which supplies the relationships the whole-workspace export left out; re-run and the node connects. `Orphans: none` means every form is reachable in the graph. The check is read-only — it never changes the output, just surfaces what to look at.
 
-Typical workspace-export lifecycle: baseline the workspace with one full export → update individual forms surgically as they change (each shows a shadow warning, which is expected) → when drift accumulates, re-export the whole workspace and delete the stale individual files.
+Typical workspace-export lifecycle: baseline the workspace with one full export → drop each form's new versioned export into its `forms/<Form Name>/` folder as it changes (each shows a shadow warning, which is expected; older versions accumulate as history) → when drift accumulates, re-export the whole workspace and delete the individual files (all versions).
 
 **Disabled workflows are surfaced, not hidden:** the Workflows sheet carries a Status column (Active/Disabled), and the explorers render disabled workflows dimmed with an `(off)` label and a Disabled badge — a configured-but-not-running automation is flagged, never drawn identically to a live one. Subforms (embedded grids from workspace exports) appear as their own slate-colored nodes linked to their parent form.
 
@@ -210,11 +212,12 @@ Edit these in any editor, then re-run `regenerate.py`.
 4. If the workflow references a form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
 5. Regenerate.
 
-## Adding or updating a form (individual export)
+## Adding or updating a form / dropping a new version (individual export)
 
-1. Export the form design JSON.
-2. Give the file a clean, self-describing name and save it anywhere under `data/<slug>/` — root, or `forms/` flat or in its own subfolder (recursive scan, path doesn't affect matching).
+1. Export the form design JSON (the filename carries the `_vNN` version token — keep it).
+2. Save it into `data/<slug>/forms/<Form Name>/` next to any previous versions — the canonical layout. (Anywhere under `data/<slug>/` also works; the recursive, content-routed scan doesn't care about the path.)
 3. Regenerate. The rebuild matches the file to its baseline form by field overlap and prints the decision (`<file> -> '<form>' (matched N/M fields)`); if it warns of a low-confidence match, add a `form_aliases.json` filename entry naming the form exactly as the baseline spells it.
+4. If the form now has more than one version on file, the rebuild prints a changelog line (`<form>: v78 -> v79 active (+1 field)`), the highest version becomes the active design, and the older files stay as history — feeding the brief's "Version history" section, the explorer's version line, and the `Version`/`PriorVersions` Excel columns. Don't delete old versions unless you're re-baselining.
 
 ## Data sensitivity
 

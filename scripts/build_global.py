@@ -135,9 +135,12 @@ def _build_excel(agg, reg):
     sheet(wb.create_sheet("AllForms"), "AllForms · every form, every workspace",
           [("Workspace",18,"FK -> Workspaces"), ("FormName",30,"Display name"),
            ("Role",12,"Hub/Spoke/Lookup"), ("FieldCount",12,"Total fields"),
+           ("Version",10,"Active export version"),
            ("SourceFile",50,"Source JSON (or empty if stubbed)")],
           [{"Workspace":f["slug"], "FormName":f["name"], "Role":f["role"],
-            "FieldCount":f["fieldCount"], "SourceFile":f.get("sourceFile") or "(no JSON)"}
+            "FieldCount":f["fieldCount"],
+            "Version":f.get("version") if f.get("version") is not None else "",
+            "SourceFile":f.get("sourceFile") or "(no JSON)"}
            for f in agg["allForms"]],
           fks=["Workspace"])
 

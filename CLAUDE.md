@@ -26,7 +26,7 @@ Current workspaces (whole-workspace export baseline; all five also carry root-le
 - `liwp` — **Workspace D** (125 forms / 33 workflows)
 - `nve-qar` — **Workspace E** (10 forms / 1 workflow)
 
-`socal-whp` was originally ingested via the individual-file route, then **re-baselined** to a whole-workspace export (its old `forms/`/`workflows/` individual files were deleted as that reset). It has since gained individual `forms/` overrides again (one subfolder per form, e.g. `forms/300 - Account Management/300 - Account Management.json`) plus a `manual/form_aliases.json` pinning each to its exact baseline display name — a workspace export dropped on top of these will still be correctly shadowed by them, not duplicated, as long as the aliases stay in sync with the baseline's display names.
+`socal-whp` was originally ingested via the individual-file route, then **re-baselined** to a whole-workspace export (its old `forms/`/`workflows/` individual files were deleted as that reset). It has since gained individual `forms/` overrides again. As of 2026-07-10, all five workspaces' individual form exports live in the canonical per-form layout `forms/<Form Name>/<versioned export>.json` (moved there by `scripts/organize_forms.py`); name resolution is content-based, so `form_aliases.json` stem entries are only needed where field-overlap matching can't decide.
 
 **Slug naming convention: hyphens**, not underscores (`sce-be`, `socal-whp`).
 
@@ -57,9 +57,11 @@ Two export formats are supported, detected per file by root shape (`parser.detec
 
 **Individual form exports are name-resolved by content, not filename.** A design export carries no form name or GUID of its own, and the platform's filename conventions drift (a 2026-06 export batch broke the old regex heuristic on every file). `Workspace._resolve_form_name()` resolves in order: (1) a `form_aliases.json` filename-stem entry — the explicit escape hatch; (2) **field-overlap match** against the workspace baseline — the baseline form sharing the most field names wins when it covers ≥80% of the export's fields with a ≥1.5× margin over the runner-up, near-ties broken by filename-token similarity (handles tiny lookup forms like Climate Zones); (3) the legacy filename regex heuristic, only when there is no baseline to match against (pure individual-file workspaces). Each resolution prints one line (`<file> -> '<form>' (matched N/M fields)`); a low-confidence match warns and names the alias escape hatch. Stale filename aliases (stems matching no file on disk) are warned about.
 
-**Same-form version dedup.** When multiple exports resolve to the same form (e.g. `_v78` and `_v79` side by side), the highest `_vNN_` filename token wins (tie → `forms/` placement wins, then filename order); each ignored file gets a warning — never a silent merge.
+**Same-form version history.** Multiple exports resolving to the same form (e.g. `_v78` and `_v79` side by side) are **intentional version history**, not a mistake: the highest `_vNN_` filename token wins as the active design (tie → `forms/` placement wins, then filename order), and every export on file is kept as `versionHistory` on the form — a list of `{version, sourceFile, fieldDelta}` entries oldest→newest, where `fieldDelta` records fields added/removed/changed vs the previous version (labels captured at parse time; `None` on the oldest entry). The form also carries `version` (the active `_vNN` as an int, `None` when the token is absent or the form is baseline-only). Each multi-version form prints one changelog info line at rebuild (`[<slug>] <form>: v78 -> v79 active (+1 field)`), which does **not** count as a warning; a warning fires only when the winner *ties* another file on version (same `_vNN` or both tokenless) — that ambiguity needs a `_vNN` token or a deletion to resolve. The canonical drop workflow: export the new design, drop it into `data/<slug>/forms/<Form Name>/` next to the older versions, regenerate.
 
-`forms/` and `workflows/` are scanned **recursively** (`rglob`, not `glob`) — a file can sit directly in the folder or be organized one subfolder per form/workflow (e.g. `data/<slug>/forms/300 - Account Management/300 - Account Management.json`). Matching against the baseline is by parsed display name (forms) or `(trigger form, name)` (workflows), never by path, so subfolder nesting is purely organizational — a place to keep a form's export readable at a glance, or to later drop related files (notes, superseded versions) alongside it. `form_aliases.json`/`workflow_metadata.json` still key off the **filename stem**, unaffected by which folder it's nested in.
+Version surfaces: `Version`/`PriorVersions` columns in the Forms sheet (active version + superseded list), a `Version` column in the global AllForms sheet, a `v79 · 2 versions on file` line in the explorer's form panel, and a newest-first **"Version history"** section in the per-form brief with plain-English per-version deltas ("Added County."). Snapshot compare reports `version: 78 -> 79` as a form meta change (`versionHistory` itself is deliberately not diffed). One nuance: `versionHistory` is serialized into snapshots, so deleting a superseded history file changes the snapshot fingerprint (a new auto-snapshot is written) while `--compare` reports no field-level differences.
+
+`forms/` and `workflows/` are scanned **recursively** (`rglob`, not `glob`) — a file can sit directly in the folder or be organized one subfolder per form/workflow. **`forms/<Form Name>/` is the canonical home for a form's version history**: drop each new versioned export into the form's folder and the superseded ones stay there as history. Matching against the baseline is by parsed display name (forms) or `(trigger form, name)` (workflows), never by path, so subfolder nesting is purely organizational. `form_aliases.json`/`workflow_metadata.json` still key off the **filename stem**, unaffected by which folder it's nested in. `scripts/organize_forms.py` (dry-run by default, `--apply` to move) sweeps loose individual form exports into their per-form folders.
 
 ### Whole-workspace export
 
@@ -159,6 +161,7 @@ scripts/
   build_global.py       cross-workspace aggregator (Excel + HTML)
   build_registry.py     reuse/sameness views (WorkflowReuse, FormFamilies, FieldTemplates) + step-4 suppression
   versioning.py         snapshot capture + compare (temporal change tracking)
+  organize_forms.py     one-time sweep of loose form exports into forms/<Form Name>/ folders (dry-run; --apply)
   global_template.html      global HTML template
   regenerate.py         rebuild orchestrator (CLI) + docs/ publish
 ```
@@ -402,13 +405,13 @@ Slug convention: **hyphens** (e.g. `my-workspace`), never underscores.
 3. Add `form_aliases.json` filename-stem entries — with no workspace baseline to content-match against, names fall back to the filename heuristic, which the platform's current filenames defeat.
 4. Run `python scripts/regenerate.py`. Output appears under `output/<slug>/`, and the global view picks the workspace up automatically.
 
-## Updating a form in a workspace-export workspace (surgical update)
+## Updating a form / dropping a new version (surgical update)
 
-1. Export just that form's design JSON from the platform.
-2. Drop it anywhere under `data/<slug>/` (root, `forms/` flat, or `forms/<form name>/` — content routing sorts it out and both `forms/` and `workflows/` are scanned recursively). No alias entry needed: the file is matched to its baseline form by field overlap.
-3. Regenerate — the rebuild log prints the match decision and warns that the individual file now shadows the baseline. Those lines are expected and stay until you either delete the file or re-baseline.
+1. Export just that form's design JSON from the platform (the filename carries the `_vNN` version token).
+2. Drop it into `data/<slug>/forms/<Form Name>/` next to the previous versions — the canonical layout. (Anywhere under `data/<slug>/` also works: content routing sorts it out.) No alias entry needed: the file is matched to its baseline form by field overlap.
+3. Regenerate — the rebuild log prints the match decision, one changelog line (`<form>: v78 -> v79 active (+1 field)`), and warns that the individual file now shadows the baseline. Those lines are expected. Older version files **stay in the folder as history** — they feed the brief's "Version history" section and the `PriorVersions` Excel column; no need to delete them.
 4. If the new design references a form by a renamed/stale name (rebuild shows a new phantom Lookup node or an auto-stub), add a `name_aliases` entry mapping the stale name to the canonical one.
-5. When you re-export the whole workspace, delete the now-stale individual files.
+5. When you re-baseline with a fresh whole-workspace export, delete the individual files (all versions) — that's the explicit reset.
 
 ## Adding a new workflow
 

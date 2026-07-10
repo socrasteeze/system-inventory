@@ -23,6 +23,20 @@ each `plans/*.md` file.)
 
 ## Done
 
+**Form version history (2026-07-10).** Multiple `_vNN` exports of one form are now
+first-class history instead of warned-about duplicates: highest version wins as the
+active design, every export on file lands in a per-form `versionHistory` (with
+field-level deltas vs the previous version), and the rebuild prints one changelog line
+per multi-version form (`395 - Inspection Work Order: v78 -> v79 active (+1 field)`).
+Warnings only fire on same-version ties. Surfaces: `Version`/`PriorVersions` columns
+(Forms sheet), `Version` (global AllForms), `v79 · 2 versions on file` in the explorer
+form panel, newest-first "Version history" section in briefs, and `version` as a
+compared meta key in snapshot diffs. `scripts/organize_forms.py` (dry-run/--apply)
+swept all 33 loose root-level form exports into canonical `forms/<Form Name>/` folders
+across the five workspaces (local-only; data/ is gitignored). Field-compare keys now
+live in `parser.FIELD_COMPARE_KEYS` (versioning.py imports them). Tests:
+`tests/test_parser_history.py` + two new snapshot-compare cases.
+
 **Version snapshots and compare (2026-07-07).** `scripts/versioning.py` serializes
 `discover_all()` output to `output/snapshots/` with a manifest index. Full rebuilds
 auto-save when state changes; `--snapshot [LABEL]` captures on demand; `--compare OLD NEW`

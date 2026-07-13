@@ -29,6 +29,10 @@ def build(ws):
         # Plain-English workflow stories (when it runs / what it does), keyed by
         # callsign — rendered at the top of the workflow-detail panel.
         "wfStories": narrate.build_workflow_stories(data),
+        # Field-write collisions: fields this workflow writes that another
+        # workflow also writes, keyed by callsign — rendered as a warning in
+        # the workflow-detail panel.
+        "wfConflicts": narrate.build_workflow_conflicts(data),
         "relationships": [{"source": r["source"], "target": r["target"],
                            "via": r["via"], "label": r["label"],
                            "targetMatchField": r.get("targetMatchField", "")}

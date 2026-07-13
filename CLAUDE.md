@@ -87,10 +87,26 @@ Both formats can coexist in one workspace. The workspace export is the **baselin
 
 ## WorkflowType
 
-Every workflow carries a `workflowType` field derived from its export format — no manual tagging needed:
+Every workflow carries a `workflowType` field derived from its **export format**, not from where the
+JSON sits — no manual tagging needed:
 
-- **`Legacy`** — embedded in a workspace export (`WorkflowConfigs` format). This is the older form-notification system.
-- **`WFEngine`** — individual workflow export (`Triggers`/`Steps` format). This is the newer workflow engine.
+- **`Legacy`** — `WorkflowConfigs` format, embedded per-form inside a workspace export. The older
+  form-notification system.
+- **`WFEngine`** — `Triggers`/`Steps` format. The newer workflow engine. This shape shows up two ways:
+  an individual workflow export file, **or** (as of the 2026-07 platform migration) a top-level
+  `Workflows[]` array in a whole-workspace export — the same per-workflow object shape, just GUID-resolved
+  against that export's own forms/fields instead of carrying its own `ExternalReferences` block. A single
+  workspace export could in principle carry both shapes at once (Legacy `WorkflowConfigs` on some forms,
+  a WFEngine `Workflows[]` array alongside); both are parsed and merged into one workflow list.
+  `Workspace.parse_workflow` (individual files) and `parse_workspace_export`'s `Workflows[]` loop both
+  funnel through the shared `_parse_wfengine()` helper in `parser.py`, so the two ingestion paths can't
+  drift apart. WFEngine's numeric enums (`WorkflowEngineTriggerType`/`DatabaseActionType`/`...Timing`) are
+  normalized to the same plain strings (`Create`/`Update`/`CreateOrUpdate`/`FormResponse`/`Scheduled`/…)
+  the rest of the pipeline (narration, explorer joins) expects — see `WF_TRIGGER_TYPE`/`WF_DB_ACTION`/
+  `WF_TIMING` in `parser.py`. `BuiltIn.SendEmail` actions are summarized into the same `"To: … · Subject:
+  …"` shape Legacy's `NotificationActionHandler` uses, so narration's email sentence covers both.
+  As of the 2026-07 re-export, **all five current workspace baselines use WFEngine** (111 workflows
+  total) — the Legacy embedded path is kept for back-compat but is currently dormant against real data.
 
 `WorkflowType` appears as a colored column in the Workflows and AllWorkflows sheets. In both explorers, workflow nodes — and their dashed trace edges — are red for Legacy and olive (`#9fae5a`) for WFEngine, colored from shared `--wf-legacy`/`--wf-engine` CSS vars; the legend reads "WF Engine". The Excel column fills (`build_inventory.py`) are light tints of the same palette (light red = Legacy, light olive = WFEngine), so the workbook and the graph read as one color scheme.
 
@@ -122,6 +138,8 @@ The per-workspace explorer's side panel has **three view categories**, one per c
 - **Workflow-detail via edge** — click a workflow edge (the dashed trigger/action arrows). The edge tap handler's `kind === 'wf-edge'` branch resolves the workflow from the edge's source/target (`WF:<callsign>`), highlights it, and renders the same workflow-detail panel a workflow-node click produces. For an **action** edge it then calls `scrollToWfAction(targetForm, actionIndex)`, scrolling the matching action card into view and flashing its border. Action edges carry `actionIndex` (their position in the workflow's action list) and cards carry `data-action-idx`, so the exact action is targeted even when two actions share a target form; when the index is absent it falls back to the first card matching `data-action-form`. Trigger edges open the panel without scrolling (the trigger sits at the panel top). Relationship edges fall through to the `kind === 'relationship'` branch (edge-detail above); any other edge kind returns early.
 
   The workflow-detail panel opens with a **"What this does"** story block — the same `narrate.workflow_story()` prose the briefs use ("Runs when… / → Sends an email to…"), injected as `DATA.wfStories` keyed by callsign — followed by the raw trigger/action/field-usage sections.
+
+  If the workflow writes a field that another workflow in the same workspace also writes, a **"⚠ Write conflicts"** block appears next: it names the shared `form · field` and links to each other writer (`cy.$id('WF:<callsign>').emit('tap')`, the same node-select pattern edge-detail's "View source/target form" buttons use). This is a real race — nothing guarantees which of two independently-triggered workflows runs last — computed by `narrate.build_workflow_conflicts()` and injected as `DATA.wfConflicts` keyed by callsign. Deliberately scoped to *write* collisions only, not shared triggers: two workflows firing on the same event (e.g. two separate notifications) is common and usually intentional, so it isn't flagged.
 
 **View state is single.** Clicking anywhere replaces the side-panel content — it never stacks. A form-node click renders form-detail, a workflow-node or workflow-edge click renders workflow-detail, a relationship-edge click renders edge-detail, a background click clears the panel; each switch first runs `clearHighlights()` (which also drops the `sel` edge class) so no stale selection or prior view survives. Field-detail is the one nested case: multiple field details expand *within* a single form-detail view, but they reset whenever a different form is opened.
 

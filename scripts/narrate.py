@@ -228,7 +228,9 @@ def _workflows_on(form_name, workflows):
 # ── the workflow story ("when X happens, it does Y") ────────────────
 
 _NOTIF_RE = re.compile(r"^To:\s*(.+?)\s*·\s*Subject:\s*(.+)$", re.S)
-_TOKEN_RE = re.compile(r"\{(\w+)\}")
+# WFEngine templates double-brace their tokens ({{ESAKey}}); Legacy uses single
+# ({ESAKey}). Match either and replace the whole token, brace count included.
+_TOKEN_RE = re.compile(r"\{{1,2}(\w+)\}{1,2}")
 
 def _debrace(template_text, fields):
     """'... for {ESAKey}' -> '... for {the record's ESA Key}' — template tokens
@@ -244,7 +246,9 @@ def _debrace(template_text, fields):
 def _action_sentence(action, workflow, trigger_fields):
     """One plain sentence per workflow action."""
     atype = (action.get("type") or "").lower()
-    if "notification" in atype:
+    # Legacy's NotificationActionHandler and WFEngine's BuiltIn.SendEmail both
+    # summarize into the same "To: ... · Subject: ..." matchOn shape.
+    if "notification" in atype or "sendemail" in atype:
         m = _NOTIF_RE.match(action.get("matchOn") or "")
         if m:
             to, subject = m.group(1).strip(), _debrace(m.group(2).strip(), trigger_fields)
@@ -285,15 +289,22 @@ def workflow_story(w, fields_by_form):
     action = (trig.get("databaseAction") or "").lower()
     cron = trig.get("cron")
 
-    if action == "create":
-        when = f"Runs when a new {tf} record is created" if tf else "Runs when a record is created"
-    elif action == "update":
-        when = f"Runs when a {tf} record is updated" if tf else "Runs when a record is updated"
-    elif cron:
+    # Check cron before databaseAction: a scheduled trigger's databaseAction is
+    # a leftover/default value (WFEngine schedules still carry a Create/Update
+    # code even though it isn't semantically meaningful), so a cron expression
+    # always wins over it.
+    if cron:
         h = humanize_schedule(cron)
         when = f"Runs on a schedule ({h or cron})"
         if tf:
             when += f", checking {tf} records"
+    elif action == "create":
+        when = f"Runs when a new {tf} record is created" if tf else "Runs when a record is created"
+    elif action == "update":
+        when = f"Runs when a {tf} record is updated" if tf else "Runs when a record is updated"
+    elif action == "createorupdate":
+        when = (f"Runs when a {tf} record is created or updated" if tf
+                else "Runs when a record is created or updated")
     else:
         when = f"Runs when triggered on {tf}" if tf else "Runs when triggered"
 
@@ -317,6 +328,50 @@ def build_workflow_stories(data):
     fields_by_form = data.get("fields", {})
     return {w.get("callsign", ""): workflow_story(w, fields_by_form)
             for w in data.get("workflows", [])}
+
+
+def build_workflow_conflicts(data):
+    """{callsign: [{"form","field","others":[{"callsign","name"}]}]} for every
+    field a workflow writes that at least one OTHER workflow also writes.
+
+    A shared writer is a real race: whichever workflow happens to run last
+    wins, and nothing in the platform guarantees an order between two
+    independently-triggered workflows. This flags the field, not the trigger
+    -- two workflows can safely share a trigger (e.g. two notifications on the
+    same event); it's a *write* collision that's worth a human's attention.
+    """
+    workflows = data.get("workflows", [])
+    writers = {}   # (form, field) -> [(callsign, name)], one entry per workflow
+    for w in workflows:
+        seen = set()
+        for u in w.get("fieldUsage") or []:
+            if u.get("direction") != "Write":
+                continue
+            key = (u["form"], u["field"])
+            if key in seen:
+                continue
+            seen.add(key)
+            writers.setdefault(key, []).append((w.get("callsign", ""), w.get("name", "")))
+
+    out = {}
+    for w in workflows:
+        cs = w.get("callsign", "")
+        seen = set()
+        entries = []
+        for u in w.get("fieldUsage") or []:
+            if u.get("direction") != "Write":
+                continue
+            key = (u["form"], u["field"])
+            if key in seen:
+                continue
+            seen.add(key)
+            others = [{"callsign": ocs, "name": onm}
+                      for ocs, onm in writers.get(key, []) if ocs != cs]
+            if others:
+                entries.append({"form": key[0], "field": u["field"], "others": others})
+        if entries:
+            out[cs] = entries
+    return out
 
 
 # ── "what does it collect?" — derived from the form's own structure ─
@@ -428,19 +483,21 @@ def form_summary(form, fields, relationships, ref_pulls, workflows, forward,
     active = [w for w in acting if w.get("enabled", True)]
     disabled_n = len(acting) - len(active)
     if active:
-        buckets = {"update": 0, "create": 0, "schedule": 0, "other": 0}
+        buckets = {"update": 0, "create": 0, "createorupdate": 0, "schedule": 0, "other": 0}
         for w in active:
             trig = w.get("trigger") or {}
+            # cron wins over databaseAction -- see workflow_story's matching note.
             a = (trig.get("databaseAction") or "").lower()
-            if a in buckets:
-                buckets[a] += 1
-            elif trig.get("cron"):
+            if trig.get("cron"):
                 buckets["schedule"] += 1
+            elif a in buckets:
+                buckets[a] += 1
             else:
                 buckets["other"] += 1
         top = max(buckets, key=buckets.get)
         when_map = {"update": "when a saved record changes",
                     "create": "when a new record is created",
+                    "createorupdate": "when a record is created or updated",
                     "schedule": "on a schedule",
                     "other": "when triggered"}
         n = len(active)

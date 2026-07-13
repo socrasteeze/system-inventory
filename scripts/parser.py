@@ -413,8 +413,8 @@ def _parse_field_assignments(json_str, target_form):
             desc = f"FromTrigger.{v}"
         elif vt == "TriggerRecordId":
             desc = "TriggerRecordId"
-        elif vt == "Static":
-            desc = f"Static: {v}"
+        elif vt in ("Static", "Constant"):
+            desc = f"set to {v}"
         else:
             desc = f"{vt}: {v}"
         out.append({"field": fld, "sourceDesc": desc})
@@ -456,6 +456,14 @@ def detect_format(d):
 # produce, so downstream builders never know which format the data came from.
 
 SCHEDULE_FREQ = {1: "Daily", 2: "Weekly", 3: "Monthly", 4: "Yearly"}
+
+# WFEngine (Triggers/Steps) numeric enums -> the plain strings the rest of the
+# pipeline expects (narrate.py compares against "create"/"update"/etc, and
+# build_explorer.py joins trigger.type/databaseAction into a display string --
+# both would break on a raw int). Unknown codes fall back to str(code).
+WF_TRIGGER_TYPE = {1: "FormResponse", 2: "Scheduled", 3: "Manual"}
+WF_DB_ACTION    = {1: "Create", 2: "Update", 3: "Delete", 4: "CreateOrUpdate"}
+WF_TIMING       = {1: "Pre-processing", 2: "Post-processing"}
 
 def _loads_maybe(s):
     """Parse a value that may be a JSON string or already a dict."""
@@ -738,21 +746,151 @@ def _ws_parse_workflow(cfg, host_form, ws_display, ref_map, host_field_names):
 
     return wf
 
+def _wf_email_addrs(param):
+    """A Recipients/CC/BCC parameter's StaticValue -> comma-joined display text.
+    Shape: JSON array of {"mode","value",...}; mode 0 = literal address, mode 4
+    = a field/context reference (e.g. "@LastModifier.Email", "ContactEmail")."""
+    raw = (param or {}).get("StaticValue")
+    if not raw:
+        return ""
+    try:
+        items = json.loads(raw)
+    except Exception:
+        return str(raw)
+    return ", ".join(it["value"] for it in items if it.get("value"))
+
+def _wf_email_summary(params):
+    """BuiltIn.SendEmail action Parameters -> 'To: ... · Subject: ...', the
+    same shape the Legacy NotificationActionHandler summary uses, so
+    narrate._action_sentence's single email-rendering path covers both."""
+    to = _wf_email_addrs(params.get("Recipients"))
+    cc = _wf_email_addrs(params.get("CC"))
+    if cc:
+        to = f"{to}; CC: {cc}" if to else f"CC: {cc}"
+    subject = (params.get("Subject") or {}).get("StaticValue") or ""
+    bits = [f"To: {to}"] if to else []
+    if subject:
+        bits.append(f"Subject: {subject}")
+    return " · ".join(bits)
+
+def _parse_wfengine(d, ref_by_id, callsign, workflow_type="WFEngine", enabled=True):
+    """Shared WFEngine (Triggers/Steps) parser. Used both for individual
+    workflow file exports and for the top-level Workflows[] array a
+    whole-workspace export can now carry (the new engine's workspace-export
+    shape). ref_by_id is any GUID -> {"FieldName","FormName","WorkspaceName"}
+    lookup -- ExternalReferences for individual files, a workspace-wide GUID
+    index for embedded ones -- the condition/target/assignment helpers below
+    don't care which.
+    """
+    wf = {
+        "callsign": callsign,
+        "name": d.get("Name", ""),
+        "description": d.get("Description", ""),
+        "workflowType": workflow_type,
+        "staging_guid": "",
+        "trigger": None,
+        "actions": [],
+        "fieldUsage": [],
+        "externalRefs": list(ref_by_id.values()),
+        "enabled": enabled,
+    }
+
+    triggers = d.get("Triggers", [])
+    if triggers:
+        t = triggers[0]
+        wf["staging_guid"] = t.get("Id", "")
+        form_ref = ref_by_id.get(t.get("FormId", ""), {})
+        cond_summary = _summarize_condition(t.get("ConditionExpression", ""), ref_by_id)
+        monitored = _loads_maybe(t.get("MonitoredFieldsJson")) or []
+        wf["trigger"] = {
+            "type": WF_TRIGGER_TYPE.get(t.get("WorkflowEngineTriggerType"),
+                                        str(t.get("WorkflowEngineTriggerType", ""))),
+            "form": form_ref.get("FormName", ""),
+            "workspace": form_ref.get("WorkspaceName", ""),
+            "databaseAction": WF_DB_ACTION.get(t.get("WorkflowEngineDatabaseActionType"),
+                                               str(t.get("WorkflowEngineDatabaseActionType", ""))),
+            "timing": WF_TIMING.get(t.get("WorkflowEngineDatabaseActionTiming"),
+                                    str(t.get("WorkflowEngineDatabaseActionTiming", ""))),
+            "conditionMode": t.get("WorkflowEngineConditionMode", ""),
+            "condition": cond_summary,
+            "cron": t.get("CronExpression"),
+            "timezone": t.get("TimeZoneId"),
+            "monitoredFields": monitored if isinstance(monitored, list) else [],
+        }
+        for fld_ref in _extract_condition_fields(t.get("ConditionExpression", ""), ref_by_id):
+            wf["fieldUsage"].append({
+                "form": fld_ref["form"], "field": fld_ref["field"],
+                "direction": "Condition", "context": "Trigger condition",
+                "stepName": "",
+            })
+
+    for step in d.get("Steps", []):
+        for action in step.get("Actions", []):
+            params = {p["ParameterName"]: p for p in action.get("Parameters", [])}
+            atype = action.get("ActionType", "")
+
+            if atype == "BuiltIn.SendEmail":
+                target_form, target_ws = "", ""
+                match_summary = _wf_email_summary(params)
+                assignments = []
+            else:
+                target_form_id = (params.get("TargetResolution.TargetFormId", {}).get("StaticValue")
+                                  or params.get("FormId", {}).get("StaticValue"))
+                target_form = ref_by_id.get(target_form_id, {}).get("FormName", "")
+                target_ws   = ref_by_id.get(target_form_id, {}).get("WorkspaceName", "")
+                match_summary = _summarize_target_resolution(params, ref_by_id, target_form)
+                assignments = _parse_field_assignments(
+                    params.get("FieldAssignments", {}).get("StaticValue"), target_form)
+
+            wf["actions"].append({
+                "stepName": step.get("Name", ""),
+                "name": action.get("DisplayName", ""),
+                "type": atype,
+                "targetForm": target_form,
+                "targetWorkspace": target_ws,
+                "duplicatePolicy": params.get("DuplicateMatchPolicy", {}).get("StaticValue", ""),
+                "resolutionType":  params.get("TargetResolution.ResolutionType", {}).get("StaticValue", ""),
+                "matchOn": match_summary,
+                "continueOnError": action.get("ContinueOnError"),
+            })
+            for a in assignments:
+                wf["fieldUsage"].append({
+                    "form": target_form, "field": a["field"],
+                    "direction": "Write",
+                    "context": a["sourceDesc"],
+                    "stepName": step.get("Name", ""),
+                })
+
+    return wf
+
 def parse_workspace_export(d):
     """Parse a whole-workspace export dict into normalized parts:
     {workspaceName, forms: [parse_form-shaped + extras], workflows: [parse_workflow-shaped]}.
+
+    Workflows can arrive in either export shape the platform has used, and a
+    single export could in principle carry both:
+    - Legacy: embedded per-form under each form's WorkflowConfigs.
+    - WFEngine (the new engine): a top-level Workflows[] array in the same
+      Triggers/Steps shape individual workflow exports use, GUID-resolved
+      against this same export's forms/fields instead of an ExternalReferences
+      block of its own.
     """
     raw_forms = d.get("Forms") or []
     display_by_id = _ws_display_names(raw_forms)
+    ws_display = d.get("DisplayName") or d.get("Name") or ""
 
-    # GUID indexes across the whole export.
+    # GUID indexes across the whole export. One ref_map covers both field and
+    # form GUIDs -- the shape _parse_wfengine / _ws_parse_workflow's shared
+    # helpers (_summarize_condition, _extract_condition_fields,
+    # _summarize_target_resolution) expect: {FieldName, FormName, WorkspaceName}.
     field_index = {}    # field Id -> (form display, field name)
-    ref_map = {}        # field Id -> {"FieldName", "FormName"} (expression lookups)
+    ref_map = {}        # field/form Id -> {"FieldName", "FormName", "WorkspaceName"}
     for rf in raw_forms:
         disp = display_by_id[rf["Id"]]
+        ref_map[rf["Id"]] = {"FieldName": "", "FormName": disp, "WorkspaceName": ws_display}
         for fl in rf.get("Fields") or []:
             field_index[fl["Id"]] = (disp, fl["Name"])
-            ref_map[fl["Id"]] = {"FieldName": fl["Name"], "FormName": disp}
+            ref_map[fl["Id"]] = {"FieldName": fl["Name"], "FormName": disp, "WorkspaceName": ws_display}
 
     forms, workflows = [], []
     for rf in raw_forms:
@@ -773,11 +911,16 @@ def parse_workspace_export(d):
 
         host_fields = {fl["Name"] for fl in rf.get("Fields") or []} | {f["name"] for f in parsed["fields"]}
         for cfg in rf.get("WorkflowConfigs") or []:
-            workflows.append(_ws_parse_workflow(cfg, disp, d.get("DisplayName") or d.get("Name") or "",
-                                                ref_map, host_fields))
+            workflows.append(_ws_parse_workflow(cfg, disp, ws_display, ref_map, host_fields))
+
+    for wf_raw in d.get("Workflows") or []:
+        triggers = wf_raw.get("Triggers") or []
+        trig_form = ref_map.get(triggers[0].get("FormId"), {}).get("FormName", "") if triggers else ""
+        callsign = f"{_wf_form_prefix(trig_form)}_{_wf_name_token(wf_raw.get('Name', ''))}"
+        workflows.append(_parse_wfengine(wf_raw, ref_map, callsign))
 
     return {
-        "workspaceName": d.get("DisplayName") or d.get("Name") or "",
+        "workspaceName": ws_display,
         "forms": forms,
         "workflows": workflows,
     }
@@ -997,90 +1140,23 @@ class Workspace:
                 "relationships": relationships, "refPulls": ref_pulls}
 
     def parse_workflow(self, json_path, manual_meta=None):
-        """Parse a workflow JSON export. Returns structured workflow record."""
+        """Parse an individual WFEngine workflow JSON export (Triggers/Steps at
+        the file root). Returns structured workflow record."""
         d = json.loads(Path(json_path).read_text(encoding="utf-8"))
         manual_meta = manual_meta or {}
 
-        wf = {
-            "callsign": manual_meta.get("callsign", d.get("Name","")[:12].upper().replace(" ","_")),
-            "name": d.get("Name",""),
-            "description": d.get("Description",""),
-            "workflowType": "WFEngine",
-            "staging_guid": "",  # populate from triggers below
-            "trigger": None,
-            "actions": [],
-            "fieldUsage": [],
-            "externalRefs": d.get("ExternalReferences", []),
-            # Individual workflow exports carry no enabled flag; treat as active.
-            "enabled": bool(d.get("IsEnabled", True)),
-        }
-
-        # Normalize form names through name_aliases before building the lookup table so
-        # every downstream ref_by_id.get(...).get("FormName") returns the canonical name.
-        for ref in wf["externalRefs"]:
+        # Normalize form names through name_aliases before building the lookup
+        # table so every downstream ref_by_id.get(...).get("FormName") returns
+        # the canonical name.
+        refs = d.get("ExternalReferences", [])
+        for ref in refs:
             if ref.get("FormName"):
                 ref["FormName"] = self.canonicalize_name(ref["FormName"])
+        ref_by_id = {r.get("RefId"): r for r in refs}
 
-        # Lookup helper for ExternalReferences (turn GUIDs into names)
-        ref_by_id = {r.get("RefId"): r for r in wf["externalRefs"]}
-
-        # Triggers (typically one)
-        triggers = d.get("Triggers", [])
-        if triggers:
-            t = triggers[0]
-            wf["staging_guid"] = t.get("Id","")
-            form_ref = ref_by_id.get(t.get("FormId",""), {})
-            cond_summary = _summarize_condition(t.get("ConditionExpression",""), ref_by_id)
-            wf["trigger"] = {
-                "type": t.get("WorkflowEngineTriggerType",""),
-                "form": form_ref.get("FormName", ""),
-                "workspace": form_ref.get("WorkspaceName", ""),
-                "databaseAction": t.get("WorkflowEngineDatabaseActionType",""),
-                "timing": t.get("WorkflowEngineDatabaseActionTiming",""),
-                "conditionMode": t.get("WorkflowEngineConditionMode",""),
-                "condition": cond_summary,
-                "cron": t.get("CronExpression"),
-                "timezone": t.get("TimeZoneId"),
-            }
-            for fld_ref in _extract_condition_fields(t.get("ConditionExpression",""), ref_by_id):
-                wf["fieldUsage"].append({
-                    "form": fld_ref["form"], "field": fld_ref["field"],
-                    "direction": "Condition", "context": "Trigger condition",
-                    "stepName": "",
-                })
-
-        # Steps + Actions
-        for step in d.get("Steps", []):
-            for action in step.get("Actions", []):
-                params = {p["ParameterName"]: p for p in action.get("Parameters", [])}
-                target_form_id = (params.get("TargetResolution.TargetFormId", {}).get("StaticValue")
-                                  or params.get("FormId", {}).get("StaticValue"))
-                target_form = ref_by_id.get(target_form_id, {}).get("FormName", "")
-                target_ws   = ref_by_id.get(target_form_id, {}).get("WorkspaceName", "")
-                match_summary = _summarize_target_resolution(params, ref_by_id, target_form)
-                assignments = _parse_field_assignments(
-                    params.get("FieldAssignments", {}).get("StaticValue"), target_form)
-
-                wf["actions"].append({
-                    "stepName": step.get("Name",""),
-                    "name": action.get("DisplayName",""),
-                    "type": action.get("ActionType",""),
-                    "targetForm": target_form,
-                    "targetWorkspace": target_ws,
-                    "duplicatePolicy": params.get("DuplicateMatchPolicy", {}).get("StaticValue",""),
-                    "resolutionType":  params.get("TargetResolution.ResolutionType", {}).get("StaticValue",""),
-                    "matchOn": match_summary,
-                    "continueOnError": action.get("ContinueOnError"),
-                })
-                for a in assignments:
-                    wf["fieldUsage"].append({
-                        "form": target_form, "field": a["field"],
-                        "direction": "Write",
-                        "context": a["sourceDesc"],
-                        "stepName": step.get("Name",""),
-                    })
-
-        return wf
+        callsign = manual_meta.get("callsign", d.get("Name","")[:12].upper().replace(" ","_"))
+        # Individual workflow exports carry no enabled flag; treat as active.
+        return _parse_wfengine(d, ref_by_id, callsign, enabled=bool(d.get("IsEnabled", True)))
 
     def _manual_workflow_meta(self):
         return self._read_json(self.manual_dir / "workflow_metadata.json", {})

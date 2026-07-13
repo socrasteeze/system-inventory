@@ -142,6 +142,15 @@
   .wf-story-panel .story-then{padding-left:14px;position:relative;color:var(--text)}
   .wf-story-panel .story-then::before{content:'\2192';position:absolute;left:0;color:var(--accent)}
   .wf-story-panel .story-off{margin-top:6px;color:#fbbf24;font-style:italic}
+  /* Field-write conflict warning — a field this workflow writes that another
+     workflow also writes (a real race: whichever runs last wins). */
+  .wf-conflict-panel{font-size:12px;line-height:1.5;background:#3a2a12;
+              border:1px solid #6b4a1a;border-radius:6px;padding:10px 12px;color:#fcd9a3}
+  .wf-conflict-panel .cf-row{margin-bottom:6px}
+  .wf-conflict-panel .cf-row:last-child{margin-bottom:0}
+  .wf-conflict-panel .cf-field{font-family:monospace;color:#fde3b8}
+  .wf-conflict-panel .cf-link{color:#fcd34d;text-decoration:underline;cursor:pointer}
+  .wf-conflict-panel .cf-link:hover{color:#ffe9ad}
   .brief-link{display:inline-block;margin-top:8px;font-size:11px;color:var(--accent);
               text-decoration:none}
   .brief-link:hover{text-decoration:underline}
@@ -1327,6 +1336,7 @@ function renderWorkflow(callsign){
   const w = DATA.workflows.find(x => x.callsign === callsign);
   if (!w) return;
   const st = (DATA.wfStories && DATA.wfStories[callsign]) || null;
+  const cf = (DATA.wfConflicts && DATA.wfConflicts[callsign]) || null;
   panel.className = 'panel';
   panel.innerHTML = `
     <button class="close-btn" onclick="renderEmpty()">×</button>
@@ -1339,6 +1349,15 @@ function renderWorkflow(callsign){
         <div class="story-when">${escapeHtml(st.when)}</div>
         ${st.then.map(t => `<div class="story-then">${escapeHtml(t)}</div>`).join('')}
         ${st.disabled ? '<div class="story-off">Currently switched off — it will not run.</div>' : ''}
+      </div>
+    </div>` : ''}
+
+    ${cf ? `<div class="section"><h3>⚠ Write conflicts</h3>
+      <div class="wf-conflict-panel">
+        ${cf.map(c => `<div class="cf-row">
+          Also writes <span class="cf-field">${escapeHtml(c.form)} · ${escapeHtml(c.field)}</span>:
+          ${c.others.map(o => `<span class="cf-link" onclick="cy.$id('WF:${escapeAttr(o.callsign)}').emit('tap')">${escapeHtml(o.name)}</span>`).join(', ')}
+        </div>`).join('')}
       </div>
     </div>` : ''}
 

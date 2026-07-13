@@ -257,7 +257,8 @@ def build(workspace):
             "SourceWorkspace": t["workspace"], "DatabaseAction": t["databaseAction"],
             "ActionTiming": t["timing"], "ConditionMode": t["conditionMode"],
             "ConditionSummary": t["condition"], "CronExpression": t["cron"] or "",
-            "TimeZone": t["timezone"] or "", "MonitoredFields": "",
+            "TimeZone": t["timezone"] or "",
+            "MonitoredFields": " · ".join(t.get("monitoredFields") or []),
         })
     sheet(wb.create_sheet("Triggers"), "Triggers · what fires each workflow",
           [("TriggerName",16,"Display name"), ("Callsign",14,"FK → Workflows"),

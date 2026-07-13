@@ -23,6 +23,28 @@ each `plans/*.md` file.)
 
 ## Done
 
+**WFEngine workspace-export parsing + workflow write-conflict detection (2026-07-13).**
+All five workspace baselines were re-exported by the platform's new workflow engine, which
+carries workflows as a top-level `Workflows[]` array (`Triggers`/`Steps` shape) instead of
+the old per-form embedded `WorkflowConfigs`. The parser only read the old shape, so every
+workspace was silently reporting 0 workflows (111 dropped fleet-wide: liwp 28, nve-qar 1,
+sce-be 16, sdge-whp 23, socal-whp 43). `parse_workspace_export` now parses both shapes
+through a shared `_parse_wfengine()` helper (also used by individual workflow-file
+exports, so the two paths can't drift), normalizes WFEngine's numeric enums
+(`WorkflowEngineTriggerType`/`DatabaseActionType`/`...Timing`) to the plain strings the
+rest of the pipeline expects, and summarizes `BuiltIn.SendEmail` actions into the same
+`"To: … · Subject: …"` shape Legacy notifications use so narration covers both. Fixed a
+real bug the one scheduled workflow surfaced: a leftover `databaseAction` value on cron
+triggers was overriding the schedule phrasing in `workflow_story` — cron now wins.
+
+Also added a field-write conflict check: the workflow-detail panel now shows a "⚠ Write
+conflicts" block when a workflow writes a field another workflow in the same workspace
+also writes — a real race with no guaranteed run order — linking to the other workflow.
+Scoped to write collisions only, not shared triggers (two workflows firing on the same
+event is common and usually intentional). `narrate.build_workflow_conflicts()`, injected
+as `DATA.wfConflicts`. Zero conflicts exist in current data; the check guards against
+future regressions. All 5 workspaces regenerated.
+
 **Form version history (2026-07-10).** Multiple `_vNN` exports of one form are now
 first-class history instead of warned-about duplicates: highest version wins as the
 active design, every export on file lands in a per-form `versionHistory` (with

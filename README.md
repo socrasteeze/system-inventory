@@ -4,7 +4,7 @@ Documentation system for the workflow automations and form architecture of platf
 
 Two export formats are supported, and they can coexist in one workspace:
 
-- **Whole-workspace export** — one JSON carrying the entire workspace (all forms, embedded workflows, relationships). It becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself.
+- **Whole-workspace export** — one JSON carrying the entire workspace (all forms, relationships, and workflows). It becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself. Workflows arrive in whichever shape the platform used when the export was taken — the older Legacy system embeds them per form; the newer WF Engine carries them as a top-level array — and both are parsed into the same normalized model.
 - **Individual form / workflow exports** — one JSON per form or workflow. When an individual export covers something also present in the workspace baseline, the **individual file always wins** — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.
 
 **Placement is automatic.** Drop any export JSON anywhere under `data/<slug>/` — the rebuild detects what each file is by its content and routes it (workspace export → baseline; form/workflow export → override). The `forms/` and `workflows/` subfolders still work (scanned recursively — flat, or one subfolder per form/workflow), but nothing requires them. Individual form exports are matched to their baseline form by **field overlap**, not filename, so no name-mapping is needed for overrides either.
@@ -38,6 +38,7 @@ The project answers questions about workflow automations and form architecture t
 - Do workflows in different workspaces duplicate each other's logic?
 - Which automations run on a schedule, and when?
 - **What changed since the last rebuild or baseline?** Version snapshots under `output/snapshots/` capture normalized discovery state; `--compare` reports form, field, workflow, and relationship deltas.
+- **Do two workflows write the same field?** The explorer flags it directly on the workflow panel — a real race, since nothing guarantees which of two independently-triggered workflows runs last.
 
 ## Scope
 
@@ -60,7 +61,7 @@ The project answers questions about workflow automations and form architecture t
 Per workspace:
 
 - **`output/<slug>/workflow_master_inventory.xlsx`** — normalized spreadsheet inventory. One row per form, field, relationship, workflow, action, and field-usage event. Field rows also carry validators, computed formulas, filter/visibility conditions, default values, and the same-form fields each references. Filterable for impact analysis ("what breaks if I rename field X").
-- **`output/<slug>/workspace_explorer.html`** — interactive graph. Open in any browser. Zoom, pan, click forms to inspect fields, click the workflow node to see what it touches. Field detail answers "where is this used?" across forms and within the form. Light/dark toggle in the toolbar.
+- **`output/<slug>/workspace_explorer.html`** — interactive graph. Open in any browser. Zoom, pan, click forms to inspect fields, click the workflow node to see what it touches. Field detail answers "where is this used?" across forms and within the form. The workflow panel also warns when it writes a field another workflow writes too, with a link to the other workflow. Light/dark toggle in the toolbar.
 
 Across all workspaces:
 

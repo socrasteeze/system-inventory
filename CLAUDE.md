@@ -225,7 +225,7 @@ python scripts/regenerate.py --compare baseline pre-migration --compare-json
 
 The console report lists forms added/removed/modified (with per-field attribute deltas), workflow trigger/action signature changes, and relationship/ref-pull deltas. `--compare-json` also writes `output/snapshots/compare_<from>_to_<to>.json` for tooling. Snapshot refs accept: full/partial id, exact label, `latest`, or `previous`.
 
-Form design drift uses the same fingerprint as `build_registry._form_fingerprint()`; workflow logic drift uses `_exact_hash()`. Snapshots are intended to be git-tracked alongside `output/` so commit history carries inventory state even though `data/` is gitignored locally.
+Form design drift uses the same fingerprint as `build_registry._form_fingerprint()`; workflow logic drift uses `_exact_hash()`. Snapshots are git-tracked alongside `output/` so commit history carries inventory state; `data/` (the raw exports) is also tracked now that the repo is private (see *Data sensitivity* in README.md).
 
 **Rebuild summary block.** Every run ends with a `Rebuild summary:` block — workspace/form/workflow totals plus every distinct warning collected during the run (`parser.WARNINGS`; each warning prints once per process via the module-level `_PRINTED_ONCE` dedupe, even though discovery runs several times per rebuild). start.bat users see this block directly above the view-choice menu.
 
@@ -376,7 +376,7 @@ An **escape hatch, rarely needed**: individual form exports are name-resolved by
 Use this when an export references a form by a name that doesn't match the form's canonical display name. Two producers of stale names: a workflow JSON's `ExternalReferences` (`Workspace.canonicalize_name()` consults this section for every workflow export), and an individual form export's `RelatedFormNormalized` relationship payloads (canonicalized in `parse_form`). Live examples: sce-be maps `"Account Management (200)" → "200 - Account"`, sdge-whp maps `"499 - SDGE Fee Schedule" → "499 - Fee Schedule"`, nve-qar maps `"QAR Measures" → "Measures"` — all names the 2026-06 design exports use that don't match the baseline; without the alias each would auto-stub a phantom Lookup node.
 
 ### `form_roles.json`
-Explicit role pins (form display name → role string), applied as the **final step** of `Workspace.discover()` after the Lookup→Spoke reclassification pass. Keyed by form display name; the file is optional and absent = no-op. Pinned roles override the inferred role in both directions (promote or demote). This is the escape hatch for reference tables the role heuristic can't detect structurally (e.g., `Program`, `Income Thresholds`, which have zero structural connections yet should remain Lookup).
+Explicit role pins (form display name → role string), applied as the **final step** of `Workspace.discover()` after the Lookup→Spoke reclassification pass, so manual always wins (consistent with `manual/` being the override layer). Keyed by form display name; the file is optional and absent = no-op. Pinned roles override the inferred role in both directions (promote or demote). This is the escape hatch for reference tables the role heuristic can't detect structurally (e.g., `Program`, `Income Thresholds`, which have zero structural connections yet should remain Lookup). Unrecognized form names warn and skip; each applied pin prints `[<slug>] pinned '<form>' role <from> -> <to>`.
 
 ```json
 { "Program": "Lookup", "Income Thresholds": "Lookup", "Project Breakdown Backup": "Lookup" }
@@ -391,11 +391,6 @@ Real-world process definitions (`ProcessID`, `ProcessName`, `OwnerArea`, `Descri
 ### `explorer_layout.json`
 Optional preset node positions for the explorer graph: `{ "<form or WF:callsign>": {"x": N, "y": N} }`. When present the graph opens in this hub-and-spoke layout; when absent it falls back to force-directed (`cose`).
 
-### `form_roles.json`
-Optional explicit role pins, keyed by form display name → role. Consulted as the **final step** in `Workspace.discover()`, after the Lookup→Spoke reclassification pass, so manual always wins (consistent with `manual/` being the override layer). Works in both directions (force `Lookup`→ or →`Lookup`). Use it for the irreducibly-ambiguous cases the role heuristic can't resolve — reference tables with no structural connection in the export, which would otherwise be promoted to `Spoke`. Missing file = no-op; unrecognized form names warn and skip; each applied pin prints `[<slug>] pinned '<form>' role <from> -> <to>`.
-```json
-{ "Program": "Lookup", "Project Breakdown Backup": "Lookup" }
-```
 ---
 
 ## Known quirks / past fixes

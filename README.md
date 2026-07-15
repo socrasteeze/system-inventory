@@ -99,6 +99,7 @@ If something is missing it prints plain-English instructions instead of failing 
 │       └── manual/              ← human-maintained overrides
 │           ├── workspace.json           (slug + display name)
 │           ├── form_aliases.json        (filename → display name; plus name_aliases)
+│           ├── form_roles.json          (explicit Lookup/Spoke role pins)
 │           ├── workflow_metadata.json   (callsigns, criticality, owners)
 │           ├── business_processes.json  (real-world process tagging)
 │           └── explorer_layout.json     (optional preset graph positions)
@@ -189,6 +190,7 @@ Files in `data/<slug>/manual/` override or annotate without touching the auto-di
 
 - **`workspace.json`** — the workspace `slug` and `displayName` (used as the Excel title and graph heading).
 - **`form_aliases.json`** — two escape hatches, both rarely needed. Filename-stem entries (keyed the same regardless of whether the file sits flat in `forms/` or in its own subfolder) force a display name when content-matching can't resolve one (form exports are normally matched to the baseline by field overlap automatically). The `name_aliases` section corrects stale form names that exports still reference (e.g. `"Account Management (200)" → "200 - Account"`), which would otherwise create phantom lookup nodes.
+- **`form_roles.json`** — explicit role pins (form display name → role), applied last so it always wins. Escape hatch for reference tables the Lookup/Spoke heuristic can't resolve structurally (e.g. `Program`, `Income Thresholds`).
 - **`workflow_metadata.json`** — assigns each workflow its callsign, criticality, owner, and business process.
 - **`business_processes.json`** — defines the real-world processes workflows can be tagged against.
 - **`explorer_layout.json`** — optional preset node positions for the graph; without it the explorer uses a force-directed layout.
@@ -222,7 +224,7 @@ Edit these in any editor, then re-run `regenerate.py`.
 
 ## Data sensitivity
 
-The `data/` directory (workspace JSON exports) is excluded from this repository via `.gitignore`. Do not commit export files — they may contain embedded notification configurations with email addresses.
+The `data/` directory (workspace JSON exports) is tracked in this repository. This repo is private — export files may contain embedded notification configurations with email addresses, so keep it that way; do not fork or mirror it to a public location without stripping that data first.
 
 ## License
 

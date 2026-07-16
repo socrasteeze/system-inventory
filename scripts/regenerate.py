@@ -289,9 +289,9 @@ def _render_brief(slug, ws_name, form, nar_form, data, featured, stories):
             rows.append(f'<tr><td class="field">{esc(label_of(fn))}'
                         f'<div class="api">{esc(fn)}</div></td>'
                         f'<td>{"".join(effects)}</td></tr>')
-        changes = ('<table><thead><tr><th>When you change&hellip;</th>'
+        changes = ('<div class="table-wrap"><table><thead><tr><th>When you change&hellip;</th>'
                    '<th>&hellip;this happens</th></tr></thead><tbody>'
-                   + "".join(rows) + "</tbody></table>")
+                   + "".join(rows) + "</tbody></table></div>")
     else:
         changes = '<div class="empty">No fields on this form trigger changes elsewhere.</div>'
 

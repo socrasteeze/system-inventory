@@ -24,6 +24,10 @@ from parser import FIELD_COMPARE_KEYS as _FIELD_COMPARE_KEYS
 SNAPSHOTS_DIR = Path(__file__).resolve().parent.parent / "output" / "snapshots"
 MANIFEST_NAME = "manifest.json"
 
+# How many unlabeled snapshots to retain when pruning (labeled snapshots are
+# always kept -- a label marks a deliberately pinned baseline).
+DEFAULT_KEEP = 5
+
 # Form metadata keys compared (excluding fieldCount — derived; versionHistory
 # is deliberately absent — version bumps already surface as a `version` meta
 # line plus field-level diffs, so diffing the history itself would be noise).
@@ -153,6 +157,31 @@ def save_snapshot(discovered_all: dict[str, dict], label: str | None = None) -> 
 def list_snapshots() -> list[dict]:
     """Return manifest entries newest-first."""
     return list(reversed(_load_manifest()))
+
+
+def prune_snapshots(keep: int = DEFAULT_KEEP) -> tuple[list[dict], list[dict]]:
+    """Delete old unlabeled snapshots, keeping the newest `keep` of them.
+
+    Labeled snapshots are never pruned -- a label marks a deliberately pinned
+    baseline (e.g. 'pre-migration'). Deletes the snapshot files and drops
+    their manifest entries so refs like 'previous' stay consistent.
+    Returns (removed_entries, kept_entries).
+    """
+    if keep < 1:
+        raise ValueError("keep must be >= 1")
+    manifest = _load_manifest()  # oldest -> newest
+    unlabeled = [e for e in manifest if not e.get("label")]
+    doomed = unlabeled[:-keep] if len(unlabeled) > keep else []
+    if not doomed:
+        return [], manifest
+    doomed_ids = {e["id"] for e in doomed}
+    kept = [e for e in manifest if e["id"] not in doomed_ids]
+    for e in doomed:
+        path = SNAPSHOTS_DIR / e["file"]
+        if path.exists():
+            path.unlink()
+    _save_manifest(kept)
+    return doomed, kept
 
 
 def resolve_snapshot_ref(ref: str) -> Path:

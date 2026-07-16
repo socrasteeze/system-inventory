@@ -16,10 +16,14 @@ Usage:
     python scripts/regenerate.py --compare OLD NEW [--workspace SLUG]
                                                  diff two snapshots (refs: id, label,
                                                  latest, previous)
+    python scripts/regenerate.py --prune-snapshots [N]
+                                                 delete old unlabeled snapshots,
+                                                 keeping the newest N (default 5)
 
 Every run refreshes docs/ from whatever explorers exist under output/, so a push
 publishes the current views. Excel artifacts stay in output/ and are never copied
-to docs/. Full rebuilds auto-save a snapshot after publish_docs().
+to docs/. Full rebuilds auto-save a snapshot after publish_docs(), then auto-prune
+old unlabeled snapshots down to the newest 5 (labeled snapshots are always kept).
 """
 import sys, argparse, json, re
 from datetime import datetime
@@ -530,7 +534,21 @@ def _auto_snapshot(discovered_all, label=None):
     entry = versioning.save_snapshot(discovered_all, label=label)
     print(f"  Snapshot: {entry['id']}"
           + (f" ({entry['label']})" if entry.get("label") else ""))
+    _prune_snapshots(versioning.DEFAULT_KEEP)
     return entry
+
+
+def _prune_snapshots(keep):
+    """Prune old unlabeled snapshots, printing one line per deletion."""
+    removed, kept = versioning.prune_snapshots(keep=keep)
+    for e in removed:
+        print(f"  Snapshot pruned: {e['id']}")
+    if removed:
+        n_unlabeled = sum(1 for e in kept if not e.get("label"))
+        n_labeled = len(kept) - n_unlabeled
+        note = f" + {n_labeled} labeled" if n_labeled else ""
+        print(f"  Snapshots kept: {n_unlabeled} most recent{note}")
+    return removed
 
 
 def _run_snapshot(label=None):
@@ -645,7 +663,21 @@ def main():
                     help="with --compare, also write a JSON report file")
     ap.add_argument("--no-snapshot", action="store_true",
                     help="skip auto-snapshot after a full rebuild")
+    ap.add_argument("--prune-snapshots", nargs="?", const=versioning.DEFAULT_KEEP,
+                    type=int, metavar="N",
+                    help="delete old unlabeled snapshots, keeping the newest N "
+                         f"(default {versioning.DEFAULT_KEEP}); labeled snapshots "
+                         "are always kept")
     args = ap.parse_args()
+
+    if args.prune_snapshots is not None:
+        if args.prune_snapshots < 1:
+            print("--prune-snapshots N must be >= 1")
+            sys.exit(1)
+        removed = _prune_snapshots(args.prune_snapshots)
+        if not removed:
+            print("Nothing to prune.")
+        return
 
     if args.list_snapshots:
         _list_snapshots()

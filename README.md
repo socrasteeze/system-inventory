@@ -150,9 +150,10 @@ python scripts/regenerate.py --check         # discovery only: counts, orphans, 
 python scripts/regenerate.py --snapshot [LABEL]   # capture a version snapshot (no rebuild)
 python scripts/regenerate.py --list-snapshots     # list saved snapshots
 python scripts/regenerate.py --compare OLD NEW [--workspace SLUG] [--compare-json]
+python scripts/regenerate.py --prune-snapshots [N]  # delete old unlabeled snapshots, keep newest N (default 5)
 ```
 
-Full rebuilds auto-save a version snapshot after publish (skipped when unchanged vs `latest`, or when `--no-snapshot` is passed). Snapshots live in `output/snapshots/` and record the normalized discovery state — forms, fields, workflows, relationships — so you can diff two points in time even when `data/` is not in git. Compare with `previous latest`, snapshot ids, or labels; scope to one workspace with `--workspace`.
+Full rebuilds auto-save a version snapshot after publish (skipped when unchanged vs `latest`, or when `--no-snapshot` is passed). Snapshots live in `output/snapshots/` and record the normalized discovery state — forms, fields, workflows, relationships — so you can diff two points in time even when `data/` is not in git. Compare with `previous latest`, snapshot ids, or labels; scope to one workspace with `--workspace`. Snapshots are large (~70 MB each), so each auto-snapshot is followed by an auto-prune down to the newest 5 unlabeled snapshots; **labeled snapshots are never pruned**, so pin anything worth keeping with `--snapshot LABEL`.
 
 Run from the project root after adding or changing any JSON under `data/`, then open the relevant file in `output/<slug>/` (or `output/global/`) to confirm. Every run ends with a **Rebuild summary** block — totals plus every warning in one place, so nothing scrolls away unseen (`start.bat` shows it right above its view-choice menu). `start.bat` also remembers the last view you opened and offers it as the Enter-key default next time.
 

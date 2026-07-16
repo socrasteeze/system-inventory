@@ -17,11 +17,26 @@ each `plans/*.md` file.)
   instead of dropping them — e.g. one "(plus N system-user rules)" suffix. They're
   currently filtered out of condition text deliberately (14 GUID clauses drown the
   readable part, and their operator enum is unverified).
+- Git history still carries every previously-committed snapshot blob (~150 MB of
+  superseded 11–71 MB files). If clone size becomes a problem, either move
+  `output/snapshots/` to Git LFS or do a one-time history rewrite
+  (`git filter-repo --path output/snapshots --invert-paths` on the old ids) — a
+  rewrite means force-push + fresh clones, so only with the repo owner's sign-off.
 - `regenerate.py` discovers every workspace up to 4× per full rebuild (per-workspace
   builds + global + field index + briefs construct fresh `Workspace` instances). Share
   one `discover_all()` result across the run to cut rebuild time roughly in half.
 
 ## Done
+
+**Snapshot pruning (2026-07-16).** Snapshots grew to ~70 MB each once `data/` became
+git-tracked (GitHub warned on push), so `versioning.prune_snapshots(keep)` now deletes old
+unlabeled snapshots — file + manifest entry, keeping `latest`/`previous` refs consistent —
+while **labeled snapshots are never pruned** (a label = a deliberately pinned baseline).
+Full rebuilds auto-prune down to the newest `DEFAULT_KEEP` (5) after each auto-snapshot;
+`--prune-snapshots [N]` runs it standalone. Pruned the repo from 10 snapshots (222 MB) to
+5 (178 MB) at ship. Unit tests in `tests/test_versioning.py`. Note: pruning shrinks the
+working tree only — blobs of previously-committed snapshots stay in git history (a
+history rewrite would be needed to reclaim that, tracked under Candidates).
 
 **SubformOperations generator + parsing (2026-07-16).** New `scripts/expand_subform_ops.py`
 mass-expands a WFEngine workflow's `SubformOperations` parameter (the escaped

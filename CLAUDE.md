@@ -209,6 +209,9 @@ python scripts/regenerate.py --list-snapshots
 python scripts/regenerate.py --compare OLD NEW [--workspace SLUG] [--compare-json]
                                              diff two snapshots (refs: id, label, latest, previous)
 python scripts/regenerate.py --no-snapshot   skip auto-snapshot after a full rebuild
+python scripts/regenerate.py --prune-snapshots [N]
+                                             delete old unlabeled snapshots, keeping
+                                             the newest N (default 5; labeled kept)
 ```
 
 Run from the project root after adding or changing any JSON in `data/`. Open the relevant `output/<slug>/workspace_explorer.html` (or `output/global/global-explorer.html`) to confirm the graph.
@@ -223,6 +226,8 @@ Full rebuilds (no flags, or default path) auto-save a **version snapshot** after
 - `manifest.json` — index of snapshots (id, label, created timestamp, per-workspace counts)
 
 If the discovered state is byte-identical to the latest snapshot, a duplicate is not written. Pin a meaningful baseline with a labeled capture: `python scripts/regenerate.py --snapshot pre-migration`.
+
+**Retention.** Snapshots are large now that `data/` is tracked (~70 MB each), so after every auto-snapshot the run **auto-prunes**: unlabeled snapshots beyond the newest `versioning.DEFAULT_KEEP` (5) are deleted (file + manifest entry, so `latest`/`previous` refs stay consistent). **Labeled snapshots are never pruned** — a label marks a deliberately pinned baseline, so anything worth keeping long-term should be captured with `--snapshot LABEL`. `--prune-snapshots [N]` runs the same prune standalone with a custom keep count. Each deletion prints one `Snapshot pruned:` line. Note pruning shrinks the working tree, not git history — blobs of previously-committed snapshots remain in history.
 
 Compare any two snapshots:
 

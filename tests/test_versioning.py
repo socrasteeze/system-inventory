@@ -136,6 +136,58 @@ class VersioningTests(unittest.TestCase):
         payload = json.loads(path.read_text(encoding="utf-8"))
         self.assertIn("summary", payload)
 
+    # ── prune ──────────────────────────────────────────────────────
+
+    def _seed_snapshots(self, entries):
+        """Write manifest entries (oldest -> newest) and matching stub files."""
+        manifest = []
+        for snap_id, label in entries:
+            fname = f"{snap_id}.json"
+            (v.SNAPSHOTS_DIR / fname).write_text("{}", encoding="utf-8")
+            manifest.append({"id": snap_id, "label": label, "created": snap_id,
+                             "file": fname, "workspaces": ["demo"],
+                             "totals": {"forms": 1, "workflows": 1}})
+        v._save_manifest(manifest)
+
+    def test_prune_keeps_newest_unlabeled(self):
+        self._seed_snapshots([(f"2026-07-0{i}T00-00-00", "") for i in range(1, 6)])
+        removed, kept = v.prune_snapshots(keep=2)
+        self.assertEqual([e["id"] for e in removed],
+                         [f"2026-07-0{i}T00-00-00" for i in (1, 2, 3)])
+        self.assertEqual([e["id"] for e in kept],
+                         ["2026-07-04T00-00-00", "2026-07-05T00-00-00"])
+        for e in removed:
+            self.assertFalse((v.SNAPSHOTS_DIR / e["file"]).exists())
+        for e in kept:
+            self.assertTrue((v.SNAPSHOTS_DIR / e["file"]).exists())
+        # 'previous' still resolves against the pruned manifest
+        self.assertTrue(v.resolve_snapshot_ref("previous").name
+                        .startswith("2026-07-04"))
+
+    def test_prune_never_removes_labeled(self):
+        self._seed_snapshots([
+            ("2026-07-01T00-00-00", ""),
+            ("2026-07-02T00-00-00_baseline", "baseline"),
+            ("2026-07-03T00-00-00", ""),
+            ("2026-07-04T00-00-00", ""),
+        ])
+        removed, kept = v.prune_snapshots(keep=1)
+        self.assertEqual([e["id"] for e in removed],
+                         ["2026-07-01T00-00-00", "2026-07-03T00-00-00"])
+        self.assertEqual([e["id"] for e in kept],
+                         ["2026-07-02T00-00-00_baseline", "2026-07-04T00-00-00"])
+        self.assertTrue((v.SNAPSHOTS_DIR / "2026-07-02T00-00-00_baseline.json").exists())
+
+    def test_prune_noop_when_under_limit(self):
+        self._seed_snapshots([("2026-07-01T00-00-00", ""), ("2026-07-02T00-00-00", "")])
+        removed, kept = v.prune_snapshots(keep=5)
+        self.assertEqual(removed, [])
+        self.assertEqual(len(kept), 2)
+
+    def test_prune_rejects_keep_below_one(self):
+        with self.assertRaises(ValueError):
+            v.prune_snapshots(keep=0)
+
 
 if __name__ == "__main__":
     unittest.main()

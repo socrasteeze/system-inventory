@@ -190,6 +190,7 @@ scripts/
   versioning.py         snapshot capture + compare (temporal change tracking)
   organize_forms.py     one-time sweep of loose form exports into forms/<Form Name>/ folders (dry-run; --apply)
   expand_subform_ops.py mass-expand a WFEngine workflow's SubformOperations from a CSV (dry-run; --apply)
+  expand_field_assignments.py mass-generate a workflow's top-level FieldAssignments from Excel (dry-run; --apply)
   md_render.py          minimal deterministic Markdown -> HTML (feeds the docs/docs.html viewer)
   global_template.html      global HTML template
   regenerate.py         rebuild orchestrator (CLI) + docs/ publish
@@ -484,7 +485,29 @@ python scripts/expand_subform_ops.py TEMPLATE.json MAPPING.csv --workspace SLUG
 The generated file is imported into the platform; drop the same file under `data/<slug>/workflows/` if
 the workflow should also appear in the inventory.
 
----
+**Mass-generating top-level FieldAssignments (the plain "copy field X to field Y" case).**
+`scripts/expand_field_assignments.py` is the sibling generator for the *other* common repetitive pattern:
+a `BuiltIn.UpdateFormResponse` action's top-level `FieldAssignments` parameter (not `SubformOperations`)
+— e.g. "Update Existing Measures" copying dozens of fields from an enrollment form onto an installation
+form. Same validation contract (`docs/field-index.json`), same dry-run/`--apply` convention, but the
+mapping is an **Excel workbook** (`openpyxl`, already a repo dependency) instead of CSV, matching the
+three-column format staff already use: `Field Name (Current Form)` (source — a trigger-form field name
+for `FromTrigger`, or a literal value for `Constant`), `Field Assignment Type`, `Resolution (Field Name)`
+(the target field). No prototype op is needed — `FieldAssignments` entries are flat `{FieldName,
+ValueType, Value}` dicts with no scaffold keys to clone, so the workbook is the sole source of the
+generated array.
+
+```
+python scripts/expand_field_assignments.py TEMPLATE.json MAPPING.xlsx --workspace SLUG
+       [--sheet NAME] [--out PATH] [--step NAME] [--action NAME] [--apply]
+```
+
+**Only `Constant` and `FromTrigger` are implemented.** The platform also exposes `Expression` (a
+computed value referencing other fields via `{{FieldName}}` tokens) and `Clear/Set Null` in its UI, but
+neither appears anywhere in `data/` — there is no confirmed example of the literal `ValueType` string
+the platform expects for either, so a mapping row using one is a **hard error naming the row**, not a
+guess. Add support once a real exported workflow using either type is available to read the exact
+string from (see TODO.md).
 
 ## Dependencies
 

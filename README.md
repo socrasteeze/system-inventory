@@ -117,6 +117,7 @@ If something is missing it prints plain-English instructions instead of failing 
 │   ├── versioning.py            (snapshot capture + compare)
 │   ├── organize_forms.py        (sweep loose form exports into forms/<Form Name>/ folders)
 │   ├── expand_subform_ops.py    (generate a workflow import: mass-add SubformOperations from a CSV)
+│   ├── expand_field_assignments.py (generate a workflow import: mass-add top-level FieldAssignments from Excel)
 │   ├── md_render.py             (markdown -> HTML for the docs/docs.html viewer)
 │   ├── explorer_template.html   (per-workspace HTML template)
 │   ├── global_template.html     (global HTML template)

@@ -23008,11 +23008,6 @@
   ],
   "sce-be/ContactAttemptsGrid": [
     {
-      "name": "ContactDate",
-      "label": "Contact Date",
-      "type": "Date"
-    },
-    {
       "name": "ContactSuccessful",
       "label": "Outcome",
       "type": "Text"
@@ -23021,14 +23016,14 @@
       "name": "ContactMethod",
       "label": "Contact Method",
       "type": "Text"
+    },
+    {
+      "name": "ContactDate",
+      "label": "Contact Date",
+      "type": "Date"
     }
   ],
   "sce-be/NotesTable": [
-    {
-      "name": "NoteDate",
-      "label": "Date",
-      "type": "DateTime"
-    },
     {
       "name": "NoteSubject",
       "label": "Subject",
@@ -23043,19 +23038,14 @@
       "name": "NoteDescription",
       "label": "Note",
       "type": "Text"
+    },
+    {
+      "name": "NoteDate",
+      "label": "Date",
+      "type": "DateTime"
     }
   ],
   "sce-be/HouseholdMemberInformation": [
-    {
-      "name": "SecondaryAnnualGrossIncome",
-      "label": "Secondary Annual Gross Income",
-      "type": "Decimal"
-    },
-    {
-      "name": "PrimaryAnnualGrossIncome",
-      "label": "Primary Annual Gross Income",
-      "type": "Decimal"
-    },
     {
       "name": "SecondaryIncomeSource",
       "label": "Secondary Income Source",
@@ -23072,17 +23062,22 @@
       "type": "Text"
     },
     {
+      "name": "SecondaryAnnualGrossIncome",
+      "label": "Secondary Annual Gross Income",
+      "type": "Decimal"
+    },
+    {
       "name": "PrimaryIncomeSource",
       "label": "Primary Income Source",
       "type": "Text"
+    },
+    {
+      "name": "PrimaryAnnualGrossIncome",
+      "label": "Primary Annual Gross Income",
+      "type": "Decimal"
     }
   ],
   "sce-be/CampaignDetails": [
-    {
-      "name": "CampaignDate",
-      "label": "Date",
-      "type": "Date"
-    },
     {
       "name": "CampaignType",
       "label": "Type",
@@ -23092,6 +23087,11 @@
       "name": "CampaignProvider",
       "label": "Provider",
       "type": "Text"
+    },
+    {
+      "name": "CampaignDate",
+      "label": "Date",
+      "type": "Date"
     },
     {
       "name": "OtherCampaignType",
@@ -27907,9 +27907,14 @@
   ],
   "sce-be/HouseholdMemberInformation (210 - Enrollment & Assessment Form)": [
     {
-      "name": "AddSecondaryIncomeSource",
-      "label": "Add Secondary Income Source",
-      "type": "Boolean"
+      "name": "PrimaryIncomeSourcePhoto",
+      "label": "Primary Income Source Photo",
+      "type": "File"
+    },
+    {
+      "name": "SecondaryIncomeSource",
+      "label": "Secondary Income Source",
+      "type": "Text"
     },
     {
       "name": "ComputedMemberTotalIncome",
@@ -27922,51 +27927,6 @@
       "type": "Calculation"
     },
     {
-      "name": "ComputedSecondaryAnnualGrossIncome",
-      "label": "Secondary Annual Gross Income",
-      "type": "Calculation"
-    },
-    {
-      "name": "ComputedPrimaryAnnualGrossIncome",
-      "label": "Primary Annual Gross Income",
-      "type": "Calculation"
-    },
-    {
-      "name": "PrimaryMemberMonthlyIncome",
-      "label": "Primary Income Amount",
-      "type": "Decimal"
-    },
-    {
-      "name": "SecondaryMemberMonthlyIncome",
-      "label": "Secondary Income Amount",
-      "type": "Decimal"
-    },
-    {
-      "name": "PrimaryIncomeSourcePhoto",
-      "label": "Primary Income Source Photo",
-      "type": "File"
-    },
-    {
-      "name": "SecondaryIncomeSourcePhoto",
-      "label": "Secondary Income Source Photo",
-      "type": "File"
-    },
-    {
-      "name": "SecondaryIncomeMonths1",
-      "label": "[deprecated] Income Frequency - 2",
-      "type": "Integer"
-    },
-    {
-      "name": "PrimaryIncomeMonths1",
-      "label": "[deprecated] Income Frequency",
-      "type": "Integer"
-    },
-    {
-      "name": "SecondaryIncomeSource",
-      "label": "Secondary Income Source",
-      "type": "Text"
-    },
-    {
       "name": "PrimaryIncomeSource",
       "label": "Primary Income Source",
       "type": "Text"
@@ -27975,6 +27935,31 @@
       "name": "NameofHouseholdMember",
       "label": "Name of Household Member",
       "type": "Text"
+    },
+    {
+      "name": "SecondaryIncomeMonths1",
+      "label": "[deprecated] Income Frequency - 2",
+      "type": "Integer"
+    },
+    {
+      "name": "ComputedSecondaryAnnualGrossIncome",
+      "label": "Secondary Annual Gross Income",
+      "type": "Calculation"
+    },
+    {
+      "name": "PrimaryMemberMonthlyIncome",
+      "label": "Primary Income Amount",
+      "type": "Decimal"
+    },
+    {
+      "name": "AddSecondaryIncomeSource",
+      "label": "Add Secondary Income Source",
+      "type": "Boolean"
+    },
+    {
+      "name": "SecondaryMemberMonthlyIncome",
+      "label": "Secondary Income Amount",
+      "type": "Decimal"
     },
     {
       "name": "SecondaryIncomeMonths",
@@ -27987,21 +27972,36 @@
       "type": "Text"
     },
     {
+      "name": "SecondaryIncomeSourcePhoto",
+      "label": "Secondary Income Source Photo",
+      "type": "File"
+    },
+    {
       "name": "PrimaryIncomeMonths",
       "label": "Income Frequency",
       "type": "Text"
+    },
+    {
+      "name": "PrimaryIncomeMonths1",
+      "label": "[deprecated] Income Frequency",
+      "type": "Integer"
+    },
+    {
+      "name": "ComputedPrimaryAnnualGrossIncome",
+      "label": "Primary Annual Gross Income",
+      "type": "Calculation"
     }
   ],
   "sce-be/RoomACGrid": [
     {
-      "name": "RoomACLocationPhoto",
-      "label": "Room AC Photo",
-      "type": "File"
-    },
-    {
       "name": "RoomACLocation",
       "label": "Location",
       "type": "Text"
+    },
+    {
+      "name": "RoomACLocationPhoto",
+      "label": "Room AC Photo",
+      "type": "File"
     },
     {
       "name": "RoomACBTU",
@@ -28033,24 +28033,14 @@
   ],
   "sce-be/ScopeOfWorkGrid": [
     {
-      "name": "RepairDateRevised",
-      "label": "Date Revised",
-      "type": "Date"
+      "name": "Time",
+      "label": "Time",
+      "type": "Integer"
     },
     {
       "name": "MHRQty",
       "label": "Qty",
       "type": "Decimal"
-    },
-    {
-      "name": "RepairCost",
-      "label": "Repair Cost",
-      "type": "Decimal"
-    },
-    {
-      "name": "Time",
-      "label": "Time",
-      "type": "Integer"
     },
     {
       "name": "Material",
@@ -28066,29 +28056,19 @@
       "name": "ScopeofWork",
       "label": "Scope of Work",
       "type": "Text"
+    },
+    {
+      "name": "RepairCost",
+      "label": "Repair Cost",
+      "type": "Decimal"
+    },
+    {
+      "name": "RepairDateRevised",
+      "label": "Date Revised",
+      "type": "Date"
     }
   ],
   "sce-be/InsulationGrid": [
-    {
-      "name": "RequiredUpperAmountOfVentilation",
-      "label": "Required Upper Ventilation",
-      "type": "Integer"
-    },
-    {
-      "name": "ExistingUpperAmountOfVentilation",
-      "label": "Existing Upper Ventilation",
-      "type": "Integer"
-    },
-    {
-      "name": "RequiredLowerAmountOfVentilation",
-      "label": "Required Lower Ventilation",
-      "type": "Integer"
-    },
-    {
-      "name": "ExistingLowerAmountOfVentilation",
-      "label": "Existing Lower Ventilation",
-      "type": "Integer"
-    },
     {
       "name": "AddedLowerVentilation",
       "label": "Added Lower Ventilation",
@@ -28100,6 +28080,16 @@
       "type": "Text"
     },
     {
+      "name": "RequiredUpperAmountOfVentilation",
+      "label": "Required Upper Ventilation",
+      "type": "Integer"
+    },
+    {
+      "name": "ExistingUpperAmountOfVentilation",
+      "label": "Existing Upper Ventilation",
+      "type": "Integer"
+    },
+    {
       "name": "ExistingInsulationType",
       "label": "Insulation Type",
       "type": "Text"
@@ -28108,6 +28098,16 @@
       "name": "AddedUpperVentilation",
       "label": "Added Upper Ventilation",
       "type": "Text"
+    },
+    {
+      "name": "RequiredLowerAmountOfVentilation",
+      "label": "Required Lower Ventilation",
+      "type": "Integer"
+    },
+    {
+      "name": "ExistingLowerAmountOfVentilation",
+      "label": "Existing Lower Ventilation",
+      "type": "Integer"
     },
     {
       "name": "ExistingAreaSqFt",
@@ -28149,16 +28149,6 @@
       "type": "Date"
     },
     {
-      "name": "PermitCloseDate",
-      "label": "Close Date",
-      "type": "Date"
-    },
-    {
-      "name": "PermitFee",
-      "label": "Fee",
-      "type": "Decimal"
-    },
-    {
       "name": "CloseoutMethod",
       "label": "Close-out Method",
       "type": "Text"
@@ -28182,28 +28172,28 @@
       "name": "PermitNumber",
       "label": "Permit Number",
       "type": "Text"
+    },
+    {
+      "name": "PermitFee",
+      "label": "Fee",
+      "type": "Decimal"
+    },
+    {
+      "name": "PermitCloseDate",
+      "label": "Close Date",
+      "type": "Date"
     }
   ],
   "sce-be/ExistingRoomAC": [
     {
-      "name": "ExistingRoomACPhoto",
-      "label": "Existing Room AC Photo",
-      "type": "File"
-    },
-    {
-      "name": "ExistingRoomACDataPlate",
-      "label": "Existing Room AC Data Plate",
-      "type": "File"
-    },
-    {
-      "name": "ExistingRoomACBTU",
-      "label": "Existing BTU",
-      "type": "Integer"
-    },
-    {
       "name": "ExistingRoomACModel",
       "label": "Existing Model",
       "type": "Text"
+    },
+    {
+      "name": "ExistingRoomACPhoto",
+      "label": "Existing Room AC Photo",
+      "type": "File"
     },
     {
       "name": "ExistingRoomACSerialNumber",
@@ -28211,9 +28201,19 @@
       "type": "Text"
     },
     {
+      "name": "ExistingRoomACBTU",
+      "label": "Existing BTU",
+      "type": "Integer"
+    },
+    {
       "name": "ExistingRoomACLocation",
       "label": "Existing Location",
       "type": "Text"
+    },
+    {
+      "name": "ExistingRoomACDataPlate",
+      "label": "Existing Room AC Data Plate",
+      "type": "File"
     },
     {
       "name": "ExistingRoomACBrand",
@@ -28222,21 +28222,6 @@
     }
   ],
   "sce-be/ExistingEVAPCoolerGrid": [
-    {
-      "name": "ExistingEvapCoolerDataPlate",
-      "label": "Existing Evap Cooler Data Plate",
-      "type": "File"
-    },
-    {
-      "name": "ExistingEvapCoolerPhoto",
-      "label": "Existing Evap Cooler Photo",
-      "type": "File"
-    },
-    {
-      "name": "ExistingEvaporativeCoolerCFM",
-      "label": "Existing CFM",
-      "type": "Integer"
-    },
     {
       "name": "ExistingEvaporativeCoolerBrand",
       "label": "Existing Brand",
@@ -28248,6 +28233,11 @@
       "type": "Text"
     },
     {
+      "name": "ExistingEvaporativeCoolerCFM",
+      "label": "Existing CFM",
+      "type": "Integer"
+    },
+    {
       "name": "ExistingEVAPCoolerLocation",
       "label": "Existing Location",
       "type": "Text"
@@ -28256,17 +28246,22 @@
       "name": "ExistingEvaporativeCoolerModel",
       "label": "Existing Model",
       "type": "Text"
+    },
+    {
+      "name": "ExistingEvapCoolerDataPlate",
+      "label": "Existing Evap Cooler Data Plate",
+      "type": "File"
+    },
+    {
+      "name": "ExistingEvapCoolerPhoto",
+      "label": "Existing Evap Cooler Photo",
+      "type": "File"
     }
   ],
   "sce-be/ExistingThermostat": [
     {
       "name": "ExistingThermostatWireType",
       "label": "Wire Type Photo",
-      "type": "File"
-    },
-    {
-      "name": "ExistingThermostatPhoto",
-      "label": "Existing Thermostat Photo",
       "type": "File"
     },
     {
@@ -28285,12 +28280,22 @@
       "type": "Text"
     },
     {
+      "name": "ExistingThermostatPhoto",
+      "label": "Existing Thermostat Photo",
+      "type": "File"
+    },
+    {
       "name": "ExistingWireType",
       "label": "Wire Type",
       "type": "Text"
     }
   ],
   "sce-be/NewThermostatInformation": [
+    {
+      "name": "NewThermostatBrand",
+      "label": "New Brand",
+      "type": "Text"
+    },
     {
       "name": "NewThermostatDataPlate",
       "label": "New Thermostat Data Plate",
@@ -28302,19 +28307,14 @@
       "type": "File"
     },
     {
-      "name": "NewThermostatPhoto",
-      "label": "New Thermostat",
-      "type": "File"
-    },
-    {
-      "name": "NewThermostatBrand",
-      "label": "New Brand",
-      "type": "Text"
-    },
-    {
       "name": "NewThermostatSerialNumber",
       "label": "New Serial Number",
       "type": "Text"
+    },
+    {
+      "name": "NewThermostatPhoto",
+      "label": "New Thermostat",
+      "type": "File"
     },
     {
       "name": "NewThermostatModel",
@@ -28324,29 +28324,14 @@
   ],
   "sce-be/ExistingMiniSplitSystem": [
     {
-      "name": "ExistingMiniSplitSystemPhoto",
-      "label": "Existing Mini-Split Photo",
-      "type": "File"
-    },
-    {
-      "name": "ExistingMiniSplitSystemDataPlate",
-      "label": "Existing Data Plate",
-      "type": "File"
-    },
-    {
-      "name": "ExistingMiniSplitSystemBTU",
-      "label": "Existing BTUs",
-      "type": "Integer"
-    },
-    {
-      "name": "ExistingMiniSplitSystemYearMFR",
-      "label": "Existing Year MFR",
-      "type": "Integer"
-    },
-    {
       "name": "ExistingMiniSplitFurnaceFuelSource",
       "label": "Existing Split Furnace Fuel",
       "type": "Text"
+    },
+    {
+      "name": "ExistingMiniSplitSystemPhoto",
+      "label": "Existing Mini-Split Photo",
+      "type": "File"
     },
     {
       "name": "ExistingMiniSplitSystemBrand",
@@ -28354,21 +28339,46 @@
       "type": "Text"
     },
     {
+      "name": "ExistingMiniSplitSystemBTU",
+      "label": "Existing BTUs",
+      "type": "Integer"
+    },
+    {
       "name": "ExistingMiniSplitSystemModel",
       "label": "Existing Model",
       "type": "Text"
     },
     {
+      "name": "ExistingMiniSplitSystemDataPlate",
+      "label": "Existing Data Plate",
+      "type": "File"
+    },
+    {
       "name": "ExistingMiniSplitSystemType",
       "label": "Existing Type",
       "type": "Text"
+    },
+    {
+      "name": "ExistingMiniSplitSystemYearMFR",
+      "label": "Existing Year MFR",
+      "type": "Integer"
     }
   ],
   "sce-be/NewMiniSplitSystem": [
     {
+      "name": "NewMiniSplitSystemNumberOfHeads",
+      "label": "Number of Heads",
+      "type": "Text"
+    },
+    {
       "name": "MinisplitsHSPF",
       "label": "New MS HSPF2",
       "type": "Decimal"
+    },
+    {
+      "name": "NewSystemNumber",
+      "label": "System No.",
+      "type": "Text"
     },
     {
       "name": "MinisplitsSEER",
@@ -28381,34 +28391,14 @@
       "type": "File"
     },
     {
-      "name": "OutdoorUnitDataPlate",
-      "label": "Outdoor Unit Data Plate",
-      "type": "File"
-    },
-    {
-      "name": "MinisplitFurnaceCappedGasLine",
-      "label": "Minisplit (Furnace) Capped Gas Line",
-      "type": "File"
-    },
-    {
-      "name": "MinisplitOutdoorBTUs",
-      "label": "Outdoor BTUs",
-      "type": "Integer"
-    },
-    {
-      "name": "NewMiniSplitSystemNumberOfHeads",
-      "label": "Number of Heads",
-      "type": "Text"
-    },
-    {
-      "name": "NewSystemNumber",
-      "label": "System No.",
-      "type": "Text"
-    },
-    {
       "name": "NewMiniSplitSystemOutdoorSerialNumber",
       "label": "New Outdoor Serial Number",
       "type": "Text"
+    },
+    {
+      "name": "OutdoorUnitDataPlate",
+      "label": "Outdoor Unit Data Plate",
+      "type": "File"
     },
     {
       "name": "NewMiniSplitSystemOutdoorModel",
@@ -28416,31 +28406,36 @@
       "type": "Text"
     },
     {
+      "name": "MinisplitOutdoorBTUs",
+      "label": "Outdoor BTUs",
+      "type": "Integer"
+    },
+    {
       "name": "NewMiniSplitSystemOutdoorBrand",
       "label": "New Outdoor Brand",
       "type": "Text"
+    },
+    {
+      "name": "MinisplitFurnaceCappedGasLine",
+      "label": "Minisplit (Furnace) Capped Gas Line",
+      "type": "File"
     }
   ],
   "sce-be/NewSystemHeadUnitInformation": [
+    {
+      "name": "NewSystemHeadUnitLocation",
+      "label": "Location",
+      "type": "Text"
+    },
     {
       "name": "HeadUnitPhoto",
       "label": "Head Unit Photo",
       "type": "File"
     },
     {
-      "name": "HeadUnitDataPlate",
-      "label": "Head Unit Data Plate",
-      "type": "File"
-    },
-    {
       "name": "NewSystemHeadUnitBTUs",
       "label": "BTUs",
       "type": "Integer"
-    },
-    {
-      "name": "NewSystemHeadUnitLocation",
-      "label": "Location",
-      "type": "Text"
     },
     {
       "name": "MinisplitSystemNumber",
@@ -28461,6 +28456,11 @@
       "name": "NewSystemHeadUnitSerialNumber",
       "label": "Serial Number",
       "type": "Text"
+    },
+    {
+      "name": "HeadUnitDataPlate",
+      "label": "Head Unit Data Plate",
+      "type": "File"
     },
     {
       "name": "NewSystemHeadUnitModel",
@@ -28492,11 +28492,6 @@
   ],
   "sce-be/CorrectioNotes": [
     {
-      "name": "NoteUpdatedAt",
-      "label": "Note Updated At",
-      "type": "Date"
-    },
-    {
       "name": "CorrectionNoteBy",
       "label": "Correction By",
       "type": "Text"
@@ -28507,27 +28502,17 @@
       "type": "Text"
     },
     {
+      "name": "NoteUpdatedAt",
+      "label": "Note Updated At",
+      "type": "Date"
+    },
+    {
       "name": "CorrectionNote",
       "label": "Note",
       "type": "Text"
     }
   ],
   "sce-be/MinorHomeRepairGrid": [
-    {
-      "name": "MinorHomeRepairPhoto",
-      "label": "Pre-Install MHR Photo",
-      "type": "File"
-    },
-    {
-      "name": "MinorHomeRepairPhoto2",
-      "label": "Post-Install MHR Photo",
-      "type": "File"
-    },
-    {
-      "name": "MinorHomeRepairQty",
-      "label": "Qty",
-      "type": "Integer"
-    },
     {
       "name": "MHRDetails",
       "label": "Details",
@@ -28537,18 +28522,33 @@
       "name": "MeasureName",
       "label": "Measure",
       "type": "Text"
+    },
+    {
+      "name": "MinorHomeRepairPhoto",
+      "label": "Pre-Install MHR Photo",
+      "type": "File"
+    },
+    {
+      "name": "MinorHomeRepairQty",
+      "label": "Qty",
+      "type": "Integer"
+    },
+    {
+      "name": "MinorHomeRepairPhoto2",
+      "label": "Post-Install MHR Photo",
+      "type": "File"
     }
   ],
   "sce-be/AdditionalPhotosGrid": [
     {
-      "name": "AdditionalPhoto",
-      "label": "Photo",
-      "type": "File"
-    },
-    {
       "name": "AdditionalPhotoDetail",
       "label": "Additional Note(s)",
       "type": "Text"
+    },
+    {
+      "name": "AdditionalPhoto",
+      "label": "Photo",
+      "type": "File"
     }
   ],
   "sce-be/Census Tract": [
@@ -29349,11 +29349,6 @@
   ],
   "sce-be/InvoiceDetails": [
     {
-      "name": "ReviewerRole_Final",
-      "label": "Reviewer Role (Final)",
-      "type": "Calculation"
-    },
-    {
       "name": "StatusDate",
       "label": "Status Date (Final)",
       "type": "DateTime"
@@ -29367,6 +29362,11 @@
       "name": "StatusBy",
       "label": "Reviewer (Final)",
       "type": "Text"
+    },
+    {
+      "name": "ReviewerRole_Final",
+      "label": "Reviewer Role (Final)",
+      "type": "Calculation"
     },
     {
       "name": "OrganizationSelectFinal",
@@ -29386,24 +29386,9 @@
       "type": "Calculation"
     },
     {
-      "name": "MeasureName_c",
-      "label": "Measure Name",
-      "type": "Calculation"
-    },
-    {
       "name": "MeasureQuantity",
       "label": "Qty",
       "type": "Decimal"
-    },
-    {
-      "name": "MeasureCost",
-      "label": "Cost",
-      "type": "Decimal"
-    },
-    {
-      "name": "MeasureDescription",
-      "label": "Measure Description",
-      "type": "Guid"
     },
     {
       "name": "MeasureCategory",
@@ -29411,9 +29396,24 @@
       "type": "Text"
     },
     {
+      "name": "MeasureName_c",
+      "label": "Measure Name",
+      "type": "Calculation"
+    },
+    {
       "name": "MeasureUnit",
       "label": "Unit",
       "type": "Text"
+    },
+    {
+      "name": "MeasureDescription",
+      "label": "Measure Description",
+      "type": "Guid"
+    },
+    {
+      "name": "MeasureCost",
+      "label": "Cost",
+      "type": "Decimal"
     }
   ],
   "sce-be/DownPaymentReviewGrid": [
@@ -29450,24 +29450,14 @@
   ],
   "sce-be/InvoiceNoteGrid": [
     {
-      "name": "DifferentialAmount_c",
-      "label": "Differential Amount",
-      "type": "Calculation"
-    },
-    {
-      "name": "InvoiceNoteCreated",
-      "label": "Note Date",
-      "type": "DateTime"
-    },
-    {
       "name": "DifferentialAmount",
       "label": "Differential Amount",
       "type": "Decimal"
     },
     {
-      "name": "Attachments",
-      "label": "Attachments",
-      "type": "Files"
+      "name": "DifferentialAmount_c",
+      "label": "Differential Amount",
+      "type": "Calculation"
     },
     {
       "name": "DifferentialType",
@@ -29478,6 +29468,16 @@
       "name": "InvoiceNoteBy",
       "label": "Note By",
       "type": "Text"
+    },
+    {
+      "name": "Attachments",
+      "label": "Attachments",
+      "type": "Files"
+    },
+    {
+      "name": "InvoiceNoteCreated",
+      "label": "Note Date",
+      "type": "DateTime"
     },
     {
       "name": "InvoiceNote",
@@ -29559,14 +29559,9 @@
   ],
   "sce-be/AmendmentsGrid": [
     {
-      "name": "AmendmentAmount_c",
-      "label": "Amount (Computed)",
-      "type": "Calculation"
-    },
-    {
-      "name": "AmendmentDate",
-      "label": "Date",
-      "type": "Date"
+      "name": "AttachmentUpload",
+      "label": "Attachment(s)",
+      "type": "Files"
     },
     {
       "name": "AmendmentAmount",
@@ -29574,14 +29569,19 @@
       "type": "Decimal"
     },
     {
-      "name": "AttachmentUpload",
-      "label": "Attachment(s)",
-      "type": "Files"
+      "name": "AmendmentDate",
+      "label": "Date",
+      "type": "Date"
     },
     {
       "name": "AmendmentNote",
       "label": "Note",
       "type": "Text"
+    },
+    {
+      "name": "AmendmentAmount_c",
+      "label": "Amount (Computed)",
+      "type": "Calculation"
     },
     {
       "name": "AmendmentType",
@@ -29591,14 +29591,14 @@
   ],
   "sce-be/AdjustmentGrid": [
     {
-      "name": "AdjustmentType_c",
-      "label": "Credit Memo Type",
-      "type": "Calculation"
-    },
-    {
       "name": "AdjustmentDate",
       "label": "Credit Memo Date",
       "type": "Date"
+    },
+    {
+      "name": "AdjustmentType_c",
+      "label": "Credit Memo Type",
+      "type": "Calculation"
     },
     {
       "name": "AdjustmentAmount",

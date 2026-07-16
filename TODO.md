@@ -8,6 +8,14 @@ if the design detail is ever needed.)
 
 ## Candidates
 
+- `expand_field_assignments.py` only supports Assignment Type `Constant` and `FromTrigger`. The
+  platform's `Expression` (computed `{{FieldName}}` template values) and `Clear/Set Null` types have
+  no precedent anywhere in `data/` — no confirmed literal `ValueType` string to emit, so rows using
+  either are a hard error rather than a guess. Unblock by exporting a real workflow that uses one of
+  these from the platform UI so the exact string (and, for Expression, the `Value` shape) can be read
+  off a real file; then extend `TYPE_ALIASES`/`build_assignments` the same way `FromTrigger`/`Constant`
+  are handled today.
+
 - Verify the Legacy condition operator enum. Workspace-export trigger conditions render
   some text-field comparisons as `>=` (e.g. "Review Status is at least 'Corrections
   Required'") where equality is almost certainly meant, and operation 12 renders as `?`
@@ -30,6 +38,21 @@ if the design detail is ever needed.)
   one `discover_all()` result across the run to cut rebuild time roughly in half.
 
 ## Done
+
+**FieldAssignments generator (2026-07-16).** New `scripts/expand_field_assignments.py`, sibling to
+`expand_subform_ops.py`, mass-generates a WFEngine workflow's top-level `FieldAssignments` parameter
+(the "copy field X from the trigger form to field Y on the target form" pattern, e.g. sce-be's "Update
+Existing Measures" workflow) from an Excel mapping (`Field Name (Current Form)` / `Field Assignment
+Type` / `Resolution (Field Name)` — the three-column format staff already use, read via `openpyxl`,
+already a repo dependency). Same `docs/field-index.json` validation, same dry-run/`--apply` convention
+as the subform generator. Deliberately scoped to `Constant`/`FromTrigger` only — real data in `data/`
+confirms those two plus `TriggerRecordId`/`CurrentOrganization`/`CurrentUser` as the only `ValueType`s
+ever exported, with **no precedent for `Expression` or `Clear/Set Null`** anywhere in the repo, so
+rows using either are a hard error rather than a guessed platform string (tracked under Candidates).
+Verified against a real sce-be workflow (210 -> 255 measure copy): generated output parses through the
+existing `_parse_field_assignments` path unmodified (no parser changes needed — this shape was already
+supported) and narrates correctly ("Updates the matching 255 - BE Installation Form record, filling in
+two fields automatically."). 11 new unit tests.
 
 **Docs viewer + markdown consolidation (2026-07-16).** The landing page gained a
 "Project documentation" card: `emit_project_docs()` renders the repo's markdown files

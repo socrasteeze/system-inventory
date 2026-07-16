@@ -105,6 +105,14 @@ JSON sits — no manual tagging needed:
   the rest of the pipeline (narration, explorer joins) expects — see `WF_TRIGGER_TYPE`/`WF_DB_ACTION`/
   `WF_TIMING` in `parser.py`. `BuiltIn.SendEmail` actions are summarized into the same `"To: … · Subject:
   …"` shape Legacy's `NotificationActionHandler` uses, so narration's email sentence covers both.
+  A `BuiltIn.UpdateFormResponse` action's **`SubformOperations`** parameter (an escaped JSON array of
+  subform row ops, e.g. "Add one WorkOrderMeasures row per measure") is parsed by
+  `_parse_subform_operations()` in `parser.py`: each op's `FieldAssignments` produce **Write**
+  field-usage rows on the subform (feeding the FieldUsage sheet, explorer W badges, and write-conflict
+  detection), each `FromTrigger` source produces a **Read** row on the trigger form, and the action dict
+  carries an additive `subformAdds: [{subform, rows}]` key that narration renders as "…and adds four
+  rows to WorkOrderMeasures". Malformed/absent SubformOperations degrade to no rows, same as
+  `FieldAssignments`.
   As of the 2026-07 re-export, **all five current workspace baselines use WFEngine** (111 workflows
   total) — the Legacy embedded path is kept for back-compat but is currently dormant against real data.
 
@@ -180,6 +188,7 @@ scripts/
   build_registry.py     reuse/sameness views (WorkflowReuse, FormFamilies, FieldTemplates) + step-4 suppression
   versioning.py         snapshot capture + compare (temporal change tracking)
   organize_forms.py     one-time sweep of loose form exports into forms/<Form Name>/ folders (dry-run; --apply)
+  expand_subform_ops.py mass-expand a WFEngine workflow's SubformOperations from a CSV (dry-run; --apply)
   global_template.html      global HTML template
   regenerate.py         rebuild orchestrator (CLI) + docs/ publish
 ```
@@ -433,6 +442,39 @@ Slug convention: **hyphens** (e.g. `my-workspace`), never underscores.
 3. Optionally add an entry to that workspace's `workflow_metadata.json` with callsign, criticality, owner, businessProcess.
 4. If the workflow references any form by a stale name, add a `name_aliases` entry in `form_aliases.json`.
 5. Run `python scripts/regenerate.py` (or `--workspace <slug>`).
+
+## Generating a workflow import (mass-adding SubformOperations)
+
+The WF Engine's import/export makes repetitive update workflows hand-editable, but the
+`SubformOperations` parameter (escaped JSON-array-in-a-string; **one `"Add"` op per subform row**) is
+error-prone to edit by hand. `scripts/expand_subform_ops.py` generates it from a CSV, validating every
+field name against `docs/field-index.json`:
+
+```
+python scripts/expand_subform_ops.py TEMPLATE.json MAPPING.csv --workspace SLUG
+       [--out PATH] [--step NAME] [--action NAME] [--apply]
+```
+
+- **TEMPLATE.json** — an exported workflow whose `BuiltIn.UpdateFormResponse` action already carries a
+  `SubformOperations` parameter with ≥1 op. The first op is the **prototype**: all its non-`FieldAssignments`
+  keys (`SubformFormId`, `MatchPolicy`, …) are cloned verbatim into every generated op, so the script never
+  hardcodes the op schema or any GUIDs. Trigger form and subform names resolve from the template's
+  `ExternalReferences`.
+- **MAPPING.csv** — header row = subform field API names (`MeasureName,MeasureQty,...`); each data row
+  becomes one `"Add"` op (empty cell = assignment omitted). A cell that exactly matches a trigger-form
+  field API name becomes `FromTrigger`; anything else becomes `Constant`. Prefix overrides: `=value`
+  forces Constant, `@FieldName` forces FromTrigger (hard error if not a trigger field). Read as
+  `utf-8-sig` (Excel BOM safe).
+- Validation is fail-loud: unknown CSV headers, missing `<slug>/<form>` index keys (with closest-key
+  suggestions), bad `@` references — all errors print, exit 1, nothing written. Casing near-misses on
+  trigger fields warn only.
+- **Dry-run by default** (prints a per-row resolution table); `--apply` writes
+  `<template stem>.expanded.json` (or `--out`). Only the SubformOperations `StaticValue` changes —
+  the rest of the template is byte-preserved (standard `\"` JSON escaping, which the platform accepts
+  in place of its own `"` style).
+
+The generated file is imported into the platform; drop the same file under `data/<slug>/workflows/` if
+the workflow should also appear in the inventory.
 
 ---
 

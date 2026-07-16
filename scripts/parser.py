@@ -398,26 +398,49 @@ def _summarize_target_resolution(params, ref_by_id, target_form):
     except Exception:
         return "(unparseable filter)"
 
+def _assignment_desc(it):
+    """One FieldAssignment item -> {field, valueType, value, sourceDesc}."""
+    vt = it.get("ValueType", "")
+    v  = it.get("Value", "")
+    if vt == "FromTrigger":
+        desc = f"FromTrigger.{v}"
+    elif vt == "TriggerRecordId":
+        desc = "TriggerRecordId"
+    elif vt in ("Static", "Constant"):
+        desc = f"set to {v}"
+    else:
+        desc = f"{vt}: {v}"
+    return {"field": it.get("FieldName"), "valueType": vt, "value": v, "sourceDesc": desc}
+
 def _parse_field_assignments(json_str, target_form):
     if not json_str: return []
     try:
         items = json.loads(json_str)
     except Exception:
         return []
+    return [_assignment_desc(it) for it in items]
+
+def _parse_subform_operations(json_str, ref_by_id):
+    """A SubformOperations parameter's StaticValue -> list of
+    {subform, opType, assignments}; [] when absent or malformed.
+    The subform's display name resolves through the GUID index when the op's
+    SubformFormId is referenced, else falls back to the field name the op
+    writes through (SubformFieldName)."""
+    if not json_str: return []
+    try:
+        ops = json.loads(json_str)
+    except Exception:
+        return []
     out = []
-    for it in items:
-        fld = it.get("FieldName")
-        vt  = it.get("ValueType","")
-        v   = it.get("Value","")
-        if vt == "FromTrigger":
-            desc = f"FromTrigger.{v}"
-        elif vt == "TriggerRecordId":
-            desc = "TriggerRecordId"
-        elif vt in ("Static", "Constant"):
-            desc = f"set to {v}"
-        else:
-            desc = f"{vt}: {v}"
-        out.append({"field": fld, "sourceDesc": desc})
+    for op in ops if isinstance(ops, list) else []:
+        if not isinstance(op, dict): continue
+        subform = (ref_by_id.get(op.get("SubformFormId", ""), {}).get("FormName")
+                   or op.get("SubformFieldName", ""))
+        out.append({
+            "subform": subform,
+            "opType": op.get("OperationType", ""),
+            "assignments": [_assignment_desc(it) for it in op.get("FieldAssignments") or []],
+        })
     return out
 
 def _infer_role(parsed_form):
@@ -829,6 +852,7 @@ def _parse_wfengine(d, ref_by_id, callsign, workflow_type="WFEngine", enabled=Tr
             params = {p["ParameterName"]: p for p in action.get("Parameters", [])}
             atype = action.get("ActionType", "")
 
+            sub_ops = []
             if atype == "BuiltIn.SendEmail":
                 target_form, target_ws = "", ""
                 match_summary = _wf_email_summary(params)
@@ -841,6 +865,13 @@ def _parse_wfengine(d, ref_by_id, callsign, workflow_type="WFEngine", enabled=Tr
                 match_summary = _summarize_target_resolution(params, ref_by_id, target_form)
                 assignments = _parse_field_assignments(
                     params.get("FieldAssignments", {}).get("StaticValue"), target_form)
+                sub_ops = _parse_subform_operations(
+                    params.get("SubformOperations", {}).get("StaticValue"), ref_by_id)
+
+            # aggregate op counts per subform for the action row / narration
+            subform_adds = {}
+            for op in sub_ops:
+                subform_adds[op["subform"]] = subform_adds.get(op["subform"], 0) + 1
 
             wf["actions"].append({
                 "stepName": step.get("Name", ""),
@@ -852,6 +883,7 @@ def _parse_wfengine(d, ref_by_id, callsign, workflow_type="WFEngine", enabled=Tr
                 "resolutionType":  params.get("TargetResolution.ResolutionType", {}).get("StaticValue", ""),
                 "matchOn": match_summary,
                 "continueOnError": action.get("ContinueOnError"),
+                "subformAdds": [{"subform": s, "rows": n} for s, n in subform_adds.items()],
             })
             for a in assignments:
                 wf["fieldUsage"].append({
@@ -860,6 +892,22 @@ def _parse_wfengine(d, ref_by_id, callsign, workflow_type="WFEngine", enabled=Tr
                     "context": a["sourceDesc"],
                     "stepName": step.get("Name", ""),
                 })
+            trigger_form = (wf["trigger"] or {}).get("form", "")
+            for op in sub_ops:
+                for a in op["assignments"]:
+                    wf["fieldUsage"].append({
+                        "form": op["subform"], "field": a["field"],
+                        "direction": "Write",
+                        "context": f"subform {op['opType'] or 'op'} - {a['sourceDesc']}",
+                        "stepName": step.get("Name", ""),
+                    })
+                    if a["valueType"] == "FromTrigger" and trigger_form:
+                        wf["fieldUsage"].append({
+                            "form": trigger_form, "field": a["value"],
+                            "direction": "Read",
+                            "context": "source for subform row",
+                            "stepName": step.get("Name", ""),
+                        })
 
     return wf
 

@@ -270,6 +270,9 @@ def _action_sentence(action, workflow, trigger_fields):
                    and (not tgt or u.get("form") == tgt))
     if n_writes:
         s += f", filling in {count_phrase(n_writes, 'field')} automatically"
+    for sa in action.get("subformAdds") or []:
+        if sa.get("subform") and sa.get("rows"):
+            s += f", and adds {count_phrase(sa['rows'], 'row')} to {sa['subform']}"
     policy = action.get("duplicatePolicy") or ""
     if policy:
         s += (" (skips if one already exists)" if "skip" in policy.lower()

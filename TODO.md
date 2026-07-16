@@ -23,6 +23,25 @@ each `plans/*.md` file.)
 
 ## Done
 
+**SubformOperations generator + parsing (2026-07-16).** New `scripts/expand_subform_ops.py`
+mass-expands a WFEngine workflow's `SubformOperations` parameter (the escaped
+JSON-array-in-a-string on `BuiltIn.UpdateFormResponse` actions; one `"Add"` op per subform
+row) from a CSV — the repo's first tool that *generates* platform JSON instead of parsing
+it. Takes an exported workflow as the template (first existing op is the prototype; its
+scaffold keys and GUIDs are cloned verbatim), validates every CSV header against the
+subform's fields and every `FromTrigger` source against the trigger form's fields via
+`docs/field-index.json` (fail-loud with closest-match suggestions), infers
+FromTrigger/Constant per cell (`=`/`@` prefix overrides), and writes a full import-ready
+`.expanded.json`. Dry-run by default, `--apply` to write. Verified against a real
+hand-expanded liwp workflow: generated ops matched the manual edit exactly.
+
+The parser also learned the parameter: `_parse_subform_operations()` turns each op's
+`FieldAssignments` into Write field-usage rows on the subform (FieldUsage sheet, explorer
+W badges, write-conflict detection) and Read rows on the trigger form for `FromTrigger`
+sources; actions carry an additive `subformAdds` key that narration renders as "…and adds
+four rows to WorkOrderMeasures". Previously these subform writes were invisible to the
+pipeline. No-op against current data (no export on disk carries the parameter yet).
+
 **WFEngine workspace-export parsing + workflow write-conflict detection (2026-07-13).**
 All five workspace baselines were re-exported by the platform's new workflow engine, which
 carries workflows as a top-level `Workflows[]` array (`Triggers`/`Steps` shape) instead of

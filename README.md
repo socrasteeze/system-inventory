@@ -17,7 +17,7 @@ The browsable explorers are published via GitHub Pages, served from the `docs/` 
 
 **https://&lt;your-org&gt;.github.io/system-inventory/**
 
-The landing page lists every view — the global cross-workspace explorer and each workspace's explorer. The published views are regenerated into `docs/` on every rebuild, so each push updates the live site. Spreadsheets are not published; pull the `.xlsx` files from `output/` in the repo directly.
+The landing page lists every view — the global cross-workspace explorer, each workspace's explorer, and a **Project documentation** page (`docs.html`) that renders this README, the architecture notes (CLAUDE.md), the changelog (TODO.md), and NOTICE as browser tabs. The published views are regenerated into `docs/` on every rebuild, so each push updates the live site. Spreadsheets are not published; pull the `.xlsx` files from `output/` in the repo directly.
 
 ## Purpose
 
@@ -117,6 +117,7 @@ If something is missing it prints plain-English instructions instead of failing 
 │   ├── versioning.py            (snapshot capture + compare)
 │   ├── organize_forms.py        (sweep loose form exports into forms/<Form Name>/ folders)
 │   ├── expand_subform_ops.py    (generate a workflow import: mass-add SubformOperations from a CSV)
+│   ├── md_render.py             (markdown -> HTML for the docs/docs.html viewer)
 │   ├── explorer_template.html   (per-workspace HTML template)
 │   ├── global_template.html     (global HTML template)
 │   └── regenerate.py            (rebuild orchestrator)

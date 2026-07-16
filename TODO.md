@@ -2,8 +2,9 @@
 
 ## Active
 
-(none — plans/01–03 executed 2026-07-02, see Done below and the status headers in
-each `plans/*.md` file.)
+(none — plans/01–03 executed 2026-07-02, see Done below. The plan documents were
+removed 2026-07-16 in the markdown consolidation; recover them from git history
+if the design detail is ever needed.)
 
 ## Candidates
 
@@ -17,16 +18,31 @@ each `plans/*.md` file.)
   instead of dropping them — e.g. one "(plus N system-user rules)" suffix. They're
   currently filtered out of condition text deliberately (14 GUID clauses drown the
   readable part, and their operator enum is unverified).
-- Git history still carries every previously-committed snapshot blob (~150 MB of
-  superseded 11–71 MB files). If clone size becomes a problem, either move
-  `output/snapshots/` to Git LFS or do a one-time history rewrite
-  (`git filter-repo --path output/snapshots --invert-paths` on the old ids) — a
-  rewrite means force-push + fresh clones, so only with the repo owner's sign-off.
+- Snapshot blobs in git history turned out to be a non-issue: measured 2026-07-16,
+  all superseded snapshot blobs together pack to ~4.6 MB (git compresses the
+  repetitive JSON ~20:1), so a history rewrite was evaluated and **skipped** — not
+  worth a force-push + fresh clones for that saving. Revisit only if `git
+  count-objects -vH` size-pack grows materially; GitHub's >50 MB per-file push
+  warning on new snapshots is about raw file size and is expected/harmless (hard
+  limit is 100 MB).
 - `regenerate.py` discovers every workspace up to 4× per full rebuild (per-workspace
   builds + global + field index + briefs construct fresh `Workspace` instances). Share
   one `discover_all()` result across the run to cut rebuild time roughly in half.
 
 ## Done
+
+**Docs viewer + markdown consolidation (2026-07-16).** The landing page gained a
+"Project documentation" card: `emit_project_docs()` renders the repo's markdown files
+(README, CLAUDE.md as "Architecture", TODO.md as "Changelog", NOTICE) into
+`docs/docs.html` — one page, one tab per file, `#hash` deep links — using the new
+`scripts/md_render.py`, a stdlib-only deterministic Markdown-to-HTML converter (no
+client-side JS markdown library, consistent with the repo's zero-dependency HTML
+generation). Regenerated on every rebuild like the other views. Consolidation: the
+executed `plans/01–03` documents were deleted (their outcomes are the Done entries
+below; git history keeps the full text), leaving four markdown files — README.md,
+CLAUDE.md, TODO.md, NOTICE.md — each with a distinct audience. Also evaluated and
+**skipped** the snapshot history rewrite floated earlier: measured, all superseded
+snapshot blobs pack to ~4.6 MB total, not worth a force-push (see Candidates).
 
 **Snapshot pruning (2026-07-16).** Snapshots grew to ~70 MB each once `data/` became
 git-tracked (GitHub warned on push), so `versioning.prune_snapshots(keep)` now deletes old

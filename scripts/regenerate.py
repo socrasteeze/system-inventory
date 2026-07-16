@@ -37,6 +37,7 @@ import build_explorer
 import build_global
 import narrate
 import versioning
+import md_render
 
 DOCS_DIR = OUTPUT_DIR.parent / "docs"
 WS_EXPLORER = "workspace_explorer.html"      # per-workspace source filename in output/
@@ -599,6 +600,119 @@ def _list_snapshots():
               f"{', '.join(e['workspaces'])}")
 
 
+# Project markdown files surfaced in the docs/docs.html viewer, in tab order.
+# (tab label, repo-root filename, tab id)
+DOC_PAGES = [
+    ("README", "README.md", "readme"),
+    ("Architecture", "CLAUDE.md", "architecture"),
+    ("Changelog", "TODO.md", "changelog"),
+    ("Notice", "NOTICE.md", "notice"),
+]
+
+
+def emit_project_docs():
+    """Render the repo's markdown docs into docs/docs.html — one page, one tab
+    per file, so the docs are reviewable from the browser (and GitHub Pages)
+    without opening the repo. Content is pre-rendered by md_render (no client
+    JS markdown library); the tab bar is a few lines of inline JS with
+    #hash support (docs.html#changelog opens on the Changelog tab)."""
+    root = DOCS_DIR.parent
+    sections, tabs = [], []
+    for label, fname, tab_id in DOC_PAGES:
+        path = root / fname
+        if not path.exists():
+            continue
+        body = md_render.md_to_html(path.read_text(encoding="utf-8"))
+        tabs.append(f'<button class="tab" data-tab="{tab_id}">{_html_escape(label)}</button>')
+        sections.append(f'<section class="doc" id="{tab_id}">{body}</section>')
+    if not sections:
+        return False
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project Docs - Workflow Inventory</title>
+<style>
+  :root{{--bg:#0f1115;--bg2:#1a1d24;--bg3:#252932;--border:#2e3340;
+        --text:#e8ebf0;--muted:#8a92a3;--accent:#5eead4;}}
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  html,body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+            background:var(--bg);color:var(--text);min-height:100%}}
+  body{{max-width:880px;margin:0 auto;padding:40px 24px 80px}}
+  .top{{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}}
+  h1.page{{font-size:20px;font-weight:600;letter-spacing:0.3px}}
+  a.back{{color:var(--accent);font-size:13px;text-decoration:none}}
+  a.back:hover{{text-decoration:underline}}
+  .tabs{{display:flex;gap:6px;margin:24px 0 0;border-bottom:1px solid var(--border);
+        flex-wrap:wrap}}
+  .tab{{background:none;border:none;border-bottom:2px solid transparent;
+       color:var(--muted);font-size:13px;font-weight:600;padding:8px 14px;
+       cursor:pointer;font-family:inherit}}
+  .tab:hover{{color:var(--text)}}
+  .tab.active{{color:var(--accent);border-bottom-color:var(--accent)}}
+  .doc{{display:none;padding-top:24px;line-height:1.55;font-size:14px}}
+  .doc.active{{display:block}}
+  .doc h1{{font-size:22px;margin:28px 0 12px}}
+  .doc h2{{font-size:17px;margin:26px 0 10px;padding-bottom:6px;
+          border-bottom:1px solid var(--border)}}
+  .doc h3{{font-size:15px;margin:20px 0 8px}}
+  .doc h4{{font-size:14px;margin:16px 0 6px}}
+  .doc p{{margin:10px 0}}
+  .doc ul,.doc ol{{margin:10px 0 10px 26px}}
+  .doc li{{margin:4px 0}}
+  .doc a{{color:var(--accent)}}
+  .doc code{{background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+            padding:1px 5px;font-size:12.5px;
+            font-family:ui-monospace,Consolas,'SF Mono',monospace}}
+  .doc pre{{background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+           padding:14px 16px;overflow-x:auto;margin:12px 0}}
+  .doc pre code{{background:none;border:none;padding:0;font-size:12.5px;
+                line-height:1.5}}
+  .doc table{{border-collapse:collapse;margin:12px 0;display:block;
+             overflow-x:auto;max-width:100%}}
+  .doc th,.doc td{{border:1px solid var(--border);padding:6px 12px;
+                  font-size:13px;text-align:left}}
+  .doc th{{background:var(--bg2)}}
+  .doc hr{{border:none;border-top:1px solid var(--border);margin:24px 0}}
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1 class="page">Project Docs</h1>
+    <a class="back" href="index.html">&larr; All views</a>
+  </div>
+  <div class="tabs">
+{chr(10).join('    ' + t for t in tabs)}
+  </div>
+{chr(10).join('  ' + s for s in sections)}
+<script>
+  var tabs = document.querySelectorAll('.tab');
+  var docs = document.querySelectorAll('.doc');
+  function show(id) {{
+    var found = false;
+    docs.forEach(function(d) {{
+      var on = d.id === id; d.classList.toggle('active', on); found = found || on;
+    }});
+    tabs.forEach(function(t) {{
+      t.classList.toggle('active', t.dataset.tab === id);
+    }});
+    if (found) history.replaceState(null, '', '#' + id);
+    return found;
+  }}
+  tabs.forEach(function(t) {{
+    t.addEventListener('click', function() {{ show(t.dataset.tab); window.scrollTo(0, 0); }});
+  }});
+  if (!show(location.hash.replace('#', ''))) show(docs[0].id);
+</script>
+</body>
+</html>
+"""
+    (DOCS_DIR / "docs.html").write_text(html, encoding="utf-8")
+    return True
+
+
 def publish_docs():
     """Mirror the built HTML explorers into docs/ and write the landing page.
 
@@ -638,6 +752,10 @@ def publish_docs():
     if not views:
         print("  docs/ not updated (no explorers found under output/).")
         return
+    if emit_project_docs():
+        views.append(("Project documentation",
+                      "README, architecture notes, and changelog - rendered from the repo's markdown.",
+                      "docs.html"))
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     emit_field_index()
     featured_links = emit_form_briefs()

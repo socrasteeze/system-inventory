@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project Docs - Workflow Inventory</title>
+<style>
+  :root{--bg:#0f1115;--bg2:#1a1d24;--bg3:#252932;--border:#2e3340;
+        --text:#e8ebf0;--muted:#8a92a3;--accent:#5eead4;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+            background:var(--bg);color:var(--text);min-height:100%}
+  body{max-width:880px;margin:0 auto;padding:40px 24px 80px}
+  .top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  h1.page{font-size:20px;font-weight:600;letter-spacing:0.3px}
+  a.back{color:var(--accent);font-size:13px;text-decoration:none}
+  a.back:hover{text-decoration:underline}
+  .tabs{display:flex;gap:6px;margin:24px 0 0;border-bottom:1px solid var(--border);
+        flex-wrap:wrap}
+  .tab{background:none;border:none;border-bottom:2px solid transparent;
+       color:var(--muted);font-size:13px;font-weight:600;padding:8px 14px;
+       cursor:pointer;font-family:inherit}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .doc{display:none;padding-top:24px;line-height:1.55;font-size:14px}
+  .doc.active{display:block}
+  .doc h1{font-size:22px;margin:28px 0 12px}
+  .doc h2{font-size:17px;margin:26px 0 10px;padding-bottom:6px;
+          border-bottom:1px solid var(--border)}
+  .doc h3{font-size:15px;margin:20px 0 8px}
+  .doc h4{font-size:14px;margin:16px 0 6px}
+  .doc p{margin:10px 0}
+  .doc ul,.doc ol{margin:10px 0 10px 26px}
+  .doc li{margin:4px 0}
+  .doc a{color:var(--accent)}
+  .doc code{background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+            padding:1px 5px;font-size:12.5px;
+            font-family:ui-monospace,Consolas,'SF Mono',monospace}
+  .doc pre{background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+           padding:14px 16px;overflow-x:auto;margin:12px 0}
+  .doc pre code{background:none;border:none;padding:0;font-size:12.5px;
+                line-height:1.5}
+  .doc table{border-collapse:collapse;margin:12px 0;display:block;
+             overflow-x:auto;max-width:100%}
+  .doc th,.doc td{border:1px solid var(--border);padding:6px 12px;
+                  font-size:13px;text-align:left}
+  .doc th{background:var(--bg2)}
+  .doc hr{border:none;border-top:1px solid var(--border);margin:24px 0}
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1 class="page">Project Docs</h1>
+    <a class="back" href="index.html">&larr; All views</a>
+  </div>
+  <div class="tabs">
+    <button class="tab" data-tab="readme">README</button>
+    <button class="tab" data-tab="architecture">Architecture</button>
+    <button class="tab" data-tab="changelog">Changelog</button>
+    <button class="tab" data-tab="notice">Notice</button>
+  </div>
+  <section class="doc" id="readme"><h1 id="workflow-inventory">Workflow Inventory</h1>
+<p>Documentation system for the workflow automations and form architecture of platform workspaces. It ingests JSON exports of forms and workflows and regenerates a filterable spreadsheet and an interactive graph from them.</p>
+<p>Two export formats are supported, and they can coexist in one workspace:</p>
+<ul>
+<li><strong>Whole-workspace export</strong> — one JSON carrying the entire workspace (all forms, relationships, and workflows). It becomes the workspace's baseline. No manual name-mapping needed: form display names and workspace identity come from the export itself. Workflows arrive in whichever shape the platform used when the export was taken — the older Legacy system embeds them per form; the newer WF Engine carries them as a top-level array — and both are parsed into the same normalized model.</li>
+<li><strong>Individual form / workflow exports</strong> — one JSON per form or workflow. When an individual export covers something also present in the workspace baseline, the <strong>individual file always wins</strong> — it's treated as a surgical update to that form. Each shadowing is warned about at rebuild time; re-baselining with a fresh workspace export is the moment to delete the stale individual files.</li>
+</ul>
+<p><strong>Placement is automatic.</strong> Drop any export JSON anywhere under <code>data/&lt;slug&gt;/</code> — the rebuild detects what each file is by its content and routes it (workspace export → baseline; form/workflow export → override). The <code>forms/</code> and <code>workflows/</code> subfolders still work (scanned recursively — flat, or one subfolder per form/workflow), but nothing requires them. Individual form exports are matched to their baseline form by <strong>field overlap</strong>, not filename, so no name-mapping is needed for overrides either.</p>
+<p>The project is <strong>multi-workspace</strong>: each workspace lives under <code>data/&lt;slug&gt;/</code> (slugs use hyphens, e.g. <code>sce-be</code>) and produces its own artifacts under <code>output/&lt;slug&gt;/</code>. A global aggregator combines every workspace into one cross-workspace view under <code>output/global/</code>. Add workspaces by placing JSON exports under <code>data/&lt;slug&gt;/</code> and running the rebuild.</p>
+<h2 id="live-explorer">Live explorer</h2>
+<p>The browsable explorers are published via GitHub Pages, served from the <code>docs/</code> folder:</p>
+<p><strong>https://&amp;lt;your-org&amp;gt;.github.io/system-inventory/</strong></p>
+<p>The landing page lists every view — the global cross-workspace explorer, each workspace's explorer, and a <strong>Project documentation</strong> page (<code>docs.html</code>) that renders this README, the architecture notes (CLAUDE.md), the changelog (TODO.md), and NOTICE as browser tabs. The published views are regenerated into <code>docs/</code> on every rebuild, so each push updates the live site. Spreadsheets are not published; pull the <code>.xlsx</code> files from <code>output/</code> in the repo directly.</p>
+<h2 id="purpose">Purpose</h2>
+<p>The project answers questions about workflow automations and form architecture that the platform itself does not surface:</p>
+<ul>
+<li><strong>Impact analysis</strong> — given a field, which workflows, validation rules, formulas, and downstream forms depend on it. "What breaks if I rename this field" gets answered before the change is made.</li>
+<li><strong>Discoverability</strong> — given a process or task, which automations and forms already touch it. Keeps a duplicate flow from being built.</li>
+<li><strong>Cross-workspace pattern detection</strong> — given a workflow pattern, whether an equivalent already exists in another workspace. Surfaces consolidation candidates and standardization gaps.</li>
+<li><strong>Architecture documentation</strong> — a navigable map of the system for a new contributor or successor, without reading raw JSON.</li>
+<li><strong>Bus-factor mitigation</strong> — externalizes system knowledge that otherwise lives only with the people who built or maintained the workspaces.</li>
+</ul>
+<h3 id="common-questions-this-answers">Common questions this answers</h3>
+<ul>
+<li>What forms exist in this workspace, and what does each capture?</li>
+<li>If field X is renamed or removed, which workflows and forms break?</li>
+<li>Which workflows fire on changes to the customer master record?</li>
+<li>Where is field X used — across forms, workflows, validation rules, and formulas?</li>
+<li>Do workflows in different workspaces duplicate each other's logic?</li>
+<li>Which automations run on a schedule, and when?</li>
+<li><strong>What changed since the last rebuild or baseline?</strong> Version snapshots under <code>output/snapshots/</code> capture normalized discovery state; <code>--compare</code> reports form, field, workflow, and relationship deltas.</li>
+<li><strong>Do two workflows write the same field?</strong> The explorer flags it directly on the workflow panel — a real race, since nothing guarantees which of two independently-triggered workflows runs last.</li>
+</ul>
+<h2 id="scope">Scope</h2>
+<p><strong>In scope:</strong></p>
+<ul>
+<li>Static metadata extraction from form and workflow JSON exports.</li>
+<li>Normalized inventory and dependency graph generation.</li>
+<li>Field-level "Where Is This Used?" inspection, cross-form and intra-form.</li>
+<li>Multi-workspace aggregation and cross-workspace pattern detection.</li>
+<li>Read-only consumption interfaces: Excel inventory, browser-based explorer, zero-knowledge launcher.</li>
+</ul>
+<p><strong>Not in scope:</strong></p>
+<ul>
+<li>Real-time data inspection. The inventory captures architecture, not record values.</li>
+<li>Editing or write-back to the platform. Form and workflow changes happen in the platform; the inventory reflects them after re-export.</li>
+<li>Live or streaming ingestion. JSON exports are manual today; automated ingestion is a separate future track dependent on platform webhook availability.</li>
+<li>Operational analytics. The inventory feeds analytics but is not itself a reporting layer.</li>
+<li>Platform-side enforcement. The inventory documents what exists; it does not prevent changes it would flag as impactful.</li>
+</ul>
+<p>Per workspace:</p>
+<ul>
+<li><strong><code>output/&lt;slug&gt;/workflow_master_inventory.xlsx</code></strong> — normalized spreadsheet inventory. One row per form, field, relationship, workflow, action, and field-usage event. Field rows also carry validators, computed formulas, filter/visibility conditions, default values, and the same-form fields each references. Filterable for impact analysis ("what breaks if I rename field X").</li>
+<li><strong><code>output/&lt;slug&gt;/workspace_explorer.html</code></strong> — interactive graph. Open in any browser. Zoom, pan, click forms to inspect fields, click the workflow node to see what it touches. Field detail answers "where is this used?" across forms and within the form. The workflow panel also warns when it writes a field another workflow writes too, with a link to the other workflow. Light/dark toggle in the toolbar.</li>
+</ul>
+<p>Across all workspaces:</p>
+<ul>
+<li><strong><code>output/global/cross-workspace-inventory.xlsx</code></strong> — every workspace in one workbook, plus form-name collision and duplicate-flow analysis.</li>
+<li><strong><code>output/global/global-explorer.html</code></strong> — single graph with each workspace as a cluster and duplicate form names linked across clusters. Form nodes link back into the per-workspace explorer.</li>
+<li><strong><code>docs/field-index.json</code></strong> — machine-readable field index published to GitHub Pages on every rebuild. Maps <code>"&lt;slug&gt;/&lt;FormDisplayName&gt;"</code> to an array of <code>{"name", "label", "type"}</code> for every field on that form, across all workspaces. This is a stable integration interface — its structure is a contract for external tools (currently a PDF field-mapper). Do not change key format or field names without migrating consumers.</li>
+</ul>
+<h2 id="quick-start-for-read-only-users">Quick start for read-only users</h2>
+<p>If you just want to see the latest inventory and have never touched Python or git, use the launcher for your platform — no terminal required.</p>
+<ul>
+<li><strong>Windows:</strong> double-click <strong><code>start.bat</code></strong></li>
+<li><strong>macOS / Linux:</strong> double-click <strong><code>refresh-and-open.command</code></strong> (first time on macOS, right-click → <strong>Open</strong> to clear the security prompt)</li>
+</ul>
+<p>The launcher:</p>
+<ol>
+<li>Checks out <code>main</code> and pulls the latest data and code (<code>git checkout main</code> + <code>git pull</code>) if git is available — and continues with the local copy if not.</li>
+<li>Rebuilds the Excel and HTML artifacts.</li>
+<li>Asks which view to open — a workspace by number, or the combined cross-workspace view (the default) — and opens it in your browser.</li>
+</ol>
+<p>If something is missing it prints plain-English instructions instead of failing silently. The one thing it can't install for you is Python itself: get it from &lt;https://www.python.org/downloads/&gt; and check <strong>Add Python to PATH</strong> during install (Windows). Everything else — dependencies included — the launcher offers to set up.</p>
+<h2 id="folder-structure">Folder structure</h2>
+<pre><code>.
+├── data/
+│   └── &lt;slug&gt;/                  one directory per workspace, e.g. sce-be/ (hyphenated slugs)
+│       ├── *.json               ← whole-workspace export(s) — the baseline, if using that format
+│       ├── forms/               ← individual form design exports (override the baseline)
+│       │   └── &lt;form name&gt;/     ← one subfolder per form: drop each new _vNN version here;
+│       │                          older versions stay as history (scanned recursively)
+│       ├── workflows/           ← individual workflow exports (override the baseline)
+│       │   └── &lt;workflow name&gt;/ ← optional: one subfolder per workflow, scanned recursively
+│       └── manual/              ← human-maintained overrides
+│           ├── workspace.json           (slug + display name)
+│           ├── form_aliases.json        (filename → display name; plus name_aliases)
+│           ├── form_roles.json          (explicit Lookup/Spoke role pins)
+│           ├── workflow_metadata.json   (callsigns, criticality, owners)
+│           ├── business_processes.json  (real-world process tagging)
+│           └── explorer_layout.json     (optional preset graph positions)
+├── output/
+│   ├── &lt;slug&gt;/                  ← per-workspace Excel + HTML
+│   ├── global/                  ← cross-workspace Excel + HTML
+│   └── snapshots/               ← version snapshots (&lt;id&gt;.json + manifest.json)
+├── scripts/
+│   ├── parser.py                (Workspace class + shared JSON parser)
+│   ├── narrate.py               (deterministic plain-English narration)
+│   ├── build_inventory.py       (per-workspace Excel builder)
+│   ├── build_explorer.py        (per-workspace HTML builder)
+│   ├── build_global.py          (cross-workspace aggregator)
+│   ├── build_registry.py        (cross-workspace reuse/sameness views)
+│   ├── versioning.py            (snapshot capture + compare)
+│   ├── organize_forms.py        (sweep loose form exports into forms/&lt;Form Name&gt;/ folders)
+│   ├── expand_subform_ops.py    (generate a workflow import: mass-add SubformOperations from a CSV)
+│   ├── md_render.py             (markdown -&gt; HTML for the docs/docs.html viewer)
+│   ├── explorer_template.html   (per-workspace HTML template)
+│   ├── global_template.html     (global HTML template)
+│   └── regenerate.py            (rebuild orchestrator)
+├── start.bat                    (Windows read-only launcher)
+├── refresh-and-open.command     (macOS/Linux read-only launcher)
+├── requirements.txt
+└── README.md</code></pre>
+<h3 id="where-each-export-goes">Where each export goes</h3>
+<p>Anywhere under the workspace's slug directory (<code>data/&lt;slug&gt;/</code>, hyphenated — e.g. <code>data/sce-be/</code>). <strong>The rebuild routes each JSON by its content, not its location:</strong></p>
+<table><thead><tr><th>You exported…</th><th>What the rebuild does with it</th></tr></thead><tbody><tr><td>The <strong>whole workspace</strong> (one JSON, all forms + workflows)</td><td>Baseline. Sets the workspace name, all forms, embedded workflows, and relationships.</td></tr><tr><td>A <strong>single form</strong> design</td><td>Surgical override — matched to its baseline form by <strong>field overlap</strong> (no filename mapping needed), replaces that form's fields/relationships. <strong>Always wins</strong> over the baseline.</td></tr><tr><td>A <strong>single workflow</strong></td><td>Surgical override, matched by <code>(trigger form, name)</code>. <strong>Always wins</strong> over the baseline.</td></tr></tbody></table>
+<p>The <code>forms/</code> and <code>workflows/</code> subfolders still work, scanned recursively; the slug root works just as well. The canonical layout is <strong>one subfolder per form</strong> (<code>forms/300 - Account Management/…</code>) holding that form's versioned exports. Multiple versions of the same form (e.g. <code>_v78</code> and <code>_v79</code> side by side) are <strong>version history, not a mistake</strong>: the highest <code>_vNN</code> wins as the active design, older files stay as history, and the rebuild prints one changelog line per multi-version form (<code>395 - Inspection Work Order: v78 -&gt; v79 active (+1 field)</code>). The active version and its predecessors show up in the Excel Forms sheet (<code>Version</code> / <code>PriorVersions</code>), the explorer's form panel (<code>v79 · 2 versions on file</code>), and a "Version history" section in the form's brief with plain-English per-version changes. A warning only fires when two files carry the <em>same</em> version number. The baseline and individual overrides can coexist; when both describe the same form/workflow, the individual file is treated as the newer surgical update, and each shadowing prints a <code>!</code> warning at rebuild so a stale override stays visible. When you re-export the whole workspace, delete the individual files (all versions). <code>python scripts/organize_forms.py</code> (dry-run; add <code>--apply</code>) sweeps loose form exports into their per-form folders.</p>
+<p>For a brand-new workspace there's nothing to pre-create with the whole-workspace route — just make <code>data/&lt;slug&gt;/</code>, drop the export at its root, and regenerate. See <strong>Adding a new workspace</strong> below.</p>
+<h2 id="rebuild-command">Rebuild command</h2>
+<pre><code>python scripts/regenerate.py                 # rebuild all workspaces + global
+python scripts/regenerate.py --workspace X   # rebuild only workspace X
+python scripts/regenerate.py --global        # rebuild only the global aggregator
+python scripts/regenerate.py --check         # discovery only: counts, orphans, warnings; writes nothing
+python scripts/regenerate.py --snapshot [LABEL]   # capture a version snapshot (no rebuild)
+python scripts/regenerate.py --list-snapshots     # list saved snapshots
+python scripts/regenerate.py --compare OLD NEW [--workspace SLUG] [--compare-json]
+python scripts/regenerate.py --prune-snapshots [N]  # delete old unlabeled snapshots, keep newest N (default 5)</code></pre>
+<p>Full rebuilds auto-save a version snapshot after publish (skipped when unchanged vs <code>latest</code>, or when <code>--no-snapshot</code> is passed). Snapshots live in <code>output/snapshots/</code> and record the normalized discovery state — forms, fields, workflows, relationships — so you can diff two points in time even when <code>data/</code> is not in git. Compare with <code>previous latest</code>, snapshot ids, or labels; scope to one workspace with <code>--workspace</code>. Snapshots are large (~70 MB each), so each auto-snapshot is followed by an auto-prune down to the newest 5 unlabeled snapshots; <strong>labeled snapshots are never pruned</strong>, so pin anything worth keeping with <code>--snapshot LABEL</code>.</p>
+<p>Run from the project root after adding or changing any JSON under <code>data/</code>, then open the relevant file in <code>output/&lt;slug&gt;/</code> (or <code>output/global/</code>) to confirm. Every run ends with a <strong>Rebuild summary</strong> block — totals plus every warning in one place, so nothing scrolls away unseen (<code>start.bat</code> shows it right above its view-choice menu). <code>start.bat</code> also remembers the last view you opened and offers it as the Enter-key default next time.</p>
+<h2 id="first-time-setup">First-time setup</h2>
+<pre><code># Install Python deps
+pip install -r requirements.txt
+
+# Generate artifacts from the JSONs already in data/
+python scripts/regenerate.py</code></pre>
+<p>Python 3.9 or newer. <code>openpyxl</code> is the only runtime dependency.</p>
+<h2 id="standing-operating-procedure">Standing operating procedure</h2>
+<p>When new JSONs come from the platform:</p>
+<ol>
+<li>Export from the platform UI — either the whole workspace (one JSON) or an individual form/workflow.</li>
+<li>Drop it anywhere under <code>data/&lt;slug&gt;/</code> — the rebuild routes it by content (root, <code>forms/</code>/<code>workflows/</code> flat, or in their own subfolder, all scanned recursively). Give the file a clean, self-describing name — it makes the folder readable at a glance instead of carrying the platform's raw export filename.</li>
+<li>Run the rebuild: <code>python scripts/regenerate.py</code> (or <code>--workspace &lt;slug&gt;</code> for just that one). Watch for <code>!</code> warnings — each one names an individual file that is shadowing the workspace baseline.</li>
+<li>Read the per-workspace <strong><code>Orphans:</code></strong> line in the rebuild output (see below).</li>
+<li>Open <code>output/&lt;slug&gt;/workspace_explorer.html</code> to confirm the new node/edge appears.</li>
+<li>Commit + push.</li>
+</ol>
+<p><strong>Orphan check.</strong> After each workspace builds, the rebuild prints an <code>Orphans:</code> line listing any form or grid that renders with <strong>no graph edge</strong> — either an embedded grid whose parent form wasn't in the workspace export (<code>unparented grid</code>), or a form with no relationship or workflow link (<code>isolated …</code>). These show up as floating, disconnected nodes in the explorer (toggle the <strong>Orphaned</strong> filter to see them). The usual remedy is to export that form individually and drop its JSON anywhere under <code>data/&lt;slug&gt;/</code>, which supplies the relationships the whole-workspace export left out; re-run and the node connects. <code>Orphans: none</code> means every form is reachable in the graph. The check is read-only — it never changes the output, just surfaces what to look at.</p>
+<p>Typical workspace-export lifecycle: baseline the workspace with one full export → drop each form's new versioned export into its <code>forms/&lt;Form Name&gt;/</code> folder as it changes (each shows a shadow warning, which is expected; older versions accumulate as history) → when drift accumulates, re-export the whole workspace and delete the individual files (all versions).</p>
+<p><strong>Disabled workflows are surfaced, not hidden:</strong> the Workflows sheet carries a Status column (Active/Disabled), and the explorers render disabled workflows dimmed with an <code>(off)</code> label and a Disabled badge — a configured-but-not-running automation is flagged, never drawn identically to a live one. Subforms (embedded grids from workspace exports) appear as their own slate-colored nodes linked to their parent form.</p>
+<h2 id="manual-tagging">Manual tagging</h2>
+<p>Files in <code>data/&lt;slug&gt;/manual/</code> override or annotate without touching the auto-discovered data. None are required; sensible defaults apply when absent.</p>
+<ul>
+<li><strong><code>workspace.json</code></strong> — the workspace <code>slug</code> and <code>displayName</code> (used as the Excel title and graph heading).</li>
+<li><strong><code>form_aliases.json</code></strong> — two escape hatches, both rarely needed. Filename-stem entries (keyed the same regardless of whether the file sits flat in <code>forms/</code> or in its own subfolder) force a display name when content-matching can't resolve one (form exports are normally matched to the baseline by field overlap automatically). The <code>name_aliases</code> section corrects stale form names that exports still reference (e.g. <code>"Account Management (200)" → "200 - Account"</code>), which would otherwise create phantom lookup nodes.</li>
+<li><strong><code>form_roles.json</code></strong> — explicit role pins (form display name → role), applied last so it always wins. Escape hatch for reference tables the Lookup/Spoke heuristic can't resolve structurally (e.g. <code>Program</code>, <code>Income Thresholds</code>).</li>
+<li><strong><code>workflow_metadata.json</code></strong> — assigns each workflow its callsign, criticality, owner, and business process.</li>
+<li><strong><code>business_processes.json</code></strong> — defines the real-world processes workflows can be tagged against.</li>
+<li><strong><code>explorer_layout.json</code></strong> — optional preset node positions for the graph; without it the explorer uses a force-directed layout.</li>
+</ul>
+<p>Edit these in any editor, then re-run <code>regenerate.py</code>.</p>
+<h2 id="adding-a-new-workspace">Adding a new workspace</h2>
+<p><strong>With a whole-workspace export (preferred):</strong> create <code>data/&lt;slug&gt;/</code> (hyphenated slug), drop the export JSON at its root, and regenerate. Workspace name, forms, workflows, and relationships all come from the export — no manual files needed.</p>
+<p><strong>With individual files:</strong></p>
+<ol>
+<li>Create <code>data/&lt;slug&gt;/</code> and add <code>data/&lt;slug&gt;/manual/workspace.json</code> with the <code>slug</code> and <code>displayName</code>.</li>
+<li>Drop form and workflow JSON exports anywhere under <code>data/&lt;slug&gt;/</code>, and add <code>form_aliases.json</code> filename entries (with no baseline to content-match against, names come from the filename).</li>
+<li>Run <code>python scripts/regenerate.py</code>. Output appears under <code>output/&lt;slug&gt;/</code>, and the global view picks the workspace up automatically.</li>
+</ol>
+<h2 id="adding-a-new-workflow-individual-export">Adding a new workflow (individual export)</h2>
+<ol>
+<li>Build the workflow in the platform and export its JSON.</li>
+<li>Give the file a clean, self-describing name and save it anywhere under <code>data/&lt;slug&gt;/</code> — root, or <code>workflows/</code> flat or in its own subfolder (recursive scan, path doesn't affect matching).</li>
+<li>Optionally add an entry to that workspace's <code>workflow_metadata.json</code> with a callsign and criticality rating (key by filename stem; workflows embedded in a workspace export key by workflow name instead).</li>
+<li>If the workflow references a form by a stale name, add a <code>name_aliases</code> entry in <code>form_aliases.json</code>.</li>
+<li>Regenerate.</li>
+</ol>
+<h2 id="adding-or-updating-a-form-dropping-a-new-version-individual-export">Adding or updating a form / dropping a new version (individual export)</h2>
+<ol>
+<li>Export the form design JSON (the filename carries the <code>_vNN</code> version token — keep it).</li>
+<li>Save it into <code>data/&lt;slug&gt;/forms/&lt;Form Name&gt;/</code> next to any previous versions — the canonical layout. (Anywhere under <code>data/&lt;slug&gt;/</code> also works; the recursive, content-routed scan doesn't care about the path.)</li>
+<li>Regenerate. The rebuild matches the file to its baseline form by field overlap and prints the decision (<code>&lt;file&gt; -&gt; '&lt;form&gt;' (matched N/M fields)</code>); if it warns of a low-confidence match, add a <code>form_aliases.json</code> filename entry naming the form exactly as the baseline spells it.</li>
+<li>If the form now has more than one version on file, the rebuild prints a changelog line (<code>&lt;form&gt;: v78 -&gt; v79 active (+1 field)</code>), the highest version becomes the active design, and the older files stay as history — feeding the brief's "Version history" section, the explorer's version line, and the <code>Version</code>/<code>PriorVersions</code> Excel columns. Don't delete old versions unless you're re-baselining.</li>
+</ol>
+<h2 id="data-sensitivity">Data sensitivity</h2>
+<p>The <code>data/</code> directory (workspace JSON exports) is tracked in this repository. This repo is private — export files may contain embedded notification configurations with email addresses, so keep it that way; do not fork or mirror it to a public location without stripping that data first.</p>
+<h2 id="license">License</h2>
+<p>Proprietary. All rights reserved. See NOTICE for full terms.</p></section>
+  <section class="doc" id="architecture"><h1 id="inventory-architecture-amp-maintenance-notes">Inventory — Architecture &amp; Maintenance Notes</h1>
+<p>Reference for maintaining the inventory pipeline: architecture, data flow, override files, and the rebuild command. Read before modifying the parsers or build scripts.</p>
+<h2 id="what-this-project-is">What this project is</h2>
+<p>A documentation system for platform forms and workflows. It ingests JSON exports (two supported formats — see <em>Ingestion formats</em> below), parses them into a normalized structure, and produces per-workspace and cross-workspace artifacts.</p>
+<p>The project is <strong>multi-workspace</strong>. Each workspace lives under <code>data/&lt;slug&gt;/</code> and gets its own output under <code>output/&lt;slug&gt;/</code>:</p>
+<ul>
+<li><code>output/&lt;slug&gt;/workflow_master_inventory.xlsx</code> — filterable Excel inventory (forms, fields, relationships, workflows, actions, field usage)</li>
+<li><code>output/&lt;slug&gt;/workspace_explorer.html</code> — interactive browser graph (forms as nodes, relationships as edges, workflow node shows what it touches). Fields are grouped by section/page and badged R/W/C where a workflow reads/writes/branches on them. A node filter toolbar toggles workflow types, subforms, lookups, and orphans; a layout dropdown switches between Hierarchy, Dagre, and force-directed.</li>
+</ul>
+<p>A global aggregator combines every workspace into one view under <code>output/global/</code>:</p>
+<ul>
+<li><code>output/global/cross-workspace-inventory.xlsx</code> — all workspaces in one workbook, plus collision and duplicate-flow analysis, and a cross-workspace reuse registry (WorkflowReuse, FormFamilies, FieldTemplates)</li>
+<li><code>output/global/global-explorer.html</code> — single graph with each workspace as a cluster, duplicate form names linked across clusters</li>
+</ul>
+<p>No output file is hand-edited. All are regenerated from the JSON exports in <code>data/</code>.</p>
+<p>Current workspaces (whole-workspace export baseline; all five also carry root-level individual design exports from 2026-06 that override their main forms):</p>
+<ul>
+<li><code>socal-whp</code> — <strong>Workspace A</strong> (98 forms / 54 workflows)</li>
+<li><code>sdge-whp</code> — <strong>Workspace B</strong> (46 forms / 25 workflows)</li>
+<li><code>sce-be</code> — <strong>Workspace C</strong> (36 forms / 22 workflows)</li>
+<li><code>liwp</code> — <strong>Workspace D</strong> (125 forms / 33 workflows)</li>
+<li><code>nve-qar</code> — <strong>Workspace E</strong> (10 forms / 1 workflow)</li>
+</ul>
+<p><code>socal-whp</code> was originally ingested via the individual-file route, then <strong>re-baselined</strong> to a whole-workspace export (its old <code>forms/</code>/<code>workflows/</code> individual files were deleted as that reset). It has since gained individual <code>forms/</code> overrides again. As of 2026-07-10, all five workspaces' individual form exports live in the canonical per-form layout <code>forms/&lt;Form Name&gt;/&lt;versioned export&gt;.json</code> (moved there by <code>scripts/organize_forms.py</code>); name resolution is content-based, so <code>form_aliases.json</code> stem entries are only needed where field-overlap matching can't decide.</p>
+<p><strong>Slug naming convention: hyphens</strong>, not underscores (<code>sce-be</code>, <code>socal-whp</code>).</p>
+<hr>
+<h2 id="multi-workspace-model">Multi-workspace model</h2>
+<p>A workspace is a directory under <code>data/</code> containing any of: <code>forms/</code>, <code>workflows/</code>, <code>manual/</code>, and/or one or more root-level whole-workspace export JSONs. The <code>parser.Workspace</code> class is the unit of work: <code>Workspace(slug).discover()</code> parses one workspace; <code>parser.list_workspaces()</code> enumerates every workspace on disk (any <code>data/*</code> dir holding a <code>forms/</code> or <code>workflows/</code> folder, or a root-level <code>*.json</code>).</p>
+<ul>
+<li>Per-workspace builders (<code>build_inventory</code>, <code>build_explorer</code>) take a <code>Workspace</code> and write under <code>output/&lt;slug&gt;/</code>.</li>
+<li>The global builder (<code>build_global</code>) calls <code>parser.discover_all()</code> (returns <code>{slug: discovered}</code>) and writes under <code>output/global/</code>.</li>
+</ul>
+<p>Nothing in the scripts is workspace-specific. Display name and graph layout live in the workspace's <code>manual/</code> folder (see below), so adding a workspace never means editing code.</p>
+<hr>
+<h2 id="ingestion-formats-amp-precedence">Ingestion formats &amp; precedence</h2>
+<p>Two export formats are supported, detected per file by root shape (<code>parser.detect_format</code>):</p>
+<table><thead><tr><th>Root shape</th><th>Format</th></tr></thead><tbody><tr><td><code>Forms</code> array + workspace metadata (<code>Name</code>/<code>DisplayName</code>)</td><td><strong>whole-workspace export</strong> (the baseline)</td></tr><tr><td><code>Components</code> tree</td><td>individual form design export (override)</td></tr><tr><td><code>Triggers</code>/<code>Steps</code></td><td>individual workflow export (override)</td></tr></tbody></table>
+<p><strong>Placement doesn't matter — content decides.</strong> Every JSON anywhere under <code>data/&lt;slug&gt;/</code> is routed by its detected format: workspace exports become the baseline; form/workflow exports become individual overrides whether they sit at the slug root or in the <code>forms/</code>/<code>workflows/</code> subfolders (both locations work; nothing requires the subfolders). Only an unrecognized JSON is warned about and skipped.</p>
+<p><strong>Individual form exports are name-resolved by content, not filename.</strong> A design export carries no form name or GUID of its own, and the platform's filename conventions drift (a 2026-06 export batch broke the old regex heuristic on every file). <code>Workspace._resolve_form_name()</code> resolves in order: (1) a <code>form_aliases.json</code> filename-stem entry — the explicit escape hatch; (2) <strong>field-overlap match</strong> against the workspace baseline — the baseline form sharing the most field names wins when it covers ≥80% of the export's fields with a ≥1.5× margin over the runner-up, near-ties broken by filename-token similarity (handles tiny lookup forms like Climate Zones); (3) the legacy filename regex heuristic, only when there is no baseline to match against (pure individual-file workspaces). Each resolution prints one line (<code>&lt;file&gt; -&gt; '&lt;form&gt;' (matched N/M fields)</code>); a low-confidence match warns and names the alias escape hatch. Stale filename aliases (stems matching no file on disk) are warned about.</p>
+<p><strong>Same-form version history.</strong> Multiple exports resolving to the same form (e.g. <code>_v78</code> and <code>_v79</code> side by side) are <strong>intentional version history</strong>, not a mistake: the highest <code>_vNN_</code> filename token wins as the active design (tie → <code>forms/</code> placement wins, then filename order), and every export on file is kept as <code>versionHistory</code> on the form — a list of <code>{version, sourceFile, fieldDelta}</code> entries oldest→newest, where <code>fieldDelta</code> records fields added/removed/changed vs the previous version (labels captured at parse time; <code>None</code> on the oldest entry). The form also carries <code>version</code> (the active <code>_vNN</code> as an int, <code>None</code> when the token is absent or the form is baseline-only). Each multi-version form prints one changelog info line at rebuild (<code>[&lt;slug&gt;] &lt;form&gt;: v78 -&gt; v79 active (+1 field)</code>), which does <strong>not</strong> count as a warning; a warning fires only when the winner <em>ties</em> another file on version (same <code>_vNN</code> or both tokenless) — that ambiguity needs a <code>_vNN</code> token or a deletion to resolve. The canonical drop workflow: export the new design, drop it into <code>data/&lt;slug&gt;/forms/&lt;Form Name&gt;/</code> next to the older versions, regenerate.</p>
+<p>Version surfaces: <code>Version</code>/<code>PriorVersions</code> columns in the Forms sheet (active version + superseded list), a <code>Version</code> column in the global AllForms sheet, a <code>v79 · 2 versions on file</code> line in the explorer's form panel, and a newest-first <strong>"Version history"</strong> section in the per-form brief with plain-English per-version deltas ("Added County."). Snapshot compare reports <code>version: 78 -&gt; 79</code> as a form meta change (<code>versionHistory</code> itself is deliberately not diffed). One nuance: <code>versionHistory</code> is serialized into snapshots, so deleting a superseded history file changes the snapshot fingerprint (a new auto-snapshot is written) while <code>--compare</code> reports no field-level differences.</p>
+<p><code>forms/</code> and <code>workflows/</code> are scanned <strong>recursively</strong> (<code>rglob</code>, not <code>glob</code>) — a file can sit directly in the folder or be organized one subfolder per form/workflow. <strong><code>forms/&lt;Form Name&gt;/</code> is the canonical home for a form's version history</strong>: drop each new versioned export into the form's folder and the superseded ones stay there as history. Matching against the baseline is by parsed display name (forms) or <code>(trigger form, name)</code> (workflows), never by path, so subfolder nesting is purely organizational. <code>form_aliases.json</code>/<code>workflow_metadata.json</code> still key off the <strong>filename stem</strong>, unaffected by which folder it's nested in. <code>scripts/organize_forms.py</code> (dry-run by default, <code>--apply</code> to move) sweeps loose individual form exports into their per-form folders.</p>
+<h3 id="whole-workspace-export">Whole-workspace export</h3>
+<p>One JSON carries the entire workspace: metadata, all forms (design tree under <code>FormDesign.Components</code> — a <em>flat</em> list typed by <code>FormDesignComponentType</code>, unlike the individual export's nested tree typed by <code>ComponentType</code>), a flattened <code>Fields</code> array per form, embedded workflows per form (<code>WorkflowConfigs</code>), and <code>FormRelationships</code>. Key differences from the individual format, all normalized inside <code>parser.py</code> so downstream builders are format-agnostic:</p>
+<ul>
+<li><strong>GUID-based, not name-based.</strong> Relationships, reference pulls, and trigger conditions point at <code>FormId</code>/<code>FieldId</code> GUIDs that resolve within the file. <code>parse_workspace_export()</code> builds a workspace-wide GUID→name index first. Consequence: <strong>no <code>form_aliases.json</code> and no <code>name_aliases</code> are needed</strong> for workspace-export data — <code>DisplayName</code> is carried per form and GUID links can't go stale.</li>
+<li><strong>Workflows are embedded per-form</strong> under <code>WorkflowConfigs</code> (<code>EventTrigger</code> like <code>WorkflowUpsertEventConsts:Create|Update|Scheduled</code>, dict-shaped <code>TriggerCondition</code> with type names <em>without</em> the <code>Dto</code> suffix, <code>Actions</code> with handler-specific <code>Configuration</code>). <code>_ws_parse_workflow()</code> maps these onto the same internal model <code>parse_workflow</code> produces. Notification actions (<code>NotificationActionHandler</code>) contribute <code>Read</code> field-usage rows for every <code>{FieldName}</code> template token that matches a host-form field. Unknown handlers degrade to a generic action row.</li>
+<li><strong>Workflow identity is <code>(trigger form, name)</code></strong> — two embedded workflows on different forms can share a name (e.g. "Pending Reviews"). Callsigns are de-duped within a workspace (<code>_2</code>, <code>_3</code> suffixes) since they're node IDs and Excel PKs.</li>
+<li><strong>Subforms.</strong> Most forms in a workspace export are embedded grids (<code>FormDesign: null</code>, <code>TopLevelFormId</code> ≠ own <code>Id</code>). They get role <strong><code>Subform</code></strong>, fields from the flattened <code>Fields</code> array, and a containment relationship <code>parent → subform</code> via <code>"(embedded grid)"</code> so they stay connected in the graph. Duplicate display names get parent-qualified (<code>HouseholdMemberInformation (210 - …)</code>); an orphan grid whose parent isn't in the export is still a <code>Subform</code>, just with no containment edge.</li>
+<li><strong>Disabled workflows</strong> (<code>IsEnabled: false</code>) are surfaced, not hidden: <code>Status</code> column (Active/Disabled) in the Workflows and AllWorkflows sheets, and a dimmed, dash-bordered node with an <code>(off)</code> label plus a "Disabled" badge in both explorers. Individual workflow exports carry no enabled flag and default to Active.</li>
+<li><strong>Extras captured:</strong> form <code>Description</code>, <code>AutoIncrementFormFields</code> (per-field prefix/counter, Fields sheet + field detail), <code>DuplicateResponseConfiguration</code> (summarized rules, Forms sheet), <code>SavedFilters</code> (names/count only, Forms sheet). <code>SecurityPolicy</code> is deliberately not captured.</li>
+</ul>
+<h3 id="precedence-individual-file-always-wins">Precedence: individual file always wins</h3>
+<p>Both formats can coexist in one workspace. The workspace export is the <strong>baseline</strong> (all forms at once); an individual form/workflow export for something that also exists in the baseline <strong>always takes precedence</strong> — it's treated as a surgical update. The tiebreaker is <em>presence</em>, never file mtime: <strong>git does not preserve mtimes</strong>, so newest-file-wins would resolve differently on every clone (the read-only launcher distributes via <code>git pull</code>). Individual-always-wins is deterministic from the file listing alone.</p>
+<ul>
+<li>Form override replaces fields/relationships/refPulls; workspace-only extras (description, saved filters, dup rules) are kept from the baseline.</li>
+<li>Workflow override matches on <code>(trigger form, name)</code>.</li>
+<li>Every shadowing prints a rebuild-time warning (<code>! &lt;form&gt;: individual export (...) overrides workspace baseline (...)</code>) so stale overrides stay visible. When you re-baseline with a fresh workspace export, delete the stale individual files — that's the explicit reset.</li>
+<li>Multiple workspace exports in one slug root merge in filename order (later wins) before individual files are applied.</li>
+</ul>
+<hr>
+<h2 id="workflowtype">WorkflowType</h2>
+<p>Every workflow carries a <code>workflowType</code> field derived from its <strong>export format</strong>, not from where the JSON sits — no manual tagging needed:</p>
+<ul>
+<li><strong><code>Legacy</code></strong> — <code>WorkflowConfigs</code> format, embedded per-form inside a workspace export. The older form-notification system.</li>
+<li><strong><code>WFEngine</code></strong> — <code>Triggers</code>/<code>Steps</code> format. The newer workflow engine. This shape shows up two ways: an individual workflow export file, <strong>or</strong> (as of the 2026-07 platform migration) a top-level <code>Workflows[]</code> array in a whole-workspace export — the same per-workflow object shape, just GUID-resolved against that export's own forms/fields instead of carrying its own <code>ExternalReferences</code> block. A single workspace export could in principle carry both shapes at once (Legacy <code>WorkflowConfigs</code> on some forms, a WFEngine <code>Workflows[]</code> array alongside); both are parsed and merged into one workflow list. <code>Workspace.parse_workflow</code> (individual files) and <code>parse_workspace_export</code>'s <code>Workflows[]</code> loop both funnel through the shared <code>_parse_wfengine()</code> helper in <code>parser.py</code>, so the two ingestion paths can't drift apart. WFEngine's numeric enums (<code>WorkflowEngineTriggerType</code>/<code>DatabaseActionType</code>/<code>...Timing</code>) are normalized to the same plain strings (<code>Create</code>/<code>Update</code>/<code>CreateOrUpdate</code>/<code>FormResponse</code>/<code>Scheduled</code>/…) the rest of the pipeline (narration, explorer joins) expects — see <code>WF_TRIGGER_TYPE</code>/<code>WF_DB_ACTION</code>/ <code>WF_TIMING</code> in <code>parser.py</code>. <code>BuiltIn.SendEmail</code> actions are summarized into the same <code>"To: … · Subject: …"</code> shape Legacy's <code>NotificationActionHandler</code> uses, so narration's email sentence covers both. A <code>BuiltIn.UpdateFormResponse</code> action's <strong><code>SubformOperations</code></strong> parameter (an escaped JSON array of subform row ops, e.g. "Add one WorkOrderMeasures row per measure") is parsed by <code>_parse_subform_operations()</code> in <code>parser.py</code>: each op's <code>FieldAssignments</code> produce <strong>Write</strong> field-usage rows on the subform (feeding the FieldUsage sheet, explorer W badges, and write-conflict detection), each <code>FromTrigger</code> source produces a <strong>Read</strong> row on the trigger form, and the action dict carries an additive <code>subformAdds: [{subform, rows}]</code> key that narration renders as "…and adds four rows to WorkOrderMeasures". Malformed/absent SubformOperations degrade to no rows, same as <code>FieldAssignments</code>. As of the 2026-07 re-export, <strong>all five current workspace baselines use WFEngine</strong> (111 workflows total) — the Legacy embedded path is kept for back-compat but is currently dormant against real data.</li>
+</ul>
+<p><code>WorkflowType</code> appears as a colored column in the Workflows and AllWorkflows sheets. In both explorers, workflow nodes — and their dashed trace edges — are red for Legacy and olive (<code>#9fae5a</code>) for WFEngine, colored from shared <code>--wf-legacy</code>/<code>--wf-engine</code> CSS vars; the legend reads "WF Engine". The Excel column fills (<code>build_inventory.py</code>) are light tints of the same palette (light red = Legacy, light olive = WFEngine), so the workbook and the graph read as one color scheme.</p>
+<hr>
+<h2 id="design-principles">Design principles</h2>
+<p>The two explorers are deliberately separate layers. Keep them that way.</p>
+<ul>
+<li><strong>Global view (<code>output/global/global-explorer.html</code>) — strategic / cross-workspace breadth.</strong> Workspaces as clusters, form-name collisions, duplicate flows. It answers "what spans workspaces, what's duplicated, what does a rename touch." It does not show fields, field detail, or per-field workflow usage.</li>
+<li><strong>Per-workspace view (<code>output/&lt;slug&gt;/workspace_explorer.html</code>) — operational / field-level depth.</strong> Form and field inspection, per-field workflow usage, trigger/action detail. It answers "what is inside this workspace."</li>
+</ul>
+<p>The views complement each other; they do not duplicate capability. The bridge between them is one-directional: clicking a form node in the global view shows an <strong>Open in per-workspace explorer</strong> link that deep-links into the operational view (see below). Depth is reached by navigating <em>to</em> the per-workspace view, never by importing depth <em>into</em> the global view.</p>
+<p>When a feature request would add operational detail (fields, field usage, per-record data) to the global view, or strategic cross-workspace rollups into a single workspace view, question it before implementing — it almost always means the work belongs in the other layer, or belongs in a link between them.</p>
+<h3 id="cross-view-deep-link">Cross-view deep link</h3>
+<p>The global view's per-form link points at <code>../&lt;slug&gt;/workspace_explorer.html#form=&lt;url-encoded form name&gt;</code>. On load, the per-workspace explorer's <code>selectFromHash()</code> reads the <code>form</code> hash param, taps the matching node (<code>cy.$id(name).emit('tap')</code>), and centers on it — so the operational view opens with that form already selected. Form node IDs in both views are the plain display name, which is what makes the handoff work. A <code>#wf=&lt;callsign&gt;</code> hash param does the same for a workflow node (<code>WF:&lt;callsign&gt;</code>) — nothing links out to it, it exists for bookmarking/sharing a workflow URL.</p>
+<h3 id="per-workspace-side-panel-views">Per-workspace side-panel views</h3>
+<p>The per-workspace explorer's side panel has <strong>three view categories</strong>, one per click target:</p>
+<ul>
+<li><strong>Form-detail</strong> — click a node. Shows the form's role, link counts, relationships, touching workflows, and its field list.</li>
+<li><strong>Edge-detail</strong> — click a relationship edge. Shows every individual relationship the edge carries (its name, via-field, target-match-field, and pull count), even when the edge's graph label is an aggregate like "32 relationships · 87 pulls". Header names the source and target form; "View source/target form" buttons pivot to either endpoint. The active edge gets a teal glow (<code>edge.sel</code>) so it's clear which edge drives the panel. Each relationship edge carries its full relationship list on <code>edge.data('rels')</code>, populated when elements are built; the aggregated graph label is intentionally lossy, the edge data is not.</li>
+<li><strong>Field-detail</strong> — click a field within a form's field list. Expands inline with validators, formulas, workflow usage, and the "where is this used?" cross- and intra-form references.</li>
+<li><strong>Workflow-detail via edge</strong> — click a workflow edge (the dashed trigger/action arrows). The edge tap handler's <code>kind === 'wf-edge'</code> branch resolves the workflow from the edge's source/target (<code>WF:&lt;callsign&gt;</code>), highlights it, and renders the same workflow-detail panel a workflow-node click produces. For an <strong>action</strong> edge it then calls <code>scrollToWfAction(targetForm, actionIndex)</code>, scrolling the matching action card into view and flashing its border. Action edges carry <code>actionIndex</code> (their position in the workflow's action list) and cards carry <code>data-action-idx</code>, so the exact action is targeted even when two actions share a target form; when the index is absent it falls back to the first card matching <code>data-action-form</code>. Trigger edges open the panel without scrolling (the trigger sits at the panel top). Relationship edges fall through to the <code>kind === 'relationship'</code> branch (edge-detail above); any other edge kind returns early.</li>
+</ul>
+<p>The workflow-detail panel opens with a <strong>"What this does"</strong> story block — the same <code>narrate.workflow_story()</code> prose the briefs use ("Runs when… / → Sends an email to…"), injected as <code>DATA.wfStories</code> keyed by callsign — followed by the raw trigger/action/field-usage sections.</p>
+<p>If the workflow writes a field that another workflow in the same workspace also writes, a <strong>"⚠ Write conflicts"</strong> block appears next: it names the shared <code>form · field</code> and links to each other writer (<code>cy.$id('WF:&lt;callsign&gt;').emit('tap')</code>, the same node-select pattern edge-detail's "View source/target form" buttons use). This is a real race — nothing guarantees which of two independently-triggered workflows runs last — computed by <code>narrate.build_workflow_conflicts()</code> and injected as <code>DATA.wfConflicts</code> keyed by callsign. Deliberately scoped to <em>write</em> collisions only, not shared triggers: two workflows firing on the same event (e.g. two separate notifications) is common and usually intentional, so it isn't flagged.</p>
+<p><strong>View state is single.</strong> Clicking anywhere replaces the side-panel content — it never stacks. A form-node click renders form-detail, a workflow-node or workflow-edge click renders workflow-detail, a relationship-edge click renders edge-detail, a background click clears the panel; each switch first runs <code>clearHighlights()</code> (which also drops the <code>sel</code> edge class) so no stale selection or prior view survives. Field-detail is the one nested case: multiple field details expand <em>within</em> a single form-detail view, but they reset whenever a different form is opened.</p>
+<p>Edge-detail lives only in the per-workspace explorer, not the global view — it is operational, relationship-level depth, which by the design principle above belongs in the operational layer.</p>
+<hr>
+<h2 id="folder-structure">Folder structure</h2>
+<pre><code>data/
+  &lt;slug&gt;/
+    *.json       ← whole-workspace export(s), if using that format (baseline)
+    forms/       ← individual form design JSON exports (override the baseline)
+                   scanned recursively -- flat, or one subfolder per form:
+                   forms/300 - Account Management/300 - Account Management.json
+    workflows/   ← individual workflow JSON exports (override the baseline)
+                   same recursive scan; optional one subfolder per workflow
+    manual/      ← human-maintained overrides and metadata (see below)
+output/
+  &lt;slug&gt;/        ← per-workspace Excel + HTML
+    forms/       ← per-form printable briefs (generated; so the local explorer's "Open full brief" link resolves)
+  global/        ← cross-workspace Excel + HTML
+  snapshots/     ← version snapshots (&lt;id&gt;.json + manifest.json); git-tracked temporal history
+docs/            ← GitHub Pages publish target (HTML only; generated, not hand-edited)
+  index.html       landing page listing every view (+ featured-form quick-link chips)
+  docs.html        project docs viewer (README/CLAUDE/TODO/NOTICE rendered as tabs)
+  &lt;slug&gt;/explorer.html
+  &lt;slug&gt;/forms/&lt;form&gt;.html   per-form plain-English briefs
+  global/explorer.html
+scripts/
+  parser.py             Workspace class + shared parsing helpers
+  narrate.py            deterministic plain-English narration (form summaries + forward field-trigger model)
+  build_inventory.py    per-workspace Excel builder
+  build_explorer.py     per-workspace HTML builder
+  explorer_template.html    per-workspace HTML template (title + preset injected)
+  brief_template.html       per-form printable brief shell (title + body injected)
+  build_global.py       cross-workspace aggregator (Excel + HTML)
+  build_registry.py     reuse/sameness views (WorkflowReuse, FormFamilies, FieldTemplates) + step-4 suppression
+  versioning.py         snapshot capture + compare (temporal change tracking)
+  organize_forms.py     one-time sweep of loose form exports into forms/&lt;Form Name&gt;/ folders (dry-run; --apply)
+  expand_subform_ops.py mass-expand a WFEngine workflow's SubformOperations from a CSV (dry-run; --apply)
+  md_render.py          minimal deterministic Markdown -&gt; HTML (feeds the docs/docs.html viewer)
+  global_template.html      global HTML template
+  regenerate.py         rebuild orchestrator (CLI) + docs/ publish</code></pre>
+<hr>
+<h2 id="rebuild-command">Rebuild command</h2>
+<pre><code>python scripts/regenerate.py                 rebuild all workspaces + global
+python scripts/regenerate.py --workspace X   rebuild only workspace X (skips global)
+python scripts/regenerate.py --global        rebuild only the global aggregator
+python scripts/regenerate.py --check         discovery only: counts, orphans, warnings; writes nothing
+python scripts/regenerate.py --snapshot [LABEL]
+                                             capture a version snapshot (no rebuild)
+python scripts/regenerate.py --list-snapshots
+                                             list saved snapshots (newest first)
+python scripts/regenerate.py --compare OLD NEW [--workspace SLUG] [--compare-json]
+                                             diff two snapshots (refs: id, label, latest, previous)
+python scripts/regenerate.py --no-snapshot   skip auto-snapshot after a full rebuild
+python scripts/regenerate.py --prune-snapshots [N]
+                                             delete old unlabeled snapshots, keeping
+                                             the newest N (default 5; labeled kept)</code></pre>
+<p>Run from the project root after adding or changing any JSON in <code>data/</code>. Open the relevant <code>output/&lt;slug&gt;/workspace_explorer.html</code> (or <code>output/global/global-explorer.html</code>) to confirm the graph.</p>
+<p><code>--workspace X</code> intentionally does not rebuild the global view; run with no args (or <code>--global</code>) to refresh it. <code>--check</code> is the fast "is my data folder sane?" answer — it parses everything and prints per-workspace counts, orphan counts, and all warnings without touching <code>output/</code> or <code>docs/</code>.</p>
+<h3 id="version-snapshots-and-compare">Version snapshots and compare</h3>
+<p>Full rebuilds (no flags, or default path) auto-save a <strong>version snapshot</strong> after <code>publish_docs()</code> unless <code>--no-snapshot</code> is passed. Snapshots serialize the normalized <code>discover_all()</code> output — the same substrate the builders consume — under <code>output/snapshots/</code>:</p>
+<ul>
+<li><code>&lt;id&gt;.json</code> — full snapshot (all workspaces, forms, fields, workflows, relationships, ref-pulls)</li>
+<li><code>manifest.json</code> — index of snapshots (id, label, created timestamp, per-workspace counts)</li>
+</ul>
+<p>If the discovered state is byte-identical to the latest snapshot, a duplicate is not written. Pin a meaningful baseline with a labeled capture: <code>python scripts/regenerate.py --snapshot pre-migration</code>.</p>
+<p><strong>Retention.</strong> Snapshots are large now that <code>data/</code> is tracked (~70 MB each), so after every auto-snapshot the run <strong>auto-prunes</strong>: unlabeled snapshots beyond the newest <code>versioning.DEFAULT_KEEP</code> (5) are deleted (file + manifest entry, so <code>latest</code>/<code>previous</code> refs stay consistent). <strong>Labeled snapshots are never pruned</strong> — a label marks a deliberately pinned baseline, so anything worth keeping long-term should be captured with <code>--snapshot LABEL</code>. <code>--prune-snapshots [N]</code> runs the same prune standalone with a custom keep count. Each deletion prints one <code>Snapshot pruned:</code> line. Note pruning shrinks the working tree, not git history — blobs of previously-committed snapshots remain in history.</p>
+<p>Compare any two snapshots:</p>
+<pre><code>python scripts/regenerate.py --compare previous latest
+python scripts/regenerate.py --compare 2026-07-01T10-00-00 2026-07-07T14-00-00 --workspace socal-whp
+python scripts/regenerate.py --compare baseline pre-migration --compare-json</code></pre>
+<p>The console report lists forms added/removed/modified (with per-field attribute deltas), workflow trigger/action signature changes, and relationship/ref-pull deltas. <code>--compare-json</code> also writes <code>output/snapshots/compare_&lt;from&gt;_to_&lt;to&gt;.json</code> for tooling. Snapshot refs accept: full/partial id, exact label, <code>latest</code>, or <code>previous</code>.</p>
+<p>Form design drift uses the same fingerprint as <code>build_registry._form_fingerprint()</code>; workflow logic drift uses <code>_exact_hash()</code>. Snapshots are git-tracked alongside <code>output/</code> so commit history carries inventory state; <code>data/</code> (the raw exports) is also tracked now that the repo is private (see <em>Data sensitivity</em> in README.md).</p>
+<p><strong>Rebuild summary block.</strong> Every run ends with a <code>Rebuild summary:</code> block — workspace/form/workflow totals plus every distinct warning collected during the run (<code>parser.WARNINGS</code>; each warning prints once per process via the module-level <code>_PRINTED_ONCE</code> dedupe, even though discovery runs several times per rebuild). start.bat users see this block directly above the view-choice menu.</p>
+<h3 id="orphan-report">Orphan report</h3>
+<p>After each workspace's two builders run, <code>regenerate.rebuild_workspace()</code> prints an <code>Orphans:</code> line via <code>parser.find_orphans(discovered)</code> — a read-only diagnostic, no output-file effect. It lists forms that render with <strong>zero graph edges</strong>, computed to match the explorer's degree-0 reality exactly: an edge exists for a relationship whose target form is present, and for each workflow trigger-form / action-target-form. <strong><code>refPulls</code> are not counted</strong> — they fold into relationship pull totals and don't connect a node on their own. Two reasons are distinguished: <code>unparented grid</code> (a <code>Subform</code> with empty <code>subformOf</code> — its parent wasn't in the workspace export, so no <code>"(embedded grid)"</code> containment edge was drawn) and <code>isolated &lt;role&gt;</code> (a form with no relationship or workflow link). The remedy is the precedence mechanism: drop the form's individual JSON anywhere under <code>data/&lt;slug&gt;/</code> to supply the missing links. <code>Orphans: none</code> = fully connected. (Acceptance baseline as of this writing: <code>sdge-whp</code> 0, <code>sce-be</code> 1, <code>socal-whp</code>/<code>liwp</code> ~39 each — mostly unparented grids those exports don't resolve a parent for.)</p>
+<p><code>discover()</code> is <strong>memoized per <code>Workspace</code> instance</strong> (<code>self._discovered</code>) so the inventory build, explorer build, and orphan report share one parse and the one-time prints (reclassification, role pins) aren't repeated. <code>discover_all()</code> constructs fresh instances, so the global build is unaffected.</p>
+<h3 id="publishing-to-docs-github-pages">Publishing to docs/ (GitHub Pages)</h3>
+<p>Every <code>regenerate.py</code> run ends with <code>publish_docs()</code>, which mirrors the built HTML explorers into <code>docs/</code> — the GitHub Pages source folder (Pages serves <code>main</code> branch <code>/docs</code>). This is part of the standing regenerate behavior, not a separate step: a push after regeneration publishes the current views.</p>
+<ul>
+<li><code>publish_docs()</code> scans <code>output/</code> for whatever explorers exist and copies them, so <code>docs/</code> stays consistent regardless of which build path ran (full, <code>--workspace</code>, or <code>--global</code>). It also writes <code>docs/.nojekyll</code> so Pages serves files verbatim.</li>
+<li>File mapping: <code>output/&lt;slug&gt;/workspace_explorer.html</code> → <code>docs/&lt;slug&gt;/explorer.html</code>; <code>output/global/global-explorer.html</code> → <code>docs/global/explorer.html</code>.</li>
+<li><code>docs/index.html</code> is a generated landing page (dark theme matching the explorer) listing the global view plus each workspace, with a one-line description and the last-regenerated timestamp. It is regenerated each run — never hand-edit it.</li>
+<li><strong><code>docs/docs.html</code></strong> — a "Project documentation" viewer generated by <code>emit_project_docs()</code>: the repo's markdown files (README, CLAUDE.md as "Architecture", TODO.md as "Changelog", NOTICE) rendered to HTML by <code>scripts/md_render.py</code> (stdlib-only, deterministic — no client-side markdown library) with one tab per file and <code>#hash</code> deep links (<code>docs.html#changelog</code>). Linked from the landing page as its last card. Regenerated each run — the browser copy is always one <code>regenerate.py</code> run behind edits to the markdown files.</li>
+<li><strong>Filename rewrite:</strong> the global explorer's cross-view deep links point at the per-workspace file by its <code>output/</code> name (<code>workspace_explorer.html</code>). Because the docs copy is renamed <code>explorer.html</code>, <code>publish_docs()</code> rewrites that string in the global copy so the deep links resolve under Pages. If the per-workspace docs filename ever changes, update that rewrite.</li>
+<li><strong>Excel stays out of <code>docs/</code>.</strong> Pages publishes only the browsable HTML; spreadsheets are pulled from <code>output/</code> in the repo. Don't copy <code>.xlsx</code> into <code>docs/</code>.</li>
+<li><strong><code>docs/field-index.json</code></strong> — machine-readable field index published alongside the explorers. See <em>Field index</em> below.</li>
+<li><strong>Per-form briefs</strong> — <code>emit_form_briefs()</code> writes a printable plain-English brief per form into <strong>both</strong> <code>output/&lt;slug&gt;/forms/&lt;form&gt;.html</code> (so the local explorer's "Open full brief" link resolves when opened from <code>output/</code>) and <code>docs/&lt;slug&gt;/forms/&lt;form&gt;.html</code> (for Pages), plus a per-workspace <strong><code>forms/index.html</code></strong> listing every brief grouped by role (featured first). The landing page's workspace cards link to it ("All form briefs →"). Filenames are Windows-illegal-char-stripped form names (<code>_brief_filename()</code> mirrors what a browser resolves a plain href to). Briefs are presentation-only — they never touch <code>field-index.json</code>. See <em>Plain-English narration</em> below.</li>
+</ul>
+<hr>
+<h2 id="plain-english-narration-form-briefs-workflow-stories-what-triggers-what">Plain-English narration (form briefs + workflow stories + "what triggers what")</h2>
+<p><code>scripts/narrate.py</code> is a <strong>pure, deterministic, filesystem-free</strong> module (no LLM) that turns the discovered data into plain English. <strong>Voice rule: written for the program staffer, not the developer</strong> — field labels over API names (<code>field_display</code>/<code>decamel</code>), workflow display names over callsigns, spelled-out small numbers and real plurals (<code>count_phrase</code>; never "(s)"). <code>build_explorer.build()</code> injects <code>narrate.build_all(data)</code> as <code>DATA.narrative</code> and <code>narrate.build_workflow_stories(data)</code> as <code>DATA.wfStories</code>; <code>regenerate.emit_form_briefs()</code> renders the same output into standalone brief pages. Output shape per form: <code>{"summary": {role_line, collects, connects, workflows, fields, interactions}, "forward": {&lt;field&gt;: {fields:[{target,kind}], wfCondition:[{callsign,name}], writtenBy:[{callsign,name}]}}}</code> (wfCondition/writtenBy entries are objects — renderers show the name, keep the callsign for cross-reference). <code>build_form</code> iterates a <strong>sorted</strong> field-set union so output is byte-identical across processes (hash randomization would otherwise reorder keys).</p>
+<ul>
+<li><strong>Workflow stories.</strong> <code>workflow_story(w, fields_by_form)</code> → <code>{title, callsign, when, then:[…], disabled}</code>: one "Runs when a X record is updated, and only if &lt;plain condition&gt;." sentence plus one sentence per action ("Sends an email to &lt;to&gt; — subject "…"", "Creates a new &lt;form&gt; record, filling in five fields automatically"). Supporting renderers: <code>condition_to_plain</code> (operator words: is / is not / is at least / "compares to" for the unmapped <code>?</code> op; API names → labels; <code>== ''</code> → "is blank"), <code>humanize_schedule</code> (Legacy text like <code>Weekly · day-of-week 1</code> → "weekly on Monday", plus real 5-part cron), <code>_debrace</code> (<code>{ESAKey}</code> → <code>{the record's ESA Key}</code>). Rendered as cards in the brief ("What happens automatically") and as the "What this does" block atop the explorer's workflow panel; disabled workflows get a "Currently switched off" note. The <code>TriggerPlain</code> column in the Workflows/AllWorkflows sheets is <code>story["when"]</code>.</li>
+<li><strong>"What does it collect?" (<code>collects_line</code>).</strong> A deterministic one-sentence answer to the high-level "what does this form gather" question, derived from the form's own structure — never hand-written. For a form whose fields carry <code>section</code> metadata (individual design exports do; workspace-export subforms don't), it names the section titles ranked by field count: <code>"It captures A, B, and C."</code> when ≤4 sections, else <code>"It is organized into N sections, covering areas such as &lt;top four&gt;."</code>. <code>_ADMIN_SECTION_RE</code> de-prioritizes plumbing sections (Notes, Attachments, Deprecated, Acknowledgement…) so real content leads; a lone section that just echoes the form name (or "Overview") yields <code>""</code>. For a <strong>sectionless</strong> embedded grid it falls back to a sample of distinct field labels: <code>"Each row captures details such as X, Y, and Z."</code>. Rendered between <code>role_line</code> and <code>connects</code> in both the brief lead paragraph and the explorer's "What this form does" block. Ranking by count self-prioritizes substantive sections, so no manual section list is needed.</li>
+<li><strong>Brief page structure</strong> (<code>regenerate._render_brief</code>): What this form is for (platform <code>Description</code> first, then the role sentence, then the <code>collects</code> sentence) → What happens automatically (story cards) → Filling it out (field counts + required list) → What changes what (labels first, API name muted, plus a "Filled in automatically" list from <code>writtenBy</code>).</li>
+<li><strong>Forward inversion is the core idea.</strong> <code>dependsOn</code> is stored on the <em>dependent</em> field (B records "I depend on A for my visibility"). <code>build_forward_index()</code> inverts this once per form to answer "what does changing field A activate" — the exact inverse of the read-side loop in <code>fieldDetailHTML()</code> (<code>explorer_template.html</code>), reusing the same four kinds (<code>visibility/formula/validation/filter</code>). Workflow consequences come from <code>fieldUsage</code>: <code>direction==Condition</code> ⇒ "helps decide whether the automated step runs"; <code>direction==Write</code> ⇒ "filled in automatically by … — normally not edited by hand". <code>FORWARD_PHRASE</code>/<code>KIND_BADGE</code> are the phrasing catalog; the explorer template keeps a small JS mirror of them in sync (update both together).</li>
+<li><strong>Where it shows in the explorer:</strong> a "What this form does" prose section + a "Featured" badge in <code>renderForm()</code>; a "Changing this field affects" forward block in <code>fieldDetailHTML()</code> (capped at 6 + overflow); a collapsed-by-default "Field interactions" rollup listing only fields that actually trigger something; and an opt-in, lazily-mounted <strong>interaction mini-diagram</strong> (a second Cytoscape instance, ≤25 nodes, destroyed on panel switch via <code>clearHighlights()</code>). Anti-clutter is deliberate: nothing appears for fields that trigger nothing, and the diagram is off-screen until toggled.</li>
+<li><strong>Featured forms</strong> are highlighted (gold node ring + "Featured" badge) and surfaced first as quick-link chips on <code>docs/index.html</code>. The set is resolved by <code>Workspace.featured_forms()</code>: <code>data/&lt;slug&gt;/manual/featured_forms.json</code> <code>{"featured": [names]}</code> if present, else the <code>FEATURED_KEYWORDS</code> default (name-substring match on account/enrollment/assessment/installation/invoice). Exposed as <code>data["featured"]</code>.</li>
+</ul>
+<hr>
+<h2 id="field-index-integration-artifact">Field index (integration artifact)</h2>
+<p><code>publish_docs()</code> also writes <code>docs/field-index.json</code> on every run. This file is a <strong>stable integration interface</strong> consumed by external tools (currently: a PDF field-mapper). Treat its structure as a contract — do not rename keys, remove fields from the per-field objects, or change the key format without versioning or migrating known consumers.</p>
+<p><strong>Structure:</strong></p>
+<pre><code>{
+  "&lt;slug&gt;/&lt;FormDisplayName&gt;": [
+    {"name": "FieldApiName", "label": "Display Label", "type": "DataType"},
+    ...
+  ]
+}</code></pre>
+<ul>
+<li>Keys are workspace-qualified (<code>"&lt;slug&gt;/&lt;FormDisplayName&gt;"</code>) so forms that share a display name across workspaces are distinct entries. Example: <code>"workspace-a/Customer Account"</code> vs <code>"workspace-b/Customer Account"</code>.</li>
+<li>Field arrays follow discovery order (design-tree order for individual exports; definition order for workspace exports).</li>
+<li>Lookup stubs (forms referenced but not exported) have an empty field array <code>[]</code>.</li>
+<li>The file is generated by <code>emit_field_index()</code> in <code>regenerate.py</code>, which calls <code>discover_all()</code> and pulls <code>name</code>, <code>label</code>, and <code>type</code> from each field dict. Adding new keys to the per-field object is additive and safe; removing or renaming existing keys is a breaking change.</li>
+</ul>
+<hr>
+<h2 id="data-flow">Data flow</h2>
+<pre><code>data/&lt;slug&gt;/*.json (workspace) ──┐
+data/&lt;slug&gt;/forms/*.json       ──┤
+data/&lt;slug&gt;/workflows/*.json    ─┼─► Workspace.discover() ─┬─► build_inventory.build(ws) ─► output/&lt;slug&gt;/*.xlsx
+data/&lt;slug&gt;/manual/*.json      ──┘   (baseline + override   └─► build_explorer.build(ws)  ─► output/&lt;slug&gt;/*.html
+                                      merge happens here)
+
+all workspaces ─► parser.discover_all() ─► build_global.build() ─┬─► build_registry.compute_registries(agg)
+                                                                │     (WorkflowReuse, FormFamilies, FieldTemplates,
+                                                                │      formFingerprints for step-4 suppression)
+                                                                └─► output/global/*.xlsx + *.html</code></pre>
+<h3 id="parserpy-internals">parser.py internals</h3>
+<p>Pure parsing helpers (<code>_walk</code>, <code>_expr_to_text</code>, <code>_summarize_*</code>, <code>_parse_field_assignments</code>, <code>_infer_role</code>) are module-level and filesystem-free. Everything path-dependent is a method on <code>Workspace</code>, which caches the workspace's <code>form_aliases.json</code>.</p>
+<p><strong>Form parsing</strong> (<code>Workspace.parse_form</code>):</p>
+<ul>
+<li><code>_walk()</code> recursively visits the <code>Components</code> tree, skipping layout containers (<code>LAYOUT_TYPES</code>), collecting data fields.</li>
+<li>Each field extracts name, label, data type, component type, required/hidden/enabled flags.</li>
+<li><code>FormRelationshipInput</code> fields produce <code>relationships</code> (form-to-form links).</li>
+<li><code>FormRelationshipReferenceDataInput</code> fields produce <code>refPulls</code> (cross-form data pulls).</li>
+<li><code>_extract_field_config()</code> pulls per-field logic: <code>validator</code> (node-level type), computed <code>formula</code> (Computed <code>AdvancedConfiguration</code> / DropDown <code>ValueAdvancedConfiguration</code>), <code>visibility</code> (<code>HiddenAdvancedConfiguration</code>), conditional-required (<code>RequiredAdvancedConfiguration</code>), picklist <code>filter</code> (node-level <code>Filter</code>), and <code>defaultValue</code>. Each yields a <code>dependsOn</code> map of the same-form fields it references. References come from a config's <code>.Fields[].FieldName</code> array (code-based JS rules) and from <code>@Field.X</code> tokens inside builder expressions (<code>_config_field_refs</code>, which base64-decodes encoded expressions). This is the intra-form half of the field "Where Is This Used?" view; <code>refPulls</code> is the cross-form half.</li>
+<li>Form display name is resolved by <code>Workspace._resolve_form_name()</code>: alias entry → field-overlap match against the baseline → filename regex heuristic (<code>guess_form_name</code>, kept only as the no-baseline fallback). Relationship targets from <code>RelatedFormNormalized</code> payloads are canonicalized through <code>name_aliases</code>.</li>
+</ul>
+<p><strong>Workflow parsing</strong> (<code>Workspace.parse_workflow</code>):</p>
+<ul>
+<li>Resolves form/field names via <code>ExternalReferences</code> GUID→name lookup.</li>
+<li><strong>Before building <code>ref_by_id</code></strong>, all <code>FormName</code> values in <code>ExternalReferences</code> are normalized through <code>Workspace.canonicalize_name()</code> so stale/abbreviated names in workflow exports are corrected.</li>
+<li>Extracts trigger (form, condition, timing) and steps/actions (target form, field assignments, duplicate policy).</li>
+<li>Produces <code>fieldUsage</code> rows for every field the workflow reads or writes.</li>
+</ul>
+<p><strong>Workspace-export parsing</strong> (<code>parse_workspace_export</code>, module-level): builds the GUID→name index, resolves display names (with subform parent-qualification for duplicates), parses each form's flat component list through the shared <code>_node_to_field()</code> (the same per-node extraction <code>_walk</code> uses for nested trees), backfills design-less subforms from the flattened <code>Fields</code> arrays, and maps embedded <code>WorkflowConfigs</code> onto the internal workflow model. The expression helpers (<code>_expr_to_text</code>, <code>_extract_condition_fields</code>) accept both JSON-string and dict conditions and match type names by prefix (<code>Grouping</code> vs <code>GroupingDto</code>).</p>
+<p><strong><code>Workspace.discover()</code></strong> loads the workspace-export baseline (cached on the instance), overlays individual <code>forms/</code> and <code>workflows/</code> exports per the precedence rule (warning on each shadow), auto-stubs any referenced-but-unprovisioned form as role <code>"Lookup"</code>, and de-dupes workflow callsigns. It then runs two role passes. (1) <strong>Lookup→Spoke reclassification</strong> — <code>_infer_role</code> alone tags any form with <em>no relationship fields</em> as <code>Lookup</code>, which wrongly catches real leaf forms (surveys, inspections, inventory) that simply don't link out. The pass promotes a <code>Lookup</code>-tagged form to <code>Spoke</code> unless it shows a reference signal: it is a <strong>pull-target</strong> (a <code>FormRelationshipReferenceDataInput</code> destination), an <strong>incoming-relationship target</strong> (some form has an FK-like <code>FormRelationshipInput</code> edge into it; <code>"(embedded grid)"</code> containment edges excluded), or a <strong>0-field auto-stub</strong> (referenced-but-not-exported). Forms with none of those signals are structurally indistinguishable from real standalone forms, so they are promoted. (2) <strong><code>form_roles.json</code> manual override</strong> (see below) runs last and wins in both directions — the escape hatch for irreducibly-ambiguous reference tables the heuristic can't detect (<code>Program</code>, <code>Income Thresholds</code>, <code>Project Breakdown Backup</code>), which have no structural connection of any kind in the export and would otherwise be promoted. Returns a dict that also carries <code>slug</code> and <code>workspaceName</code>.</p>
+<h3 id="build_globalpy-internals">build_global.py internals</h3>
+<ul>
+<li><strong>Form-name collisions</strong> — display names carried by 2+ workspaces. These are the rename-impact targets (the <code>FormNameCollisions</code> sheet, teal dashed links in the global graph).</li>
+<li><strong>Duplicate flows</strong> — workflows sharing a signature <code>"&lt;trigger action&gt; -&gt; &lt;sorted target forms&gt;"</code>. Two workflows in different workspaces with the same signature are likely the same flow replicated (the <code>DuplicateFlows</code> sheet).</li>
+</ul>
+<p><code>build()</code> also calls <code>build_registry.compute_registries(agg)</code> (see below). The three registry sheets are appended to the workbook by <code>build_registry.add_sheets(wb, reg)</code> inside <code>_build_excel</code>, and <code>_build_html</code> consumes <code>reg["formFingerprints"]</code> for the collision-link suppression filter (view 4).</p>
+<h3 id="build_registrypy-internals-reuse-sameness-views">build_registry.py internals (reuse / sameness views)</h3>
+<p><code>scripts/build_registry.py</code> adds three <strong>flat, classifying</strong> views to the global build. Governing rule: <strong>sameness is metadata, not topology</strong> — no view creates instance→instance or form→shared-field edges. The only graph effect is the suppression filter in view 4, which <em>removes</em> links, never adds them.</p>
+<p><strong>Field substrate.</strong> The per-field arrays come from <code>agg["discovered"][slug]["fields"]</code> (the same source <code>regenerate.emit_field_index()</code> reshapes into <code>docs/field-index.json</code>), read <strong>in-memory, not from the published JSON</strong>. <code>build_global</code> runs <em>before</em> <code>publish_docs()</code> rewrites that file, so the on-disk copy is one run stale; the in-memory source is current and identical in content. <code>compute_registries(agg)</code> is the entry point; <code>add_sheets(wb, reg)</code> writes the sheets.</p>
+<ul>
+<li><strong><code>WorkflowReuse</code></strong> — workflows keyed by <strong>pattern</strong>, not by <code>_flow_signature</code> (which degenerates: all Legacy actions are Notifications with empty <code>targetForm</code>, collapsing ~65 workflows into one bucket). Pattern key = <code>(trigger.form, trigger.databaseAction, recipient_roles)</code>, where <code>recipient_roles</code> = sorted <code>{...Email}</code> tokens pulled from each <code>action.matchOn</code> via <code>re.findall(r'\{(\w*[Ee]mail\w*)\}', …)</code>; empty → <code>("(static/other)",)</code>. An <strong>exact-hash</strong> per workflow (<code>sha1</code> over <code>databaseAction</code>, <code>timing</code>, <code>condition</code>, sorted action tuples, sorted <code>Write</code> field usages — deliberately <strong>excluding the trigger form</strong>) detects literal twins. <code>ExactTwinGroups</code>/<code>DriftFlag</code> measure drift <em>within</em> a pattern (<code>Single</code> = 1 instance; <code>Twin</code> = ≥2 instances, 1 hash; <code>Drift</code> = ≥2 instances, &gt;1 hash). The <code>LiteralTwin</code> column surfaces <strong>cross-pattern</strong> twins — because the hash excludes the trigger form, two workflows that fire on differently-named forms in different workspaces (e.g. the same logic on <code>Form A (v2)</code> in one workspace vs <code>v1 - Form A</code> in another) share a hash but land in different pattern keys, which the per-pattern columns structurally cannot see.</li>
+<li><strong><code>FormFamilies</code></strong> — forms grouped by design <strong>fingerprint</strong> = <code>sha1</code> over the deduped, <strong>case-folded-name + type</strong> set from the field substrate. Case-folding collapses case-variant duplicates (<code>Zipcode</code>/<code>ZipCode</code>/<code>ZIPCode</code>); type is <strong>kept</strong>, so a field re-typed in one workspace (socal-whp's ZIP as <code>Integer</code> vs <code>Text</code> elsewhere) splits the fingerprint — that is real design drift and isn't hidden. Sheet shows families with <code>MemberCount ≥ 2</code> only. <code>IntentTag</code> is <strong>role-based per spec</strong>: all members <code>role==Lookup</code> → <code>reference-replication (intentional)</code>, else <code>divergence-candidate</code>. (Consequence of the type-sensitive fingerprint: a shared Lookup table present in three workspaces may form a 3-member family while a fourth workspace is a separate singleton if it typed a key field differently — e.g. as <code>Integer</code> vs <code>Text</code>.)</li>
+<li><strong><code>FieldTemplates</code></strong> — every field keyed by <code>(name, type)</code> (literal, not case-folded), recording <strong>spread</strong> across forms (<code>FormCount</code>, capped <code>Forms</code> list with overflow count). Records spread; never unifies.</li>
+</ul>
+<p><strong>View 4 — explorer anti-spaghetti filter</strong> (<code>build_global._build_html</code>). A form-name collision link is suppressed when the collision is reference-replication rather than divergence: suppress when <strong>either</strong> every instance is <code>role=Lookup</code> <strong>or</strong> every instance shares one design fingerprint (<code>reg["formFingerprints"]</code>). Divergence collisions (same name, differing designs — Invoice, and the divergent subform grids) keep their links. This is <strong>broader than the view-2 role-based <code>IntentTag</code></strong>: the role branch covers Lookup tables whose designs differ slightly across workspaces (a shared reference table with per-workspace field variations — suppressed via role since its fingerprints differ), the fingerprint branch covers design-identical replicated grids. Acceptance: suppression drops a <strong>minority, not "most"</strong> of collision links — 21 of 47 at first ship, <strong>20 of 47 after the 2026-07 design-override re-ingest</strong> (new form versions shifted a fingerprint); divergent subform grids, Invoice, and any other non-reference-replication collisions remain. The kept/suppressed split prints on every global build (<code>Collision links: N kept, M suppressed</code>).</p>
+<p>All three sheets are <strong>additive</strong>; nothing here changes the <code>docs/field-index.json</code> structure (it's a downstream contract).</p>
+<hr>
+<h2 id="manual-override-files-dataltsluggtmanual">Manual override files (<code>data/&lt;slug&gt;/manual/</code>)</h2>
+<p>Each workspace owns its overrides. None are required; sensible defaults apply when a file is absent.</p>
+<h3 id="workspacejson"><code>workspace.json</code></h3>
+<p>Workspace identity. <code>displayName</code> is used as the Excel title and the graph heading. Resolution order: this file → the workspace export's own <code>DisplayName</code> → the slug. Workspaces ingested via a whole-workspace export don't need this file; if present anyway, it wins (manual = override layer).</p>
+<pre><code>{ "slug": "my-workspace", "displayName": "My Workspace Name" }</code></pre>
+<h3 id="featured_formsjson"><code>featured_forms.json</code></h3>
+<p>Optional. Names the "main" forms to feature — highlighted (gold node ring + "Featured" badge) in the explorer and surfaced first as quick-link chips on <code>docs/index.html</code>. Resolved by <code>Workspace.featured_forms()</code>. Absent = the keyword default (<code>FEATURED_KEYWORDS</code> in <code>parser.py</code>: any form whose display name contains account/enrollment/assessment/installation/invoice). Only names that exist in the workspace are kept.</p>
+<pre><code>{ "featured": ["Customer Account", "Program Enrollment", "Site Assessment"] }</code></pre>
+<h3 id="form_aliasesjson"><code>form_aliases.json</code></h3>
+<p>Two sections in one file.</p>
+<p><strong>Filename-to-display-name mapping</strong> (top-level keys = filename stem without <code>.json</code>):</p>
+<pre><code>{ "my_workspace__form_name_v1_design__1_": "Form Display Name" }</code></pre>
+<p>An <strong>escape hatch, rarely needed</strong>: individual form exports are name-resolved by field overlap against the workspace baseline (see <em>Ingestion formats</em>), so no alias entry is required for override files. Add one only when resolution warns it has no confident match (a genuinely new form with no baseline, or a pathological tie). A stale entry whose stem matches no file on disk triggers a rebuild warning — delete those.</p>
+<p><strong><code>name_aliases</code> section</strong> (maps wrong/stale display names to canonical ones):</p>
+<pre><code>{ "name_aliases": { "Form Old Name": "Form Canonical Name" } }</code></pre>
+<p>Use this when an export references a form by a name that doesn't match the form's canonical display name. Two producers of stale names: a workflow JSON's <code>ExternalReferences</code> (<code>Workspace.canonicalize_name()</code> consults this section for every workflow export), and an individual form export's <code>RelatedFormNormalized</code> relationship payloads (canonicalized in <code>parse_form</code>). Live examples: sce-be maps <code>"Account Management (200)" → "200 - Account"</code>, sdge-whp maps <code>"499 - SDGE Fee Schedule" → "499 - Fee Schedule"</code>, nve-qar maps <code>"QAR Measures" → "Measures"</code> — all names the 2026-06 design exports use that don't match the baseline; without the alias each would auto-stub a phantom Lookup node.</p>
+<h3 id="form_rolesjson"><code>form_roles.json</code></h3>
+<p>Explicit role pins (form display name → role string), applied as the <strong>final step</strong> of <code>Workspace.discover()</code> after the Lookup→Spoke reclassification pass, so manual always wins (consistent with <code>manual/</code> being the override layer). Keyed by form display name; the file is optional and absent = no-op. Pinned roles override the inferred role in both directions (promote or demote). This is the escape hatch for reference tables the role heuristic can't detect structurally (e.g., <code>Program</code>, <code>Income Thresholds</code>, which have zero structural connections yet should remain Lookup). Unrecognized form names warn and skip; each applied pin prints <code>[&lt;slug&gt;] pinned '&lt;form&gt;' role &lt;from&gt; -&gt; &lt;to&gt;</code>.</p>
+<pre><code>{ "Program": "Lookup", "Income Thresholds": "Lookup", "Project Breakdown Backup": "Lookup" }</code></pre>
+<h3 id="workflow_metadatajson"><code>workflow_metadata.json</code></h3>
+<p>Provides <code>callsign</code> (PK in the Excel Workflows sheet), <code>criticality</code> (High/Med/Low), <code>businessProcess</code> (FK into <code>business_processes.json</code>), <code>owner</code> (name and email). Keying: <strong>filename stem</strong> (no <code>.json</code>) for individual workflow exports; <strong>workflow display name</strong> for workflows embedded in a workspace export (they have no file of their own).</p>
+<h3 id="business_processesjson"><code>business_processes.json</code></h3>
+<p>Real-world process definitions (<code>ProcessID</code>, <code>ProcessName</code>, <code>OwnerArea</code>, <code>Description</code>). Loaded into the BusinessProcesses sheet. If absent, a hardcoded default list in <code>build_inventory.py</code> is used.</p>
+<h3 id="explorer_layoutjson"><code>explorer_layout.json</code></h3>
+<p>Optional preset node positions for the explorer graph: <code>{ "&lt;form or WF:callsign&gt;": {"x": N, "y": N} }</code>. When present the graph opens in this hub-and-spoke layout; when absent it falls back to force-directed (<code>cose</code>).</p>
+<hr>
+<h2 id="known-quirks-past-fixes">Known quirks / past fixes</h2>
+<p><strong>Stale form name in workflow export</strong> (now historical — <code>socal-whp</code> was re-baselined to a workspace export so the affected individual workflow file no longer exists; kept as a reference example of the <code>name_aliases</code> mechanism) — a workflow export in <code>socal-whp</code> referenced a form by an old platform name that no longer matched the form's canonical display name. Without canonicalization this left a dangling edge that broke the HTML renderer. Fix: <code>name_aliases</code> entry in the workspace's <code>form_aliases.json</code> + <code>Workspace.canonicalize_name()</code> normalizes the name before GUID→name lookups are built.</p>
+<p><strong>Windows console encoding</strong> — Print statements use <code>-&gt;</code> (ASCII) not <code>→</code> (U+2192) to avoid cp1252 encode errors on Windows. Unicode arrows in Excel cell text are fine (written via openpyxl, not printed).</p>
+<p><strong><code>build_inventory.build</code> parameter is <code>workspace</code>, not <code>ws</code></strong> — the function body uses <code>ws</code> as the local worksheet handle. Passing the <code>Workspace</code> in as <code>ws</code> would shadow it.</p>
+<hr>
+<h2 id="adding-a-new-workspace">Adding a new workspace</h2>
+<p>Slug convention: <strong>hyphens</strong> (e.g. <code>my-workspace</code>), never underscores.</p>
+<p><strong>Preferred — whole-workspace export:</strong></p>
+<ol>
+<li>Create <code>data/&lt;slug&gt;/</code> and drop the workspace export JSON at its root.</li>
+<li>Run <code>python scripts/regenerate.py</code>. That's it — workspace name, form names, workflows, and relationships all come from the export; no manual files required.</li>
+<li>Optionally add <code>manual/</code> overrides (workflow callsigns/owners, explorer layout).</li>
+</ol>
+<p><strong>Individual-file route (when no workspace export is available):</strong></p>
+<ol>
+<li>Create <code>data/&lt;slug&gt;/</code> and add <code>data/&lt;slug&gt;/manual/workspace.json</code> with <code>slug</code> and <code>displayName</code>.</li>
+<li>Drop form and workflow JSON exports anywhere under <code>data/&lt;slug&gt;/</code> (the root works; <code>forms/</code>/<code>workflows/</code> subfolders also work).</li>
+<li>Add <code>form_aliases.json</code> filename-stem entries — with no workspace baseline to content-match against, names fall back to the filename heuristic, which the platform's current filenames defeat.</li>
+<li>Run <code>python scripts/regenerate.py</code>. Output appears under <code>output/&lt;slug&gt;/</code>, and the global view picks the workspace up automatically.</li>
+</ol>
+<h2 id="updating-a-form-dropping-a-new-version-surgical-update">Updating a form / dropping a new version (surgical update)</h2>
+<ol>
+<li>Export just that form's design JSON from the platform (the filename carries the <code>_vNN</code> version token).</li>
+<li>Drop it into <code>data/&lt;slug&gt;/forms/&lt;Form Name&gt;/</code> next to the previous versions — the canonical layout. (Anywhere under <code>data/&lt;slug&gt;/</code> also works: content routing sorts it out.) No alias entry needed: the file is matched to its baseline form by field overlap.</li>
+<li>Regenerate — the rebuild log prints the match decision, one changelog line (<code>&lt;form&gt;: v78 -&gt; v79 active (+1 field)</code>), and warns that the individual file now shadows the baseline. Those lines are expected. Older version files <strong>stay in the folder as history</strong> — they feed the brief's "Version history" section and the <code>PriorVersions</code> Excel column; no need to delete them.</li>
+<li>If the new design references a form by a renamed/stale name (rebuild shows a new phantom Lookup node or an auto-stub), add a <code>name_aliases</code> entry mapping the stale name to the canonical one.</li>
+<li>When you re-baseline with a fresh whole-workspace export, delete the individual files (all versions) — that's the explicit reset.</li>
+</ol>
+<h2 id="adding-a-new-workflow">Adding a new workflow</h2>
+<ol>
+<li>Export the workflow JSON from the platform.</li>
+<li>Drop it anywhere under <code>data/&lt;slug&gt;/</code> (root, <code>workflows/</code> flat, or <code>workflows/&lt;workflow name&gt;/</code>).</li>
+<li>Optionally add an entry to that workspace's <code>workflow_metadata.json</code> with callsign, criticality, owner, businessProcess.</li>
+<li>If the workflow references any form by a stale name, add a <code>name_aliases</code> entry in <code>form_aliases.json</code>.</li>
+<li>Run <code>python scripts/regenerate.py</code> (or <code>--workspace &lt;slug&gt;</code>).</li>
+</ol>
+<h2 id="generating-a-workflow-import-mass-adding-subformoperations">Generating a workflow import (mass-adding SubformOperations)</h2>
+<p>The WF Engine's import/export makes repetitive update workflows hand-editable, but the <code>SubformOperations</code> parameter (escaped JSON-array-in-a-string; <strong>one <code>"Add"</code> op per subform row</strong>) is error-prone to edit by hand. <code>scripts/expand_subform_ops.py</code> generates it from a CSV, validating every field name against <code>docs/field-index.json</code>:</p>
+<pre><code>python scripts/expand_subform_ops.py TEMPLATE.json MAPPING.csv --workspace SLUG
+       [--out PATH] [--step NAME] [--action NAME] [--apply]</code></pre>
+<ul>
+<li><strong>TEMPLATE.json</strong> — an exported workflow whose <code>BuiltIn.UpdateFormResponse</code> action already carries a <code>SubformOperations</code> parameter with ≥1 op. The first op is the <strong>prototype</strong>: all its non-<code>FieldAssignments</code> keys (<code>SubformFormId</code>, <code>MatchPolicy</code>, …) are cloned verbatim into every generated op, so the script never hardcodes the op schema or any GUIDs. Trigger form and subform names resolve from the template's <code>ExternalReferences</code>.</li>
+<li><strong>MAPPING.csv</strong> — header row = subform field API names (<code>MeasureName,MeasureQty,...</code>); each data row becomes one <code>"Add"</code> op (empty cell = assignment omitted). A cell that exactly matches a trigger-form field API name becomes <code>FromTrigger</code>; anything else becomes <code>Constant</code>. Prefix overrides: <code>=value</code> forces Constant, <code>@FieldName</code> forces FromTrigger (hard error if not a trigger field). Read as <code>utf-8-sig</code> (Excel BOM safe).</li>
+<li>Validation is fail-loud: unknown CSV headers, missing <code>&lt;slug&gt;/&lt;form&gt;</code> index keys (with closest-key suggestions), bad <code>@</code> references — all errors print, exit 1, nothing written. Casing near-misses on trigger fields warn only.</li>
+<li><strong>Dry-run by default</strong> (prints a per-row resolution table); <code>--apply</code> writes <code>&lt;template stem&gt;.expanded.json</code> (or <code>--out</code>). Only the SubformOperations <code>StaticValue</code> changes — the rest of the template is byte-preserved (standard <code>\"</code> JSON escaping, which the platform accepts in place of its own <code>"</code> style).</li>
+</ul>
+<p>The generated file is imported into the platform; drop the same file under <code>data/&lt;slug&gt;/workflows/</code> if the workflow should also appear in the inventory.</p>
+<hr>
+<h2 id="dependencies">Dependencies</h2>
+<ul>
+<li>Python 3.9+</li>
+<li><code>openpyxl</code> (install: <code>pip install openpyxl</code>)</li>
+<li>No other runtime dependencies.</li>
+</ul></section>
+  <section class="doc" id="changelog"><h1 id="todo">TODO</h1>
+<h2 id="active">Active</h2>
+<p>(none — plans/01–03 executed 2026-07-02, see Done below. The plan documents were removed 2026-07-16 in the markdown consolidation; recover them from git history if the design detail is ever needed.)</p>
+<h2 id="candidates">Candidates</h2>
+<ul>
+<li>Verify the Legacy condition operator enum. Workspace-export trigger conditions render some text-field comparisons as <code>&gt;=</code> (e.g. "Review Status is at least 'Corrections Required'") where equality is almost certainly meant, and operation 12 renders as <code>?</code> ("compares to" in plain English). The op map in <code>parser._expr_to_text</code> was built for WFEngine exports; the Legacy enum may differ. Needs platform documentation or a controlled experiment — do not guess-change the mapping.</li>
+<li>Render record-metadata <code>Comparison</code> guards (LastModifierId vs user GUIDs) compactly instead of dropping them — e.g. one "(plus N system-user rules)" suffix. They're currently filtered out of condition text deliberately (14 GUID clauses drown the readable part, and their operator enum is unverified).</li>
+<li>Snapshot blobs in git history turned out to be a non-issue: measured 2026-07-16, all superseded snapshot blobs together pack to ~4.6 MB (git compresses the repetitive JSON ~20:1), so a history rewrite was evaluated and <strong>skipped</strong> — not worth a force-push + fresh clones for that saving. Revisit only if <code>git count-objects -vH</code> size-pack grows materially; GitHub's &gt;50 MB per-file push warning on new snapshots is about raw file size and is expected/harmless (hard limit is 100 MB).</li>
+<li><code>regenerate.py</code> discovers every workspace up to 4× per full rebuild (per-workspace builds + global + field index + briefs construct fresh <code>Workspace</code> instances). Share one <code>discover_all()</code> result across the run to cut rebuild time roughly in half.</li>
+</ul>
+<h2 id="done">Done</h2>
+<p><strong>Docs viewer + markdown consolidation (2026-07-16).</strong> The landing page gained a "Project documentation" card: <code>emit_project_docs()</code> renders the repo's markdown files (README, CLAUDE.md as "Architecture", TODO.md as "Changelog", NOTICE) into <code>docs/docs.html</code> — one page, one tab per file, <code>#hash</code> deep links — using the new <code>scripts/md_render.py</code>, a stdlib-only deterministic Markdown-to-HTML converter (no client-side JS markdown library, consistent with the repo's zero-dependency HTML generation). Regenerated on every rebuild like the other views. Consolidation: the executed <code>plans/01–03</code> documents were deleted (their outcomes are the Done entries below; git history keeps the full text), leaving four markdown files — README.md, CLAUDE.md, TODO.md, NOTICE.md — each with a distinct audience. Also evaluated and <strong>skipped</strong> the snapshot history rewrite floated earlier: measured, all superseded snapshot blobs pack to ~4.6 MB total, not worth a force-push (see Candidates).</p>
+<p><strong>Snapshot pruning (2026-07-16).</strong> Snapshots grew to ~70 MB each once <code>data/</code> became git-tracked (GitHub warned on push), so <code>versioning.prune_snapshots(keep)</code> now deletes old unlabeled snapshots — file + manifest entry, keeping <code>latest</code>/<code>previous</code> refs consistent — while <strong>labeled snapshots are never pruned</strong> (a label = a deliberately pinned baseline). Full rebuilds auto-prune down to the newest <code>DEFAULT_KEEP</code> (5) after each auto-snapshot; <code>--prune-snapshots [N]</code> runs it standalone. Pruned the repo from 10 snapshots (222 MB) to 5 (178 MB) at ship. Unit tests in <code>tests/test_versioning.py</code>. Note: pruning shrinks the working tree only — blobs of previously-committed snapshots stay in git history (a history rewrite would be needed to reclaim that, tracked under Candidates).</p>
+<p><strong>SubformOperations generator + parsing (2026-07-16).</strong> New <code>scripts/expand_subform_ops.py</code> mass-expands a WFEngine workflow's <code>SubformOperations</code> parameter (the escaped JSON-array-in-a-string on <code>BuiltIn.UpdateFormResponse</code> actions; one <code>"Add"</code> op per subform row) from a CSV — the repo's first tool that <em>generates</em> platform JSON instead of parsing it. Takes an exported workflow as the template (first existing op is the prototype; its scaffold keys and GUIDs are cloned verbatim), validates every CSV header against the subform's fields and every <code>FromTrigger</code> source against the trigger form's fields via <code>docs/field-index.json</code> (fail-loud with closest-match suggestions), infers FromTrigger/Constant per cell (<code>=</code>/<code>@</code> prefix overrides), and writes a full import-ready <code>.expanded.json</code>. Dry-run by default, <code>--apply</code> to write. Verified against a real hand-expanded liwp workflow: generated ops matched the manual edit exactly.</p>
+<p>The parser also learned the parameter: <code>_parse_subform_operations()</code> turns each op's <code>FieldAssignments</code> into Write field-usage rows on the subform (FieldUsage sheet, explorer W badges, write-conflict detection) and Read rows on the trigger form for <code>FromTrigger</code> sources; actions carry an additive <code>subformAdds</code> key that narration renders as "…and adds four rows to WorkOrderMeasures". Previously these subform writes were invisible to the pipeline. No-op against current data (no export on disk carries the parameter yet).</p>
+<p><strong>WFEngine workspace-export parsing + workflow write-conflict detection (2026-07-13).</strong> All five workspace baselines were re-exported by the platform's new workflow engine, which carries workflows as a top-level <code>Workflows[]</code> array (<code>Triggers</code>/<code>Steps</code> shape) instead of the old per-form embedded <code>WorkflowConfigs</code>. The parser only read the old shape, so every workspace was silently reporting 0 workflows (111 dropped fleet-wide: liwp 28, nve-qar 1, sce-be 16, sdge-whp 23, socal-whp 43). <code>parse_workspace_export</code> now parses both shapes through a shared <code>_parse_wfengine()</code> helper (also used by individual workflow-file exports, so the two paths can't drift), normalizes WFEngine's numeric enums (<code>WorkflowEngineTriggerType</code>/<code>DatabaseActionType</code>/<code>...Timing</code>) to the plain strings the rest of the pipeline expects, and summarizes <code>BuiltIn.SendEmail</code> actions into the same <code>"To: … · Subject: …"</code> shape Legacy notifications use so narration covers both. Fixed a real bug the one scheduled workflow surfaced: a leftover <code>databaseAction</code> value on cron triggers was overriding the schedule phrasing in <code>workflow_story</code> — cron now wins.</p>
+<p>Also added a field-write conflict check: the workflow-detail panel now shows a "⚠ Write conflicts" block when a workflow writes a field another workflow in the same workspace also writes — a real race with no guaranteed run order — linking to the other workflow. Scoped to write collisions only, not shared triggers (two workflows firing on the same event is common and usually intentional). <code>narrate.build_workflow_conflicts()</code>, injected as <code>DATA.wfConflicts</code>. Zero conflicts exist in current data; the check guards against future regressions. All 5 workspaces regenerated.</p>
+<p><strong>Form version history (2026-07-10).</strong> Multiple <code>_vNN</code> exports of one form are now first-class history instead of warned-about duplicates: highest version wins as the active design, every export on file lands in a per-form <code>versionHistory</code> (with field-level deltas vs the previous version), and the rebuild prints one changelog line per multi-version form (<code>395 - Inspection Work Order: v78 -&gt; v79 active (+1 field)</code>). Warnings only fire on same-version ties. Surfaces: <code>Version</code>/<code>PriorVersions</code> columns (Forms sheet), <code>Version</code> (global AllForms), <code>v79 · 2 versions on file</code> in the explorer form panel, newest-first "Version history" section in briefs, and <code>version</code> as a compared meta key in snapshot diffs. <code>scripts/organize_forms.py</code> (dry-run/--apply) swept all 33 loose root-level form exports into canonical <code>forms/&lt;Form Name&gt;/</code> folders across the five workspaces (local-only; data/ is gitignored). Field-compare keys now live in <code>parser.FIELD_COMPARE_KEYS</code> (versioning.py imports them). Tests: <code>tests/test_parser_history.py</code> + two new snapshot-compare cases.</p>
+<p><strong>Version snapshots and compare (2026-07-07).</strong> <code>scripts/versioning.py</code> serializes <code>discover_all()</code> output to <code>output/snapshots/</code> with a manifest index. Full rebuilds auto-save when state changes; <code>--snapshot [LABEL]</code> captures on demand; <code>--compare OLD NEW</code> reports form/field/workflow/relationship deltas (console + optional JSON). Reuses <code>build_registry</code> fingerprints for design and workflow logic drift. Unit tests in <code>tests/test_versioning.py</code>.</p>
+<p>Plans 01–03 executed (2026-07-02) — one working session, all verified end-to-end:</p>
+<p><strong>Drop-anywhere ingestion (plans/01).</strong> Root-level JSONs are routed by detected content (workspace export → baseline; form/workflow export → override), so file placement no longer matters. Individual form exports match their baseline form by <strong>field overlap</strong> (all 33 pending 2026-06 design files resolved correctly; Climate Zones via the filename-token tiebreak) with <code>form_aliases.json</code> as the escape hatch; the filename regex heuristic survives only for no-baseline workspaces. Same-form version dedup (v79 beat v78, warned). Stale socal-whp filename aliases removed; unused-alias warning added. Three stale-name phantom stubs (<code>Account Management (200)</code>, <code>499 - SDGE Fee Schedule</code>, <code>QAR Measures</code>) fixed with <code>name_aliases</code> entries (local-only — data/ is gitignored). start.bat README.txt/error text rewritten.</p>
+<p><strong>Plain-English briefs (plans/02).</strong> narrate.py rewritten for the program staffer: platform Description leads each brief, workflow story cards ("Runs when a 310 - Enrollment Intake record is updated, and only if Enrollment Status is 'Pending Review'. → Sends an email to operations@maromaes.com — subject …"), labels over API names, workflow names over callsigns, count_phrase (no "(s)"), plain conditions (<code>condition_to_plain</code>), humanized schedules ("weekly on Monday"), de-braced template tokens ("{the record's ESA Key}"). Fixed <code>_expr_to_text</code> empty-operand joins (the " AND  AND …" garbage); unrenderable <code>Comparison</code> guards are filtered, not shown as noise. Fixed narrative key-order nondeterminism (sorted set union). Brief page restructured (What this form is for / What happens automatically / Filling it out / What changes what + Filled-in-automatically). Explorer JS phrase mirror synced; narrative wfCondition/writtenBy now carry <code>{callsign, name}</code>.</p>
+<p><strong>General improvements (plans/03).</strong> Rebuild summary block (totals + all warnings, collected once per process in <code>parser.WARNINGS</code>); <code>--check</code> discovery-only mode; workflow story panel ("What this does") atop the explorer's workflow detail via <code>DATA.wfStories</code>; per-workspace <code>forms/index.html</code> brief indexes + "All form briefs" landing chips; <code>TriggerPlain</code> column in Workflows/AllWorkflows sheets; Excel WorkflowType fills unified to the graph palette (light red/olive); global sidebar workflow-reuse panel (pattern/DriftFlag/LiteralTwin from the registry); action-index precision on wf-edges (<code>actionIndex</code> → <code>data-action-idx</code>); <code>#wf=&lt;callsign&gt;</code> deep link; brief print page-break rules; start.bat remembers the last-opened view (<code>output/last-view.txt</code>, gitignored).</p>
+<p>Graph search box — both explorers. Per-workspace: <code>runSearch()</code> (#search input) matches forms, fields, and workflows by name, prints a match count, tiers results by hop distance from the match set, and fits to the matches. Global: a <code>#search</code> box matches forms and workspaces and fits to hits. Covers the "find and jump to a form/field on a large graph" need (socal-whp is 97 forms / 54 workflows).</p>
+<p>Workflow trigger/action edges clickable. The edge tap handler's <code>wf-edge</code> branch resolves the workflow from the edge's <code>WF:&lt;callsign&gt;</code> endpoint, highlights it, and renders the workflow-detail panel; action edges then call <code>scrollToWfAction(targetForm)</code> to scroll the matching action card into view and flash its border. Trigger edges open the panel without scrolling. (Known limitation: scroll matches by target form, not action index — tracked under Candidates.)</p>
+<p>Export button copies form fields as markdown table to clipboard. Columns: API Name, Label, Type, Required, WF (R/W/C). Respects active filter and sort. All 5 workspaces regenerated.</p>
+<p>Field-detail breadcrumb. Navigation trail above the form heading once two+ forms visited (A › B › Current). Clicking ancestor back-navigates and truncates forward history. Capped at 5 entries; clears on panel close. All 5 workspaces regenerated.</p>
+<p>Pin a form to the side panel. 'Pin' button in form header locks the panel while clicking nodes/edges/background updates graph highlights normally. Background tap while pinned clears highlights only. × or 'Pinned' releases it. All 5 workspaces regenerated.</p>
+<p>Copy-to-clipboard on field names. Hover any field row to reveal a ⧉ button next to the name; click copies the API name and flashes ✓ for 1.5s. Always copies API name regardless of Name/Label display toggle. navigator.clipboard with execCommand fallback. All 5 workspaces regenerated.</p>
+<p>No results message with clear-filter action. Empty state names the query ("No fields match 'zip'") and offers a 'Clear filter' button that resets the input, refocuses #field-search, and re-renders the list. All 5 workspaces regenerated.</p>
+<p>Persist field-list state across node clicks. formFieldState map keyed by form name; save on every panel transition (renderForm/renderWorkflow/renderEdge/renderEmpty); restore on form open. "Lock" button next to #field-search carries the active filter into unvisited forms. Lock persists in localStorage. All 5 workspaces regenerated.</p>
+<p>Dagre hierarchical layout. Added cytoscape-dagre plugin (rankDir:TB, nodeSep:50, rankSep:100). New "Layout: Dagre" option in the toolbar dropdown alongside existing layouts. All 5 workspaces regenerated.</p>
+<p>Keyboard navigation for field list. Roving-tabindex: Tab from #field-search enters the list (one tab stop), Tab again leaves. ArrowDown/Up move across group boundaries, clamping at ends; Home/End jump to first/last. Enter/Space toggle inline detail; Esc collapses expanded row or returns focus to search. restoreRoving() silently updates tabindexes after every re-render without stealing focus during filtering. a11y: role=listbox / role=option. All 5 workspaces regenerated.</p>
+<p>Visual marker for intra-form field dependencies. Two badges on field rows: DEP (teal, this field's formula/visibility/validation references other fields) and REF'D (lime, other fields on this form reference this one). Precomputed per form render via buildUsedBySet(). Tooltip text clarifies the direction. All 5 workspaces regenerated.</p>
+<p>Sort options for field list. Second dropdown "Sort: Original / Required first / Hidden last / By type" in the toolbar alongside the Name/Label display toggle. Sorts within each section/page group; persisted per-browser via localStorage.</p>
+<p>Node filter toolbar (scripts/explorer_template.html). Filters button after #theme-toggle, checkbox dropdown: Workflows·Legacy, Workflows·WFEngine, Workflows·Disabled, Forms·Subforms, Forms·Lookups, Orphaned. applyFilters() = 4 ordered passes: category → dangling-edge → filter-hygiene (always-on, hides nodes left with zero visible edges) → Orphaned (degree-0 / orphaned flag, toggle only). Per-slug localStorage, default all visible, no re-layout. Regenerated + published across all 5 workspaces.</p>
+<p>Circuit-board edge routing. Bezier → round-taxi (orthogonal right-angle) in both explorer_template.html and global_template.html; field label sits on a horizontal jog. Coexists with pair-fan logic — shared node-pairs fall back to bundled-bezier arcs so their labels don't garble. Routes against the Hierarchy (breadthfirst) layout.</p>
+<p>Name/Label toggle for field list display. Both name and label extracted; UI toggle picks which is primary. Persisted per-browser.</p>
+<p>Workflow-type colors. Legacy = red, WF Engine = olive (#9fae5a); nodes and trace edges colored by type from shared --wf-legacy / --wf-engine vars; legend reads "WF Engine".</p>
+<p>Cross-workspace reuse registry. WorkflowReuse (pattern-keyed, Invoice chain surfaced), FormFamilies (design-fingerprint families, reference-replication tagged), FieldTemplates. Global collision-link suppression: 21 of 47 dropped.</p>
+<p>Group fields by section/page. ParentId-chain reconstruction (workspace-flat + nested walk); fields carry page/section/sort_order. 325 collapses from an 814-field wall to 31 named measure-groups (~806/808 design fields resolved).</p>
+<p>Highlight workflow-touched fields, with direction. Binary .touched highlight plus R/W/C badges from fieldUsage.</p>
+<p>Field detail expands inline beneath the clicked field row. Multiple expand at once; sticky control bar with Collapse all / Expand all (confirms above 20); chevron marks state; resets on form change; filter hides non-matching rows without collapsing.</p></section>
+  <section class="doc" id="notice"><p>All rights reserved.</p>
+<p>This work is safeguarded by Federal Copyright Law, with all rights pertaining to this publication strictly reserved by the copyright holder. Reproduction, distribution, modification, storage in a retrieval system, or transmission of any portion of this material, in any format or by any method (including electronic, mechanical, photocopying, recording, or otherwise), is strictly prohibited without the express, written consent of the publisher.</p></section>
+<script>
+  var tabs = document.querySelectorAll('.tab');
+  var docs = document.querySelectorAll('.doc');
+  function show(id) {
+    var found = false;
+    docs.forEach(function(d) {
+      var on = d.id === id; d.classList.toggle('active', on); found = found || on;
+    });
+    tabs.forEach(function(t) {
+      t.classList.toggle('active', t.dataset.tab === id);
+    });
+    if (found) history.replaceState(null, '', '#' + id);
+    return found;
+  }
+  tabs.forEach(function(t) {
+    t.addEventListener('click', function() { show(t.dataset.tab); window.scrollTo(0, 0); });
+  });
+  if (!show(location.hash.replace('#', ''))) show(docs[0].id);
+</script>
+</body>
+</html>

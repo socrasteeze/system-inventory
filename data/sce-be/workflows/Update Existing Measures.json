@@ -1,0 +1,231 @@
+{
+  "SchemaVersion": 1,
+  "Name": "Update Existing Measures",
+  "Description": "Updates all found existing measures from the Enrollment Form (210)",
+  "OwnerId": "f5d4a227-e4ef-7ff2-b698-3a227ed12652",
+  "LayoutJson": null,
+  "Triggers": [
+    {
+      "Id": "83b53e58-8ec9-bb67-6351-3a227ed12652",
+      "Name": "Start",
+      "WorkflowEngineTriggerType": "FormResponse",
+      "TargetEntityType": "FormResponse",
+      "WorkflowEngineDatabaseActionType": "Update",
+      "WorkflowEngineDatabaseActionTiming": "PostProcessing",
+      "CronExpression": null,
+      "TimeZoneId": null,
+      "ExternalEventName": null,
+      "WorkflowEngineConditionMode": "Basic",
+      "ConditionExpression": "{\"Operation\":1,\"Expressions\":[{\"FormId\":\"cfb539c5-2d77-f9dc-d2d1-3a227ed12652\",\"FormFieldId\":\"76815488-0970-c35d-7df7-3a227ed12652\",\"FieldDataType\":\"Text\",\"Version\":null,\"Operation\":1,\"Aggregation\":0,\"ResponseFieldValue\":{\"Value\":\"Enrollment Approved\",\"type\":\"ConstantTermDto\"},\"ResponseFieldValueList\":[],\"ResponseFieldValueTo\":null,\"ResponseFieldValueCustomLookupValues\":{},\"ResponseFieldValueToCustomLookupValues\":{},\"type\":\"FormFieldComparisonExpressionDto\"},{\"FormId\":\"cfb539c5-2d77-f9dc-d2d1-3a227ed12652\",\"FormFieldId\":\"14f70fd8-8df1-fd2e-7457-3a227ed12652\",\"FieldDataType\":\"Date\",\"Version\":null,\"Operation\":2,\"Aggregation\":0,\"ResponseFieldValue\":{\"Value\":\"2026-07-01T00:00:00-07:00\",\"type\":\"ConstantTermDto\"},\"ResponseFieldValueList\":[],\"ResponseFieldValueTo\":null,\"ResponseFieldValueCustomLookupValues\":{},\"ResponseFieldValueToCustomLookupValues\":{},\"type\":\"FormFieldComparisonExpressionDto\"}],\"type\":\"GroupingDto\"}",
+      "FormId": "cfb539c5-2d77-f9dc-d2d1-3a227ed12652",
+      "WorkspaceId": "29c9e3dd-1ee9-b4d1-e58b-3a227ed12652",
+      "MonitoredFieldsJson": "[\"EnrollmentStatus\"]",
+      "WorkflowEngineFieldChangeMatchMode": "Any",
+      "Dependencies": []
+    }
+  ],
+  "Steps": [
+    {
+      "Id": "7ec50c8c-f2ab-c333-6904-3a227ed12652",
+      "Name": "New Action",
+      "Description": null,
+      "SortOrder": 0,
+      "IsEntryStep": true,
+      "ExecutionMode": 0,
+      "MaxRetries": 0,
+      "RetryDelaySeconds": 60,
+      "ConditionExpression": null,
+      "Actions": [
+        {
+          "Id": "fd4945b3-4563-61cf-0193-3a227ed12652",
+          "ActionType": "BuiltIn.UpdateFormResponse",
+          "DisplayName": "New Action",
+          "SortOrder": 0,
+          "ContinueOnError": false,
+          "Parameters": [
+            {
+              "ParameterName": "TargetResolution.ConditionMode",
+              "ValueType": "Static",
+              "StaticValue": null,
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "string",
+              "IsSecret": false,
+              "SortOrder": 2
+            },
+            {
+              "ParameterName": "FormId",
+              "ValueType": "Static",
+              "StaticValue": "c7c3c1b3-d9ed-bcef-a452-3a227ed12652",
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "form-picker",
+              "IsSecret": false,
+              "SortOrder": 1
+            },
+            {
+              "ParameterName": "FieldAssignments",
+              "ValueType": "Static",
+              "StaticValue": "[{\"FieldName\":\"ExistingHVACSystemType1\",\"ValueType\":\"FromTrigger\",\"Value\":\"SystemType1\"},{\"FieldName\":\"ExistingHVACFuelSource\",\"ValueType\":\"FromTrigger\",\"Value\":\"CentralFurnaceFuelType1\"},{\"FieldName\":\"ExistingOtherFuelSource1\",\"ValueType\":\"FromTrigger\",\"Value\":\"OtherFurnaceFuelType1\"},{\"FieldName\":\"ExistingHVACTons1\",\"ValueType\":\"FromTrigger\",\"Value\":\"Tons1\"},{\"FieldName\":\"ExistingHVACPhoto1\",\"ValueType\":\"FromTrigger\",\"Value\":\"CondenserPackagePhoto\"},{\"FieldName\":\"ExistingHVACDataPlate1\",\"ValueType\":\"FromTrigger\",\"Value\":\"CondenserPackageDataPlate\"},{\"FieldName\":\"ExistingHVACSystemType2\",\"ValueType\":\"FromTrigger\",\"Value\":\"SystemType2\"},{\"FieldName\":\"ExistingHVACFuelSource2\",\"ValueType\":\"FromTrigger\",\"Value\":\"CentralFurnaceFuelType2\"},{\"FieldName\":\"ExistingOtherFuelSource2\",\"ValueType\":\"FromTrigger\",\"Value\":\"OtherFurnaceFuelType2\"},{\"FieldName\":\"ExistingHVACBrand2\",\"ValueType\":\"FromTrigger\",\"Value\":\"SystemType2\"},{\"FieldName\":\"ExistingHVACTons2\",\"ValueType\":\"FromTrigger\",\"Value\":\"Tons2\"},{\"FieldName\":\"ExistingHVACPhoto2\",\"ValueType\":\"FromTrigger\",\"Value\":\"CondenserPackagePhoto2\"},{\"FieldName\":\"ExistingHVACDataPlate2\",\"ValueType\":\"FromTrigger\",\"Value\":\"CondenserPackageDataPlate2\"},{\"FieldName\":\"ExistingWaterHeaterFuel\",\"ValueType\":\"FromTrigger\",\"Value\":\"WaterHeaterFuelType\"},{\"FieldName\":\"ExistingWaterHeaterPhoto\",\"ValueType\":\"FromTrigger\",\"Value\":\"ExistingWaterHeaterPhoto\"},{\"FieldName\":\"ExistingWaterHeaterDataPlate\",\"ValueType\":\"FromTrigger\",\"Value\":\"ExistingWaterHeaterDataPlate\"},{\"FieldName\":\"WaterHeaterSize2\",\"ValueType\":\"FromTrigger\",\"Value\":\"WaterHeaterSize2\"},{\"FieldName\":\"ExistingWaterHeaterFuelSource2\",\"ValueType\":\"FromTrigger\",\"Value\":\"WaterHeaterFuelType2\"},{\"FieldName\":\"ExistingWaterHeaterPhoto2\",\"ValueType\":\"FromTrigger\",\"Value\":\"ExistingWaterHeaterPhoto2\"},{\"FieldName\":\"ExistingWaterHeaterDataPlate2\",\"ValueType\":\"FromTrigger\",\"Value\":\"ExistingWaterHeaterDataPlate2\"},{\"FieldName\":\"ExistingClothesDryerFuelSource\",\"ValueType\":\"FromTrigger\",\"Value\":\"ClothesDryerFuelType\"},{\"FieldName\":\"ExistingClothesDryerOtherFuelSource\",\"ValueType\":\"FromTrigger\",\"Value\":\"OtherClothesDryerFuelType\"},{\"FieldName\":\"ExistingClothesDryerClothesPhoto\",\"ValueType\":\"FromTrigger\",\"Value\":\"ClothesDryerPhoto\"},{\"FieldName\":\"ExistingClothesDryerDataPlate\",\"ValueType\":\"FromTrigger\",\"Value\":\"ClothesDryerDataPlate\"},{\"FieldName\":\"ExistingAtticInsulationRValue\",\"ValueType\":\"FromTrigger\",\"Value\":\"ExistingInsulationRValue\"},{\"FieldName\":\"ExistingAtticInsulationType\",\"ValueType\":\"FromTrigger\",\"Value\":\"ExistingInsulationType\"},{\"FieldName\":\"AtticSquareFootage\",\"ValueType\":\"FromTrigger\",\"Value\":\"ApproximateAtticSquareFootage\"},{\"FieldName\":\"ExistingAtticInsulationPhoto1\",\"ValueType\":\"FromTrigger\",\"Value\":\"AtticPhoto\"},{\"FieldName\":\"ExistingAtticInsulation2\",\"ValueType\":\"FromTrigger\",\"Value\":\"AtticAccessPhoto\"},{\"FieldName\":\"HVACCheckbox\",\"ValueType\":\"FromTrigger\",\"Value\":\"CentralHeatPump\"},{\"FieldName\":\"WaterHeaterCheckbox\",\"ValueType\":\"FromTrigger\",\"Value\":\"WaterHeater\"},{\"FieldName\":\"Thermostat\",\"ValueType\":\"FromTrigger\",\"Value\":\"SmartThermostat\"},{\"FieldName\":\"Insulation\",\"ValueType\":\"FromTrigger\",\"Value\":\"AtticInsulation\"},{\"FieldName\":\"ClothesDryerCheckbox\",\"ValueType\":\"FromTrigger\",\"Value\":\"ClothesDryer\"},{\"FieldName\":\"CookingApplianceCheckbox\",\"ValueType\":\"FromTrigger\",\"Value\":\"CookingStovetopCookware\"},{\"FieldName\":\"WholeHomeBattery\",\"ValueType\":\"FromTrigger\",\"Value\":\"WholeHomeBatteryCheckbox\"}]",
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "string",
+              "IsSecret": false,
+              "SortOrder": 7
+            },
+            {
+              "ParameterName": "AutoMapMatchingFields",
+              "ValueType": "Static",
+              "StaticValue": null,
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "boolean",
+              "IsSecret": false,
+              "SortOrder": 4
+            },
+            {
+              "ParameterName": "MatchPolicy",
+              "ValueType": "Static",
+              "StaticValue": null,
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "string",
+              "IsSecret": false,
+              "SortOrder": 3
+            },
+            {
+              "ParameterName": "TargetResolution.ResolutionType",
+              "ValueType": "Static",
+              "StaticValue": "FilterBuilder",
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "string",
+              "IsSecret": false,
+              "SortOrder": 5
+            },
+            {
+              "ParameterName": "TargetResolution.FilterExpression",
+              "ValueType": "Static",
+              "StaticValue": "{\"Operation\":1,\"Expressions\":[{\"FormId\":\"c7c3c1b3-d9ed-bcef-a452-3a227ed12652\",\"FormFieldId\":\"bd236bc7-7f38-f4b9-3082-3a227ed12652\",\"FieldDataType\":\"Guid\",\"Version\":null,\"Operation\":1,\"Aggregation\":0,\"ResponseFieldValue\":{\"ContextName\":\"UniqueIDNumber\",\"type\":\"ContextTermDto\"},\"ResponseFieldValueList\":[],\"ResponseFieldValueTo\":null,\"ResponseFieldValueCustomLookupValues\":{},\"ResponseFieldValueToCustomLookupValues\":{},\"type\":\"FormFieldComparisonExpressionDto\"},{\"FormId\":\"c7c3c1b3-d9ed-bcef-a452-3a227ed12652\",\"FormFieldId\":\"4022cf8a-e6a8-6825-231b-3a227ed12652\",\"FieldDataType\":\"Text\",\"Version\":null,\"Operation\":6,\"Aggregation\":0,\"ResponseFieldValue\":{\"Value\":\"Approved\",\"type\":\"ConstantTermDto\"},\"ResponseFieldValueList\":[],\"ResponseFieldValueTo\":null,\"ResponseFieldValueCustomLookupValues\":{},\"ResponseFieldValueToCustomLookupValues\":{},\"type\":\"FormFieldComparisonExpressionDto\"}],\"type\":\"GroupingDto\"}",
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "string",
+              "IsSecret": false,
+              "SortOrder": 6
+            },
+            {
+              "ParameterName": "WorkspaceId",
+              "ValueType": "Static",
+              "StaticValue": "29c9e3dd-1ee9-b4d1-e58b-3a227ed12652",
+              "DynamicSourceField": null,
+              "FormulaExpression": null,
+              "DataType": "string",
+              "IsSecret": false,
+              "SortOrder": 0
+            }
+          ]
+        }
+      ],
+      "Transitions": []
+    }
+  ],
+  "Permissions": [],
+  "ExternalReferences": [
+    {
+      "RefId": "cfb539c5-2d77-f9dc-d2d1-3a227ed12652",
+      "Type": "Form",
+      "WorkspaceName": "SCE - Building Electrification",
+      "FormName": "210 - Enrollment & Assessment Form",
+      "FieldName": null,
+      "UserName": null,
+      "Email": null,
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    },
+    {
+      "RefId": "c7c3c1b3-d9ed-bcef-a452-3a227ed12652",
+      "Type": "Form",
+      "WorkspaceName": "SCE - Building Electrification",
+      "FormName": "255 - BE Installation Form",
+      "FieldName": null,
+      "UserName": null,
+      "Email": null,
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    },
+    {
+      "RefId": "14f70fd8-8df1-fd2e-7457-3a227ed12652",
+      "Type": "FormField",
+      "WorkspaceName": "SCE - Building Electrification",
+      "FormName": "210 - Enrollment & Assessment Form",
+      "FieldName": "EnrollmentApprovedDate",
+      "UserName": null,
+      "Email": null,
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    },
+    {
+      "RefId": "76815488-0970-c35d-7df7-3a227ed12652",
+      "Type": "FormField",
+      "WorkspaceName": "SCE - Building Electrification",
+      "FormName": "210 - Enrollment & Assessment Form",
+      "FieldName": "MAROMAReviewStatus",
+      "UserName": null,
+      "Email": null,
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    },
+    {
+      "RefId": "bd236bc7-7f38-f4b9-3082-3a227ed12652",
+      "Type": "FormField",
+      "WorkspaceName": "SCE - Building Electrification",
+      "FormName": "255 - BE Installation Form",
+      "FieldName": "EnrollmentNumber",
+      "UserName": null,
+      "Email": null,
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    },
+    {
+      "RefId": "4022cf8a-e6a8-6825-231b-3a227ed12652",
+      "Type": "FormField",
+      "WorkspaceName": "SCE - Building Electrification",
+      "FormName": "255 - BE Installation Form",
+      "FieldName": "DesktopReviewStatus",
+      "UserName": null,
+      "Email": null,
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    },
+    {
+      "RefId": "29c9e3dd-1ee9-b4d1-e58b-3a227ed12652",
+      "Type": "Workspace",
+      "WorkspaceName": "SCE - Building Electrification",
+      "FormName": null,
+      "FieldName": null,
+      "UserName": null,
+      "Email": null,
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    },
+    {
+      "RefId": "f5d4a227-e4ef-7ff2-b698-3a227ed12652",
+      "Type": "User",
+      "WorkspaceName": null,
+      "FormName": null,
+      "FieldName": null,
+      "UserName": "adam",
+      "Email": "aaguila@maromaes.com",
+      "OrganizationName": null,
+      "WorkflowName": null,
+      "AttachmentName": null
+    }
+  ]
+}
